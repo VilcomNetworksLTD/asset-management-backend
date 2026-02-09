@@ -1,5 +1,12 @@
-Schema::create('access_controls', function (Blueprint $table) {
-    $table->id();
-    $table->string('access_levels');
-    $table->timestamps();
-});
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class AccessControl extends Model
+{
+    protected $fillable = [
+        'access_levels',
+    ];
+}

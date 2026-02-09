@@ -13,6 +13,15 @@ return new class extends Migration
     {
         Schema::create('assets', function (Blueprint $table) {
             $table->id();
+            $table->string('asset_name');
+            $table->string('asset_category');
+            $table->string('serial_no')->unique();
+            $table->foreignId('supplier_id')->constrained()->onDelete('cascade');
+            $table->foreignId('employee_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('status_id')->constrained()->onDelete('cascade');
+            $table->decimal('price', 10, 2)->nullable();
+            $table->text('warranty_details')->nullable();
+            $table->text('license_info')->nullable();
             $table->timestamps();
         });
     }

@@ -1,8 +1,15 @@
-Schema::create('tickets', function (Blueprint $table) {
-    $table->id();
-    $table->foreignId('asset_id')->constrained();
-    $table->foreignId('employee_id')->constrained();
-    $table->foreignId('status_id')->constrained();
-    $table->text('communication_log')->nullable();
-    $table->timestamps();
-});
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Ticket extends Model
+{
+    protected $fillable = [
+        'asset_id',
+        'employee_id',
+        'status_id',
+        'communication_log',
+    ];
+}

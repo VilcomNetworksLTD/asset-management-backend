@@ -1,7 +1,14 @@
-Schema::create('transfers', function (Blueprint $table) {
-    $table->id();
-    $table->foreignId('employee_id')->constrained();
-    $table->foreignId('asset_id')->constrained();
-    $table->string('status');
-    $table->timestamps();
-});
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Transfer extends Model
+{
+    protected $fillable = [
+        'employee_id',
+        'asset_id',
+        'status',
+    ];
+}

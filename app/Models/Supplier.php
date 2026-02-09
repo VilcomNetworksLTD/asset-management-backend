@@ -1,7 +1,14 @@
-Schema::create('suppliers', function (Blueprint $table) {
-    $table->id();
-    $table->string('supplier_name');
-    $table->string('location');
-    $table->string('contact');
-    $table->timestamps();
-});
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Supplier extends Model
+{
+    protected $fillable = [
+        'supplier_name',
+        'location',
+        'contact',
+    ];
+}

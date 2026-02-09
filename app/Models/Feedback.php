@@ -1,7 +1,16 @@
-Schema::create('feedback', function (Blueprint $table) {
-    $table->id();
-    $table->foreignId('asset_id')->constrained();
-    $table->foreignId('employee_id')->constrained();
-    $table->text('comments');
-    $table->timestamps();
-});
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Feedback extends Model
+{
+    protected $table = 'feedback';
+    
+    protected $fillable = [
+        'asset_id',
+        'employee_id',
+        'comments',
+    ];
+}
