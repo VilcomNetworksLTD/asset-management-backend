@@ -6,36 +6,27 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('tickets', function (Blueprint $table) {
-            $table->id(); 
-            
-            // Foreign Keys
-            $table->foreignId('Employee_ID')->constrained('users')->onDelete('cascade');
-            $table->foreignId('Issue_ID')->constrained('issues')->onDelete('cascade');
-            $table->foreignId('Status_ID')->constrained('statuses')->onDelete('cascade');
-            
-            
-            $table->foreignId('Asset_ID')->nullable()->constrained('assets')->onDelete('cascade');
+            $table->id();
 
-           
-            $table->string('Priority')->default('Medium'); // Low, Medium, High, Urgent
-            $table->text('Description')->nullable();
-            
-            
-            $table->longText('Communication_log')->nullable();
+            $table->unsignedBigInteger('Employee_ID');
+            $table->unsignedBigInteger('Issue_ID')->nullable();
+            $table->unsignedBigInteger('Status_ID');
+            $table->string('Priority')->default('Medium');
+            $table->text('Description');
+            $table->text('Communication_log')->nullable();
 
-            $table->timestamps(); 
+            $table->timestamps(); // replaces your custom 'Timestamp'
+
+            // FOREIGN KEYS
+            $table->foreign('Employee_ID')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('Issue_ID')->references('id')->on('issues')->onDelete('set null');
+            $table->foreign('Status_ID')->references('id')->on('statuses')->onDelete('cascade');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('tickets');

@@ -6,29 +6,25 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('transfers', function (Blueprint $table) {
-            $table->id(); 
-            
-            // Foreign Keys
-            $table->foreignId('Asset_ID')->constrained('assets')->onDelete('cascade');
-            $table->foreignId('Employee_ID')->constrained('users')->onDelete('cascade');
-            $table->foreignId('Status_ID')->constrained('statuses')->onDelete('cascade');
+            $table->id();
 
-            
-            $table->dateTime('Transfer_Date')->useCurrent();
+            $table->unsignedBigInteger('Asset_ID');
+            $table->unsignedBigInteger('Employee_ID');
+            $table->unsignedBigInteger('Status_ID');
+            $table->dateTime('Transfer_Date')->nullable();
 
-            $table->timestamps(); 
+            $table->timestamps(); // replaces your custom 'Timestamp'
+
+            // FOREIGN KEYS
+            $table->foreign('Asset_ID')->references('id')->on('assets')->onDelete('cascade');
+            $table->foreign('Employee_ID')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('Status_ID')->references('id')->on('statuses')->onDelete('cascade');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('transfers');

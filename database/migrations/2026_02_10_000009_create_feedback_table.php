@@ -6,30 +6,23 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        // Matches the $table = 'feedback' property in your model
         Schema::create('feedback', function (Blueprint $table) {
-            $table->id(); // Primary Key
-            
-           
-            $table->foreignId('Asset_ID')->constrained('assets')->onDelete('cascade');
-            $table->foreignId('Employee_ID')->constrained('users')->onDelete('cascade');
-            
-            
-            $table->text('Comments');
-            
-           
-            $table->timestamps(); 
+            $table->id();
+
+            $table->unsignedBigInteger('Asset_ID');
+            $table->unsignedBigInteger('Employee_ID');
+            $table->text('Comments')->nullable();
+
+            $table->timestamps(); // replaces your custom 'Timestamp'
+
+            // FOREIGN KEYS
+            $table->foreign('Asset_ID')->references('id')->on('assets')->onDelete('cascade');
+            $table->foreign('Employee_ID')->references('id')->on('users')->onDelete('cascade');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('feedback');
