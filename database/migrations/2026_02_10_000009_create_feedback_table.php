@@ -11,9 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Matches the $table = 'feedback' property in your model
         Schema::create('feedback', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
+            $table->id(); // Primary Key
+            
+           
+            $table->foreignId('Asset_ID')->constrained('assets')->onDelete('cascade');
+            $table->foreignId('Employee_ID')->constrained('users')->onDelete('cascade');
+            
+            
+            $table->text('Comments');
+            
+           
+            $table->timestamps(); 
         });
     }
 

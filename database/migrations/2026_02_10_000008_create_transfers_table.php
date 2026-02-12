@@ -12,8 +12,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('transfers', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
+            $table->id(); 
+            
+            // Foreign Keys
+            $table->foreignId('Asset_ID')->constrained('assets')->onDelete('cascade');
+            $table->foreignId('Employee_ID')->constrained('users')->onDelete('cascade');
+            $table->foreignId('Status_ID')->constrained('statuses')->onDelete('cascade');
+
+            
+            $table->dateTime('Transfer_Date')->useCurrent();
+
+            $table->timestamps(); 
         });
     }
 

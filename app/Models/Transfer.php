@@ -10,14 +10,7 @@ class Transfer extends Model
 {
     use HasFactory;
 
-    /**
-     * Attributes from ERD:
-     * - Transfer_ID (Primary Key)
-     * - Asset_ID: The piece of equipment being moved.
-     * - Employee_ID: The person receiving the asset.
-     * - Transfer_Date: When the hand-off happened.
-     * - Status: The state of the transfer (e.g., 'Pending', 'Completed', 'Rejected').
-     */
+    
     protected $fillable = [
         'Asset_ID',
         'Employee_ID',
@@ -38,10 +31,7 @@ class Transfer extends Model
         return $this->belongsTo(Asset::class, 'Asset_ID', 'id');
     }
 
-    /**
-     * Relationship: Transfer belongs to an Employee (The Recipient).
-     * Relevance: Shows who is taking over responsibility for the equipment.
-     */
+    
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'Employee_ID', 'id');
