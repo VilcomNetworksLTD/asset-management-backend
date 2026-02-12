@@ -8,23 +8,23 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('permissions', function (Blueprint $table) {
+        Schema::create('feedback', function (Blueprint $table) {
             $table->id();
 
+            $table->unsignedBigInteger('Asset_ID');
             $table->unsignedBigInteger('Employee_ID');
-            $table->string('Role');
-            $table->string('Permission_Level');
-            $table->string('Module');
+            $table->text('Comments')->nullable();
 
-            $table->timestamps(); // Laravel default timestamps
+            $table->timestamps(); // replaces your custom 'Timestamp'
 
-            // FOREIGN KEY
+            // FOREIGN KEYS
+            $table->foreign('Asset_ID')->references('id')->on('assets')->onDelete('cascade');
             $table->foreign('Employee_ID')->references('id')->on('users')->onDelete('cascade');
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('permissions');
+        Schema::dropIfExists('feedback');
     }
 };
