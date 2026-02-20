@@ -19,7 +19,7 @@ class Asset extends Model
         'License_Info',
         'Price',
         'Timestamp',
-        'Issue-ID',
+        'Issue_ID',
     ];
 
     /* RELATIONSHIPS */
@@ -36,15 +36,15 @@ class Asset extends Model
     }
 
     
-    public function status(): BelongsTo
-    {
-        return $this->belongsTo(Status::class, 'Status_ID', 'id');
-    }
+   public function status()
+{
+    return $this->belongsTo(Status::class, 'Status_ID');
+}
 
     
     public function maintenanceLogs(): HasMany
     {
-        return $this->hasMany(MaintenanceLog::class, 'Asset_ID', 'id');
+        return $this->hasMany(Maintenance::class, 'Asset_ID', 'id');
     }
 
     

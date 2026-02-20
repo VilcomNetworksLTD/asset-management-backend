@@ -1,28 +1,52 @@
 <template>
-  <div class="auth-card">
-    <div class="card-header">
-      <h2>Forgot Password?</h2>
-      <p>Enter your email to receive a password reset OTP code.</p>
-    </div>
-
-    <form @submit.prevent="handleForgot" class="auth-form">
-      <div class="input-group">
-        <label>Email Address</label>
-        <input v-model="email" type="email" placeholder="dot@gmail.com" required />
+  <div class="min-h-screen bg-[#ecf0f5] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
+    
+    <div class="max-w-md w-full bg-white p-10 rounded-xl shadow-lg border-t-[6px] border-[#f97316]">
+      <div class="text-center mb-8">
+        <h2 class="text-2xl font-bold text-[#1e3a8a] mb-2">Forgot Password?</h2>
+        <p class="text-sm text-gray-500 italic">
+          Enter your email to receive a password reset OTP code.
+        </p>
       </div>
 
-      <button type="submit" class="submit-btn" :disabled="loading">
-        {{ loading ? 'Sending Code...' : 'Send Reset OTP' }}
-      </button>
-    </form>
+      <form @submit.prevent="handleForgot" class="space-y-6">
+        <div class="space-y-1">
+          <label class="block text-xs font-bold uppercase text-gray-500 tracking-tight ml-1">Email Address</label>
+          <input 
+            v-model="email" 
+            type="email" 
+            placeholder="dot@gmail.com" 
+            required 
+            class="w-full px-4 py-3 rounded-lg border-2 border-gray-100 focus:border-[#1e3a8a] focus:outline-none transition-colors shadow-sm"
+          />
+        </div>
 
-    <div v-if="message" :class="['alert', isError ? 'alert-error' : 'alert-success']">
-      {{ message }}
+        <button 
+          type="submit" 
+          :disabled="loading" 
+          class="w-full py-4 px-4 bg-[#f97316] hover:bg-[#ea580c] text-white font-bold rounded-lg shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {{ loading ? 'Sending Code...' : 'Send Reset OTP' }}
+        </button>
+      </form>
+
+      <div 
+        v-if="message" 
+        :class="[
+          'mt-6 p-3 rounded-lg text-center text-sm font-semibold border', 
+          isError ? 'bg-red-50 text-red-700 border-red-100' : 'bg-green-50 text-green-700 border-green-100'
+        ]"
+      >
+        {{ message }}
+      </div>
+
+      <div class="text-center mt-6">
+        <p class="text-xs font-medium text-gray-500">
+          Remembered your password? 
+          <router-link to="/" class="text-[#1e3a8a] font-bold hover:underline ml-1">Sign In</router-link>
+        </p>
+      </div>
     </div>
-
-    <p class="footer-text">
-      Remembered your password? <router-link to="/">Sign In</router-link>
-    </p>
   </div>
 </template>
 
@@ -46,46 +70,21 @@ const handleForgot = async () => {
     // API call to send OTP
     await axios.post('http://127.0.0.1:8000/api/forgot-password', { email: email.value });
     
-    // Save email so the next page knows who is resetting
+    // Logic preserved: Save email for the reset page
     localStorage.setItem('reset_email', email.value);
     
     message.value = "OTP sent successfully! Redirecting...";
     
-    // Move to the actual reset page where they enter OTP + New Password
+    // Logic preserved: Move to reset page after 2 seconds
     setTimeout(() => {
       router.push('/reset-password');
     }, 2000);
 
   } catch (error) {
     isError.value = true;
-    // Specifically show if the account doesn't exist based on backend response
     message.value = error.response?.data?.message || "Account not found or error sending OTP.";
   } finally {
     loading.value = false;
   }
 };
 </script>
-
-<style scoped>
-/* Standard brand styles */
-.auth-card {
-  background: #ffffff;
-  max-width: 440px;
-  width: 100%;
-  padding: 3.5rem 3rem;
-  border-radius: 16px;
-  border-top: 6px solid #f97316;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
-}
-.card-header h2 { color: #1e3a8a; margin-bottom: 0.5rem; text-align: center;}
-.card-header p { color: #64748b; margin-bottom: 2rem; text-align: center; font-size: 0.95rem;}
-.input-group { margin-bottom: 1.5rem; }
-label { display: block; font-weight: 700; margin-bottom: 0.5rem; color: #475569; }
-input { width: 100%; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 10px; box-sizing: border-box; }
-.submit-btn { width: 100%; padding: 1.2rem; background: #f97316; color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; }
-.alert { margin-top: 1.5rem; padding: 1rem; border-radius: 8px; text-align: center; }
-.alert-error { background: #fee2e2; color: #b91c1c; }
-.alert-success { background: #dcfce7; color: #15803d; }
-.footer-text { margin-top: 1.5rem; text-align: center; font-size: 0.9rem; }
-.footer-text a { color: #1e3a8a; text-decoration: none; font-weight: 600; }
-</style>

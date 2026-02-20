@@ -1,42 +1,66 @@
 <template>
-  <div class="auth-card">
-    <div class="card-header">
-      <h2>Reset Password</h2>
-      <p v-if="displayEmail" class="subtitle">
-        Enter the code sent to: <strong>{{ displayEmail }}</strong>
-      </p>
-    </div>
-
-    <form @submit.prevent="handleReset" class="auth-form">
-      <div class="input-group">
-        <label>OTP Code</label>
-        <input 
-          v-model="form.otp_code" 
-          type="text" 
-          placeholder="000000" 
-          maxlength="6" 
-          required 
-          class="otp-input-styled"
-        />
+  <div class="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans text-gray-800">
+    <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lg border-t-[6px] border-[#f97316]">
+      <div class="text-center">
+        <h2 class="text-3xl font-extrabold text-[#1e3a8a] mb-2">Reset Password</h2>
+        <p v-if="displayEmail" class="text-sm text-gray-500 italic">
+          Enter the code sent to: <strong class="text-gray-700">{{ displayEmail }}</strong>
+        </p>
       </div>
 
-      <div class="input-group">
-        <label>New Password</label>
-        <input v-model="form.password" type="password" placeholder="••••••••" required />
+      <form @submit.prevent="handleReset" class="mt-8 space-y-5">
+        <div class="space-y-1">
+          <label class="block text-xs font-bold uppercase text-gray-500 tracking-tight">OTP Code</label>
+          <input 
+            v-model="form.otp_code" 
+            type="text" 
+            placeholder="000000" 
+            maxlength="6" 
+            required 
+            class="w-full px-4 py-3 text-center text-2xl tracking-[10px] font-black rounded-lg border-2 border-gray-100 focus:border-[#1e3a8a] focus:outline-none transition-colors shadow-sm placeholder:tracking-normal placeholder:text-gray-300"
+          />
+        </div>
+
+        <div class="space-y-1">
+          <label class="block text-xs font-bold uppercase text-gray-500 tracking-tight">New Password</label>
+          <input 
+            v-model="form.password" 
+            type="password" 
+            placeholder="••••••••" 
+            required 
+            class="w-full px-4 py-3 rounded-lg border-2 border-gray-100 focus:border-[#1e3a8a] focus:outline-none transition-colors shadow-sm"
+          />
+        </div>
+
+        <div class="space-y-1">
+          <label class="block text-xs font-bold uppercase text-gray-500 tracking-tight">Confirm Password</label>
+          <input 
+            v-model="form.password_confirmation" 
+            type="password" 
+            placeholder="••••••••" 
+            required 
+            class="w-full px-4 py-3 rounded-lg border-2 border-gray-100 focus:border-[#1e3a8a] focus:outline-none transition-colors shadow-sm"
+          />
+        </div>
+
+        <button 
+          type="submit" 
+          :disabled="loading" 
+          class="w-full py-3.5 px-4 bg-[#f97316] hover:bg-[#ea580c] text-white font-bold rounded-lg shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+        >
+          {{ loading ? 'Updating...' : 'Save New Password' }}
+        </button>
+      </form>
+
+      <div 
+        v-if="message" 
+        :class="[
+          'mt-6 p-3 rounded-lg text-center text-sm font-semibold border', 
+          isError ? 'bg-red-50 text-red-700 border-red-100' : 'bg-green-50 text-green-700 border-green-100'
+        ]"
+      >
+        {{ message }}
       </div>
-
-      <div class="input-group">
-        <label>Confirm Password</label>
-        <input v-model="form.password_confirmation" type="password" placeholder="••••••••" required />
-      </div>
-
-      <button type="submit" class="submit-btn" :disabled="loading">
-        {{ loading ? 'Updating...' : 'Save New Password' }}
-      </button>
-    </form>
-
-    <div v-if="message" :class="['alert', isError ? 'alert-error' : 'alert-success']">
-      {{ message }}
     </div>
   </div>
 </template>
@@ -54,7 +78,7 @@ const isError = ref(false);
 
 const form = ref({
   email: '',
-  otp_code: '', // Required by your backend
+  otp_code: '', 
   password: '',
   password_confirmation: ''
 });
@@ -65,7 +89,6 @@ onMounted(() => {
     form.value.email = savedEmail;
     displayEmail.value = savedEmail;
   }
-  // No auto-redirect here so the page stays open for you!
 });
 
 const handleReset = async () => {
@@ -98,55 +121,3 @@ const handleReset = async () => {
   }
 };
 </script>
-
-<style scoped>
-/* Refined styles to match Vilcom branding */
-.auth-card {
-  background: #ffffff;
-  max-width: 420px;
-  width: 100%;
-  padding: 3rem 2.5rem;
-  border-radius: 16px;
-  border-top: 6px solid #f97316; /* Orange brand */
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  text-align: center;
-}
-
-.card-header h2 { color: #1e3a8a; margin-bottom: 0.5rem; }
-.subtitle { color: #64748b; margin-bottom: 2rem; font-size: 0.9rem; }
-
-.input-group { margin-bottom: 1.5rem; text-align: left; }
-label { display: block; font-weight: 700; margin-bottom: 0.4rem; color: #475569; font-size: 0.85rem; }
-
-input { 
-  width: 100%; 
-  padding: 0.9rem; 
-  border: 2px solid #e2e8f0; 
-  border-radius: 10px; 
-  box-sizing: border-box; 
-}
-
-.otp-input-styled {
-  text-align: center;
-  font-size: 1.5rem;
-  letter-spacing: 6px;
-  font-weight: 800;
-  border-color: #cbd5e1;
-}
-
-.submit-btn {
-  width: 100%;
-  padding: 1.1rem;
-  background: #f97316; /* Vibrant Orange */
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-weight: 700;
-  cursor: pointer;
-  font-size: 1rem;
-}
-
-.alert { margin-top: 1.5rem; padding: 1rem; border-radius: 8px; font-size: 0.9rem; }
-.alert-error { background: #fee2e2; color: #b91c1c; }
-.alert-success { background: #dcfce7; color: #15803d; }
-</style>
