@@ -12,7 +12,6 @@ return new class extends Migration
             $table->id();
 
             $table->unsignedBigInteger('Employee_ID');
-            $table->unsignedBigInteger('Issue_ID')->nullable();
             $table->unsignedBigInteger('Status_ID');
             $table->string('Priority')->default('Medium');
             $table->text('Description');
@@ -22,7 +21,6 @@ return new class extends Migration
 
             // FOREIGN KEYS
             $table->foreign('Employee_ID')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('Issue_ID')->references('id')->on('issues')->onDelete('set null');
             $table->foreign('Status_ID')->references('id')->on('statuses')->onDelete('cascade');
         });
     }

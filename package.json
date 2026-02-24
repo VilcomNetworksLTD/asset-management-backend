@@ -7,17 +7,37 @@
         "dev": "vite"
     },
     "devDependencies": {
-        "@tailwindcss/vite": "^4.0.0",
+        "@tailwindcss/vite": "^4.1.18",
         "@vitejs/plugin-vue": "^6.0.4",
+        "autoprefixer": "^10.4.24",
         "axios": "^1.13.5",
         "concurrently": "^9.0.1",
         "laravel-vite-plugin": "^2.0.0",
-        "tailwindcss": "^4.0.0",
+        "postcss": "^8.5.6",
+        "tailwindcss": "^3.4.19",
         "vite": "^7.0.7",
         "vue": "^3.5.28",
         "vue-loader": "^17.4.2"
     },
     "dependencies": {
         "vue-router": "^4.6.4"
-    }
+    },
+    "name": "asset-management-backend",
+    "version": "1.0.0",
+    "description": "<p align=\"center\"><a href=\"https://laravel.com\" target=\"_blank\"><img src=\"https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg\" width=\"400\" alt=\"Laravel Logo\"></a></p>",
+    "main": "vite.config.js",
+    "directories": {
+        "test": "tests"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/VilcomNetworksLTD/asset-management-backend.git"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/VilcomNetworksLTD/asset-management-backend/issues"
+    },
+    "homepage": "https://github.com/VilcomNetworksLTD/asset-management-backend#readme"
 }
