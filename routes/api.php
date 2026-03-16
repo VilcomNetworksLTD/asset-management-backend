@@ -27,10 +27,7 @@ use App\Http\Controllers\{
 
 /* --- Public Routes --- */
 Route::controller(AuthandAccessController::class)->group(function () {
-    Route::post('/register', 'register');
-    Route::post('/verify-otp', 'verifyOtp');
     Route::post('/login', 'login');
-    Route::post('/resend-otp', 'resendOtp');
     Route::post('/forgot-password', 'forgotPassword');
     Route::post('/reset-password', 'resetPassword');
 });
