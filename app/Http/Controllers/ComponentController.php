@@ -2,19 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Component;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ComponentController extends Controller
 {
-    /**
-     * Display a listing of components.
-     */
+    
     public function index(): JsonResponse
     {
-        $components = Component::all();
-        return response()->json($components);
+        
+        return response()->json(Component::latest()->get());
     }
 
     public function list(Request $request): JsonResponse
@@ -38,9 +39,7 @@ class ComponentController extends Controller
         return response()->json($query->latest()->paginate($perPage));
     }
 
-    /**
-     * Store a new component.
-     */
+    
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -85,4 +84,50 @@ class ComponentController extends Controller
 
         return response()->json(['message' => 'Component deleted successfully']);
     }
+    public function assign(Request $request, $id)
+{
+    $request->validate([
+        'user_id' => 'required|exists:users,id',
+        'quantity' => 'required|integer|min:1',
+    ]);
+
+    $component = Component::findOrFail($id);
+
+    $quantity = $request->integer('quantity');
+    $userId = $request->integer('user_id');
+
+    if ($component->remaining_qty < $quantity) {
+        return response()->json(['message' => 'Not enough stock'], 400);
+    }
+
+    $user = User::find($userId);
+
+    $user->components()->attach($component->id, ['quantity' => $quantity]);
+
+    $component->decrement('remaining_qty', $quantity);
+    
+    ActivityLog::create([
+        'Employee_ID' => Auth::id(),
+        'user_name'   => Auth::user()->name ?? 'System',
+        'action'      => 'Assigned',
+        'target_type' => 'Component',
+        'target_name' => $component->name,
+        'details'     => "Assigned {$quantity} to user: {$user->name} (ID: {$userId})",
+    ]);
+
+    return response()->json(['message' => 'Component assigned successfully']);
+}
+
+    public function myComponents(Request $request)
+    {
+        // optionally filter by the parent asset so the frontend doesn't have to
+        // load the user's entire component inventory when they're only
+        // interested in parts attached to a particular device.
+        $query = auth()->user()->components()->wherePivotNull('returned_at');
+        if ($assetId = $request->query('asset_id')) {
+            $query->where('asset_id', $assetId);
+        }
+        return response()->json($query->get());
+    }
+
 }

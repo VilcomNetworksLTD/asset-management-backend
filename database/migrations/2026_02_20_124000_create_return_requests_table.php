@@ -27,6 +27,7 @@ return new class extends Migration
             $table->dateTime('Actioned_At')->nullable();
 
             $table->timestamps();
+            $table->softDeletes();
 
             $table->foreign('Asset_ID')->references('id')->on('assets')->onDelete('cascade');
             $table->foreign('Employee_ID')->references('id')->on('users')->onDelete('cascade');

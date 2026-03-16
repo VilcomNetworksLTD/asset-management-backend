@@ -46,4 +46,14 @@ class Ticket extends Model
     {
         return $this->hasMany(Maintenance::class, 'Ticket_ID', 'id');
     }
+
+    public function returnRequests(): HasMany
+    {
+        return $this->hasMany(ReturnRequest::class, 'Ticket_ID', 'id');
+    }
+
+    public function transferRequests(): HasMany
+    {
+        return $this->hasMany(Transfer::class, 'Ticket_ID', 'id');
+    }
 }

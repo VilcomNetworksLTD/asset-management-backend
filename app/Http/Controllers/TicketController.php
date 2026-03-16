@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\Accessory;
 use App\Models\Asset;
 use App\Models\Consumable;
+use App\Models\User;
 use App\Models\Issue;
 use App\Models\Maintenance;
 use App\Models\Status;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class TicketController extends Controller
@@ -78,22 +80,66 @@ class TicketController extends Controller
     {
         $data = $request->validate([
             'asset_id' => 'nullable|integer|exists:assets,id',
-            'requested_category' => 'nullable|string|max:255|required_without:asset_id',
+            'requested_category' => 'nullable|string|max:255',
+            'subject' => 'nullable|string|max:255', // New field for general support
             'description' => 'required|string|max:2000',
             'priority' => 'nullable|string|in:low,medium,high',
         ]);
 
+        if (empty($data['asset_id']) && empty($data['requested_category']) && empty($data['subject'])) {
+            throw ValidationException::withMessages([
+                'subject' => 'Either an asset, a requested category, or a subject for the support ticket is required.',
+            ]);
+        }
+
         $user = $request->user() ?? Auth::user();
 
+        // compute description early so we can detect duplicates
+        $description = '';
+        if (empty($data['asset_id'])) {
+            if (!empty($data['requested_category'])) {
+                $description = 'Request Category: ' . $data['requested_category']
+                    . "\nRequest Details: " . $data['description'];
+            } else {
+                $description = 'Subject: ' . ($data['subject'] ?? 'General IT Support')
+                    . "\nDetails: " . $data['description'];
+            }
+        } else {
+            $description = $data['description'];
+        }
+
+        // quick de‑duplication - if the same user created a pending ticket with the
+        // same description within the last 30 seconds, just return it. this
+        // protects against multiple clicks reproducing the request.
+        $pendingStatus = Status::firstOf(['Pending', 'New', 'Open']) ?? 1;
+        $recent = Ticket::where('Employee_ID', $user->id)
+            ->where('Description', $description)
+            ->where('Status_ID', $pendingStatus)
+            ->where('created_at', '>=', now()->subSeconds(30))
+            ->first();
+        if ($recent) {
+            return response()->json($recent->load(['user','issue.asset','status']), 200);
+        }
+
         $ticket = DB::transaction(function () use ($data, $user) {
-            // Generic equipment request path (no specific asset selected by staff)
+            // Path for tickets not tied to a specific asset
             if (empty($data['asset_id'])) {
+                $description = '';
+                if (!empty($data['requested_category'])) {
+                    // Generic equipment request path (no specific asset selected by staff)
+                    $description = 'Request Category: ' . $data['requested_category']
+                        . "\nRequest Details: " . $data['description'];
+                } else {
+                    // General IT support request (e.g., email issues)
+                    $description = 'Subject: ' . ($data['subject'] ?? 'General IT Support')
+                        . "\nDetails: " . $data['description'];
+                }
+
                 return Ticket::create([
                     'Employee_ID' => $user->id,
-                    'Status_ID' => 1,
+                    'Status_ID' => Status::firstOf(['Pending', 'New', 'Open']) ?? 1,
                     'Priority' => $data['priority'] ?? 'medium',
-                    'Description' => 'Request Category: ' . $data['requested_category']
-                        . "\nRequest Details: " . $data['description'],
+                    'Description' => $description,
                 ]);
             }
 
@@ -101,12 +147,12 @@ class TicketController extends Controller
                 'Employee_ID' => $user->id,
                 'Asset_ID' => $data['asset_id'],
                 'Issue_Description' => $data['description'],
-                'Status_ID' => 1,
+                'Status_ID' => Status::firstOf(['Pending', 'New', 'Open']) ?? 1,
             ]);
 
             $ticketPayload = [
                 'Employee_ID' => $user->id,
-                'Status_ID' => 1,
+                'Status_ID' => Status::firstOf(['Pending', 'New', 'Open']) ?? 1,
                 'Priority' => $data['priority'] ?? 'medium',
                 'Description' => $data['description'],
             ];
@@ -122,23 +168,89 @@ class TicketController extends Controller
             return $ticket;
         });
 
+        // Notify admins about the new ticket
+        $admins = User::where('role', 'admin')->get()->filter(fn ($u) => $u->email);
+        if ($admins->isNotEmpty()) {
+            $subject = "New Support Ticket #{$ticket->id} from {$user->name}";
+            $details = "A new support ticket has been created by {$user->name}.\n\n"
+                . "Subject: " . ($data['subject'] ?? 'Asset Issue') . "\n"
+                . "Details: {$ticket->Description}";
+
+            // In a real application, this would use a Mailable class.
+            foreach ($admins as $admin) {
+                Mail::raw($details, function ($message) use ($admin, $subject) {
+                    $message->to($admin->email)->subject($subject);
+                });
+            }
+        }
+
         return response()->json($ticket->load(['user', 'issue.asset', 'status']), 201);
     }
 
     public function update(Request $request, $id)
     {
-        $request->validate([
-            'communication' => 'required|string',
-            'status_id'     => 'required|integer'
+        // status updates are determined by the action; we no longer accept
+        // a status_id directly from the client. allowed actions are
+        // `resolve` and `reopen` but other verbs may be added later.
+        $data = $request->validate([
+            'description' => 'nullable|string|max:2000',
+            'priority' => 'nullable|string|in:low,medium,high',
+            'communication' => 'nullable|string|max:2000',
+            'action' => 'nullable|string|in:resolve,reopen',
         ]);
 
-        $this->ticketService->resolveTicket(
-            $id, 
-            $request->communication, 
-            $request->status_id
-        );
+        $ticket = Ticket::findOrFail($id);
 
-        return response()->json(['message' => 'Ticket and Issue updated successfully']);
+        // Update fields if they are present in the request
+        if (array_key_exists('description', $data)) {
+            $ticket->Description = $data['description'];
+        }
+        if (array_key_exists('priority', $data)) {
+            $ticket->Priority = $data['priority'];
+        }
+
+        if (!empty($data['communication'])) {
+            $newLog = now()->format('Y-m-d H:i:s') . ' - Note: ' . $data['communication'];
+            $ticket->Communication_log = trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . $newLog);
+        }
+
+        // determine status automatically based on requested action
+        if (!empty($data['action'])) {
+            if ($data['action'] === 'resolve') {
+                $ticket->Status_ID = Status::firstOf(['Resolved', 'Closed', 'Completed']) ?? $ticket->Status_ID;
+            } elseif ($data['action'] === 'reopen') {
+                $ticket->Status_ID = Status::firstOf(['Pending', 'Open', 'New']) ?? $ticket->Status_ID;
+            }
+        }
+
+        $ticket->save();
+
+        // Reload relations for the response
+        $ticket->load(['user', 'issue.asset', 'status']);
+
+        // Notify user about the update
+        $ticketUser = $ticket->user;
+        if ($ticketUser && $ticketUser->email) {
+            $subject = "Update on your Support Ticket #{$ticket->id}";
+            $details = "There has been an update on your support ticket #{$ticket->id}.\n\n";
+
+            if (!empty($data['communication'])) {
+                $details .= "An admin has left a note: '{$data['communication']}'\n\n";
+            }
+            if (!empty($data['action'])) {
+                // reload status relationship to reflect change
+                $ticket->load('status');
+                $details .= "The ticket has been " . ($data['action'] === 'resolve' ? 'resolved' : 'reopened')
+                    . ", status now: {$ticket->status->Status_Name}.\n\n";
+            }
+            $details .= "Please log in to view the details.";
+
+            Mail::raw($details, function ($message) use ($ticketUser, $subject) {
+                $message->to($ticketUser->email)->subject($subject);
+            });
+        }
+
+        return response()->json(['message' => 'Ticket updated successfully', 'ticket' => $ticket]);
     }
 
     public function destroy(int $id): JsonResponse
@@ -162,7 +274,7 @@ class TicketController extends Controller
             'consumable_allocations.*.qty' => 'required|integer|min:1',
         ]);
 
-        $ticket = Ticket::findOrFail($id);
+        $ticket = Ticket::with('user')->findOrFail($id);
         $asset = Asset::findOrFail($data['asset_id']);
 
         $bundleSummary = DB::transaction(function () use ($ticket, $asset, $data) {
@@ -232,14 +344,32 @@ class TicketController extends Controller
                 ]);
             }
 
+            $assignedToUser = $ticket->user;
+
             ActivityLog::create([
+                'asset_id' => $asset->id,
                 'Employee_ID' => Auth::id(),
                 'user_name' => Auth::user()->name ?? 'Admin',
                 'action' => 'Assigned',
                 'target_type' => 'Asset',
                 'target_name' => $asset->Asset_Name,
-                'details' => 'Assigned to Employee_ID ' . $ticket->Employee_ID . ' via Request Ticket #' . $ticket->id,
+                'details' => "Assigned to: {$assignedToUser->name} (ID: {$assignedToUser->id}) via Ticket #{$ticket->id}",
             ]);
+
+            // Notify user about the asset assignment
+            if ($assignedToUser && $assignedToUser->email) {
+                $subject = "Your requested asset has been assigned";
+                $details = "The asset '{$asset->Asset_Name}' (S/N: {$asset->Serial_No}) has been assigned to you to resolve Ticket #{$ticket->id}.\n\n";
+                if (!empty($bundleItems)) {
+                    $details .= "The following items were bundled with your assignment:\n" . implode("\n", $bundleItems) . "\n\n";
+                }
+                $details .= "Please log in for more details. The ticket is now considered resolved.";
+
+                // In a real application, this would use a Mailable class.
+                Mail::raw($details, function ($message) use ($assignedToUser, $subject) {
+                    $message->to($assignedToUser->email)->subject($subject);
+                });
+            }
 
             return $bundleItems;
         });
@@ -255,45 +385,74 @@ class TicketController extends Controller
     public function createReturnRequest(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'asset_id' => 'required|integer|exists:assets,id',
+            'asset_id' => 'nullable|integer|exists:assets,id',
+            'items' => 'nullable|array',
+            'items.*.type' => 'required_with:items|string|in:asset,component,accessory,license,consumable',
+            'items.*.id' => 'required_with:items|integer',
             'condition' => 'nullable|string|max:255',
             'reason' => 'nullable|string|max:2000',
         ]);
 
         $user = $request->user() ?? Auth::user();
-        $asset = Asset::findOrFail($data['asset_id']);
-
-        if ((int) $asset->Employee_ID !== (int) $user->id) {
-            return response()->json([
-                'message' => 'You can only return assets currently assigned to you.'
-            ], 403);
+        $asset = null;
+        if (!empty($data['asset_id'])) {
+            $asset = Asset::findOrFail($data['asset_id']);
+            if ((int) $asset->Employee_ID !== (int) $user->id) {
+                return response()->json([
+                    'message' => 'You can only return assets currently assigned to you.'
+                ], 403);
+            }
         }
+
+        // require either an asset or some items
+        if (!$asset && empty($data['items'])) {
+            return response()->json([
+                'message' => 'Please specify an asset or at least one item to return.'
+            ], 422);
+        }
+
+        // build ticket description, include items list when appropriate
+        $description = "Workflow Type: RETURN\n";
+        if ($asset) {
+            $description .= "Asset ID: {$asset->id}\n"
+                         . "Asset Name: {$asset->Asset_Name}\n";
+        } else {
+            $description .= "Items: " . collect($data['items'] ?? [])
+                ->map(fn($i) => "{$i['type']} #{$i['id']}")
+                ->implode(', ') . "\n";
+        }
+        $description .= "Condition: " . ($data['condition'] ?? 'Not specified') . "\n"
+                      . "Reason: " . ($data['reason'] ?? 'No reason provided');
 
         $ticket = Ticket::create([
             'Employee_ID' => $user->id,
-            'Status_ID' => 1,
+            'Status_ID' => Status::firstOf(['Pending','New','Open']) ?? 1,
             'Priority' => 'medium',
-            'Description' => "Workflow Type: RETURN\n"
-                . "Asset ID: {$asset->id}\n"
-                . "Asset Name: {$asset->Asset_Name}\n"
-                . "Condition: " . ($data['condition'] ?? 'Not specified') . "\n"
-                . "Reason: " . ($data['reason'] ?? 'No reason provided'),
+            'Description' => $description,
         ]);
 
         ActivityLog::create([
+            'asset_id' => $asset?->id,
             'Employee_ID' => $user->id,
             'user_name' => $user->name ?? 'User',
             'action' => 'Requested Return',
-            'target_type' => 'Asset',
-            'target_name' => $asset->Asset_Name,
+            'target_type' => $asset ? 'Asset' : 'Mixed Items',
+            'target_name' => $asset ? $asset->Asset_Name : 'Mixed Items',
             'details' => "Return request submitted via Workflow Hub. Ticket #{$ticket->id}",
         ]);
 
         return response()->json([
             'message' => 'Return request submitted successfully.',
             'ticket' => $ticket,
+            'items' => $data['items'] ?? [],
         ], 201);
     }
+
+    /**
+     * Helper used internally to look up status IDs by name.  Accepts
+     * an array of possible names and returns the first matching ID or null.
+     * This frees the rest of the code from hard‑coding numeric constants.
+     */
 
     public function getWorkflowQueues(Request $request): JsonResponse
     {
@@ -311,7 +470,14 @@ class TicketController extends Controller
         $returnRequests = Ticket::with(['user', 'issue.asset', 'status'])
             ->where('Description', 'like', 'Workflow Type: RETURN%')
             ->latest()
-            ->get();
+            ->get()
+            ->map(function ($t) {
+                $array = $t->toArray();
+                if (preg_match('/Items: ([^\n]+)/', $t->Description, $m)) {
+                    $array['items'] = array_map('trim', explode(',', $m[1]));
+                }
+                return $array;
+            });
 
         return response()->json([
             'equipment_requests' => $equipmentRequests,
@@ -323,12 +489,23 @@ class TicketController extends Controller
     {
         $user = $request->user() ?? Auth::user();
 
+        // return a shape similar to other endpoints (dashboard, transfer forms)
+        // so frontend tables can rely on consistent field names and avoid
+        // mismatched columns.
         $assets = Asset::query()
             ->with('status')
             ->where('Employee_ID', $user->id)
             ->select('id', 'Asset_Name', 'Serial_No', 'Asset_Category', 'Status_ID')
             ->latest()
-            ->get();
+            ->get()
+            ->map(fn ($a) => [
+                'id' => $a->id,
+                'asset_tag' => 'AST-' . str_pad((string) $a->id, 4, '0', STR_PAD_LEFT),
+                'model' => $a->Asset_Name,
+                'serial' => $a->Serial_No,
+                'category' => $a->Asset_Category,
+                'status' => $a->status,
+            ]);
 
         return response()->json($assets);
     }
@@ -397,6 +574,7 @@ class TicketController extends Controller
             ]);
 
             ActivityLog::create([
+                'asset_id' => $asset->id,
                 'Employee_ID' => Auth::id(),
                 'user_name' => Auth::user()->name ?? 'Admin',
                 'action' => 'Processed Return',

@@ -8,6 +8,7 @@ use App\Http\Controllers\{
     AccessoryController,
     ConsumableController,
     ComponentController,
+    FeedbackController,
     LicenseController,
     MaintenanceController,
     ActivityLogController,
@@ -16,7 +17,12 @@ use App\Http\Controllers\{
     TransferController,
     ReturnRequestController,
     TicketController,
-    UserController // Added this for profile management
+    UserController,
+    SslCertificateController,
+    SupplierController,
+    StatusController,
+    UserHistoryController,
+    DepartmentController
 };
 
 /* --- Public Routes --- */
@@ -30,7 +36,9 @@ Route::controller(AuthandAccessController::class)->group(function () {
 });
 
 /* --- Protected Routes --- */
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum','maintenance'])->group(function () {
+
+    Route::get('/user/history', [UserHistoryController::class, 'index']);
 
     Route::get('/user', function () {
         return response()->json(auth()->user());
@@ -39,43 +47,71 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- Dashboard & Analytics ---
     Route::controller(DashboardController::class)->group(function () {
-        Route::get('/stats', 'getStats');           // Admin stats
-        Route::get('/user-stats', 'getUserAssets'); // Caleb's counts & recent assets
+        Route::get('/stats', 'getStats');
+        Route::get('/user-stats', 'getUserAssets');
     });
-    // Add this inside your Protected Routes (auth:sanctum)
     Route::get('/dashboard/admin', [DashboardController::class, 'index'])->name('admin.dashboard');
 
-    // --- Inventory Management ---
-    Route::get('/assets', [AssetController::class, 'index']);
-    Route::get('/assets/list', [AssetController::class, 'list']);
-    Route::post('/assets', [AssetController::class, 'store']);
-    Route::put('/assets/{id}', [AssetController::class, 'update']);
-    Route::delete('/assets/{id}', [AssetController::class, 'destroy']);
+    // --- Inventory Management (Assets) ---
+    Route::controller(AssetController::class)->group(function () {
+        Route::get('/assets', 'index');
+        Route::get('/assets/list', 'list');
+        Route::get('/hod/department-assets', 'hodDepartmentAssets');
+        Route::post('/assets', 'store');
+        Route::get('/assets/{id}', 'show');
+        Route::put('/assets/{id}', 'update');
+        Route::delete('/assets/{id}', 'destroy');
+        Route::post('/assets/{id}/assign', 'assign');
+        Route::get('/activity-logs/{id}', 'fetchPreAssets');
+        
+        // === NEW TONER LIFECYCLE ROUTES ===
+        Route::post('/assets/{id}/replace-toner', 'replaceToner');
+        Route::get('/assets/{id}/toner-history', 'getTonerHistory');
+    });
 
+    // --- Supplier Management ---
+    Route::controller(SupplierController::class)->group(function () {
+        Route::get('/suppliers/list', 'list');
+        Route::post('/suppliers', 'store');
+        Route::get('/suppliers/{id}', 'show');
+        Route::put('/suppliers/{id}', 'update');
+        Route::delete('/suppliers/{id}', 'destroy');
+    });
+
+    // --- Accessories ---
     Route::controller(AccessoryController::class)->group(function () {
         Route::get('/accessories', 'index');
         Route::get('/accessories/list', 'list');
         Route::post('/accessories', 'store');
         Route::put('/accessories/{id}', 'update');
         Route::delete('/accessories/{id}', 'destroy');
+        Route::post('/accessories/{id}/assign', 'assign');
+        Route::get('/my-accessories', 'myAccessories');
     });
 
+    // --- Consumables ---
     Route::controller(ConsumableController::class)->group(function () {
         Route::get('/consumables', 'index');
         Route::get('/consumables/list', 'list');
         Route::post('/consumables', 'store');
         Route::put('/consumables/{id}', 'update');
         Route::delete('/consumables/{id}', 'destroy');
+        Route::post('/consumables/{id}/assign', 'assign');
+        Route::get('/my-consumables', 'myConsumables');
     });
 
+    // --- Licenses ---
     Route::controller(LicenseController::class)->group(function () {
         Route::get('/licenses', 'index');
         Route::get('/licenses/list', 'list');
         Route::post('/licenses', 'store');
         Route::put('/licenses/{id}', 'update');
         Route::delete('/licenses/{id}', 'destroy');
+        Route::post('/licenses/{id}/assign', 'assign');
+        Route::get('/my-licenses', 'myLicenses');
     });
 
+    // --- Maintenances ---
     Route::controller(MaintenanceController::class)->group(function () {
         Route::get('/maintenances', 'index');
         Route::get('/maintenances/list', 'list');
@@ -84,37 +120,36 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/maintenances/{id}', 'destroy');
     });
     
+    // --- Components ---
     Route::controller(ComponentController::class)->group(function () {
         Route::get('/components', 'index');
         Route::get('/components/list', 'list');
         Route::post('/components', 'store');
         Route::put('/components/{id}', 'update');
         Route::delete('/components/{id}', 'destroy');
+        Route::post('/components/{id}/assign', 'assign');
+        Route::get('/my-components', 'myComponents');
     });
 
-    // --- Logistics & Transfers (The Redefined Gateway Workflow) ---
+    // --- Logistics & Transfers ---
     Route::controller(TransferController::class)->group(function () {
-        Route::get('/transfers', 'index');               // Admin View
-        Route::post('/request-transfer', 'store');       // Staff request for transfer
-        Route::get('/my-transfers', 'getUserTransfers'); // Caleb's transfer history
+        Route::get('/transfers', 'index');             
+        Route::post('/request-transfer', 'store');       
+        Route::get('/my-transfers', 'getUserTransfers');
         Route::put('/transfers/{id}/status', 'updateStatus');
         Route::delete('/transfers/{id}', 'destroy');
-
-        /* --- NEW: Admin-Gated Workflow Additions --- */
-        
-        // Staff Actions
-        Route::get('/my-assets', 'getMyAssets');               // For return dropdown
-        Route::post('/transfers/return', 'storeReturnRequest'); // Step 1: Initiate Return
-        Route::get('/my-pending-assignments', 'getPendingAssignments'); // Step 3: Inbound notification
-        Route::post('/assignments/{id}/verify', 'verifyInbound'); // Step 4: Digital Signature
+        Route::get('/my-assets', 'getMyAssets');               
+        Route::post('/transfers/return', 'storeReturnRequest'); 
+        Route::get('/my-pending-assignments', 'getPendingAssignments');
+        Route::post('/assignments/{id}/verify', 'verifyInbound'); 
 
         // Admin Actions
-        Route::get('/admin/transfers/pending', 'indexPending'); // Inspection Queue
-        Route::post('/admin/transfers/{id}/complete', 'completeInspection'); // Step 2: Physical Handover
-        Route::post('/admin/assets/assign', 'assignToUser'); // New Assignment
+        Route::get('/admin/transfers/pending', 'indexPending');
+        Route::post('/admin/transfers/{id}/complete', 'completeInspection'); 
+        Route::post('/admin/assets/assign', 'assignToUser');
     });
 
-    // --- Dedicated Return Requests (Separate Table/Model/Controller/Service) ---
+    // --- Return Requests ---
     Route::controller(ReturnRequestController::class)->group(function () {
         Route::get('/return-requests', 'index');
         Route::get('/my-return-requests', 'myRequests');
@@ -127,34 +162,42 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- Support & Issue Tracking ---
     Route::controller(TicketController::class)->group(function () {
-        Route::get('/tickets', 'index');             // Admin view
+        Route::get('/tickets', 'index');            
         Route::get('/tickets/list', 'list');
-        Route::get('/my-tickets', 'getUserTickets'); // User view
-        Route::get('/workflow/queues', 'getWorkflowQueues'); // Unified admin workflow queues
-        Route::get('/workflow/my-assets', 'getMyReturnableAssets'); // Staff assets available for return
-        Route::post('/tickets', 'store');            // Report an issue
-        Route::post('/tickets/{id}/assign-asset', 'assignAsset'); // Admin assigns chosen asset to requester
-        Route::post('/workflow/returns', 'createReturnRequest'); // Staff return-to-admin request
-        Route::post('/workflow/returns/{id}/process', 'processReturn'); // Admin disposition: store or maintenance
+        Route::get('/my-tickets', 'getUserTickets'); 
+        Route::get('/workflow/queues', 'getWorkflowQueues'); 
+        Route::get('/workflow/my-assets', 'getMyReturnableAssets'); 
+        Route::post('/tickets', 'store');            
+        Route::post('/tickets/{id}/assign-asset', 'assignAsset'); 
+        Route::post('/workflow/returns', 'createReturnRequest'); 
+        Route::post('/workflow/returns/{id}/process', 'processReturn');
         Route::put('/tickets/{id}', 'update');
         Route::delete('/tickets/{id}', 'destroy');
     });
 
-    // --- Profile & Personal Settings ---
+    // --- Feedback ---
+    Route::apiResource('feedback', FeedbackController::class)->except(['show']);
+
+    // --- Profile & User Management ---
     Route::controller(UserController::class)->group(function () {
+        Route::get('/users/{id}', 'getUserDetails'); 
         Route::get('/users-list/paginated', 'list');
         Route::post('/users-list', 'store');
         Route::put('/users-list/{id}', 'updateById');
         Route::delete('/users-list/{id}', 'destroy');
-        Route::get('/profile', 'show');               // Fetch Caleb's profile details
-        Route::post('/profile/update', 'update');     // Update profile (name, avatar, etc.)
-        Route::post('/profile/password', 'changePassword'); // Change password
-        Route::get('/users-list', 'index');           // For "Transfer To" dropdown
+        Route::get('/profile', 'show');               
+        Route::post('/profile/update', 'update');     
+        Route::post('/profile/password', 'changePassword'); 
+        Route::get('/users-list', 'index');           
     });
 
     // --- Logs, Reports & Global Settings ---
     Route::get('/activity-logs', [ActivityLogController::class, 'index']);
-    
+    Route::get('/statuses', [StatusController::class, 'index']);
+    Route::get('/suppliers', [SupplierController::class, 'index']);
+    Route::get('/users', [UserController::class, 'index']);
+    Route::get('/departments', [DepartmentController::class, 'index']);
+
     Route::controller(ReportController::class)->group(function () {
         Route::get('/reports-summary', 'index');
         Route::get('/reports-history', 'history');
@@ -163,7 +206,26 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::controller(SettingController::class)->group(function () {
-        Route::get('/settings', 'index');           // Global settings
-        Route::post('/settings', 'update');
+        Route::get('/settings', 'index');           
+        Route::post('/settings', 'update')->middleware('role:admin');
+        Route::get('/admin/settings', 'index');
+        Route::post('/admin/settings', 'update')->middleware('role:admin');
+    });
+
+    // --- Admin Only SSL Management ---
+    Route::group(['middleware' => ['auth:sanctum', 'role:admin']], function () {
+        Route::controller(SslCertificateController::class)->group(function () {
+            Route::get('/ssl-certificates', 'index');
+            Route::get('/ssl-certificates/list', 'list');
+            Route::get('/ssl-certificates/all', 'all');
+            Route::post('/ssl-certificates', 'store');
+            Route::put('/ssl-certificates/{id}', 'update');
+            Route::delete('/ssl-certificates/{id}', 'destroy');
+            Route::post('/ssl-certificates/{id}/scan', 'scan');
+            Route::post('/ssl-certificates/scan-domain', 'scanDomain');
+            Route::post('/ssl-certificates/{id}/check-revocation', 'checkRevocation');
+            Route::post('/ssl-certificates/{id}/acknowledge', 'acknowledge');
+            Route::get('/ssl-certificates/{id}/change-logs', 'changeLogs');
+        });
     });
 });

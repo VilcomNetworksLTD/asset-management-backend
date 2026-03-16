@@ -17,7 +17,8 @@ class CreateAccessoriesTable extends Migration
             $table->integer('total_qty')->default(0);
             $table->integer('remaining_qty')->default(0);
             $table->decimal('price', 10, 2)->nullable(); 
-            $table->timestamps(); 
+            $table->timestamps();
+            $table->softDeletes();
         });
     }
 

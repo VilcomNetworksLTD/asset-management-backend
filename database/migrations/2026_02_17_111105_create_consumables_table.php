@@ -16,6 +16,7 @@ class CreateConsumablesTable extends Migration
             $table->decimal('price', 10, 2)->nullable(); // Matches "PRICE" in UI
             $table->integer('min_amt')->default(0); 
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

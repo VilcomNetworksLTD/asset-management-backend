@@ -19,6 +19,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // register model observers
+        \App\Models\ActivityLog::observe(\App\Observers\ActivityLogObserver::class);
+
+        // notify admins when the framework enters maintenance mode
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Foundation\Events\MaintenanceModeEnabled::class,
+            \App\Listeners\NotifyAdminsMaintenanceMode::class
+        );
     }
 }

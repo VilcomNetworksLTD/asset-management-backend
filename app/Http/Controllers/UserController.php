@@ -25,7 +25,9 @@ class UserController extends Controller
 
     public function list(Request $request): JsonResponse
     {
-        $query = \App\Models\User::query()->select('id', 'name', 'email', 'role', 'is_verified', 'created_at');
+        // Eager load department so we can show the name in the table
+        $query = \App\Models\User::query()
+            ->with('department:id,name');
 
         if ($search = $request->string('search')->toString()) {
             $query->where(function ($q) use ($search) {
@@ -51,12 +53,14 @@ class UserController extends Controller
             'email' => 'required|email|max:255|unique:users,email',
             'password' => 'required|string|min:8',
             'role' => 'nullable|string|max:50',
+            'department_id' => 'nullable|exists:departments,id',
             'is_verified' => 'nullable|boolean',
         ]);
 
         $user = \App\Models\User::create([
             'name' => $data['name'],
             'email' => $data['email'],
+            'department_id' => $data['department_id'] ?? null,
             'password' => bcrypt($data['password']),
             'role' => $data['role'] ?? 'staff',
             'is_verified' => $data['is_verified'] ?? true,
@@ -75,6 +79,7 @@ class UserController extends Controller
             'password' => 'nullable|string|min:8',
             'role' => 'sometimes|required|string|max:50',
             'is_verified' => 'sometimes|required|boolean',
+            'department_id' => 'nullable|exists:departments,id',
         ]);
 
         if (!empty($data['password'])) {
@@ -85,7 +90,7 @@ class UserController extends Controller
 
         $user->update($data);
 
-        return response()->json($user->fresh());
+        return response()->json($user->fresh('department'));
     }
 
     public function destroy(int $id): JsonResponse
@@ -94,6 +99,22 @@ class UserController extends Controller
         $user->delete();
 
         return response()->json(['message' => 'User deleted successfully']);
+    }
+
+    /**
+     * Fetch a specific user's details including their assigned items for the Admin Panel
+     */
+    public function getUserDetails(int $id): JsonResponse
+    {
+        $user = \App\Models\User::with([
+            'assets',        
+            'licenses',      
+            'components',    
+            'consumables',   
+            'accessories'    
+        ])->findOrFail($id);
+
+        return response()->json($user);
     }
 
     /**

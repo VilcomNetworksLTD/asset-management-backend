@@ -3,11 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Model;
 
 class Component extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     // This matches the table name in your database
     protected $table = 'components';

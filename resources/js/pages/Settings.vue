@@ -1,106 +1,104 @@
 <template>
-  <div class="p-6">
-    <div class="mb-6">
-      <h1 class="text-2xl font-semibold text-gray-800">Global Settings</h1>
-      <p class="text-sm text-gray-500">Configure system-wide preferences and branding.</p>
-    </div>
-
-    <div class="bg-white rounded shadow-sm border border-gray-200 flex flex-col md:flex-row min-h-[500px]">
-      <div class="w-full md:w-64 border-r border-gray-100 bg-gray-50/50 p-4 space-y-1">
-        <button 
-          @click="activeTab = 'general'"
-          :class="activeTab === 'general' ? 'bg-[#3c8dbc] text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'"
-          class="w-full text-left px-4 py-2.5 rounded text-sm font-medium transition-all"
-        >
-          <i class="fa fa-cog mr-2"></i> General Settings
-        </button>
-        <button 
-          @click="activeTab = 'localization'"
-          :class="activeTab === 'localization' ? 'bg-[#3c8dbc] text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'"
-          class="w-full text-left px-4 py-2.5 rounded text-sm font-medium transition-all"
-        >
-          <i class="fa fa-globe mr-2"></i> Localization
-        </button>
-        <button 
-          @click="activeTab = 'operations'"
-          :class="activeTab === 'operations' ? 'bg-[#3c8dbc] text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'"
-          class="w-full text-left px-4 py-2.5 rounded text-sm font-medium transition-all"
-        >
-          <i class="fa fa-sliders-h mr-2"></i> Operations
-        </button>
+  <div class="p-6 bg-gray-50 min-h-screen">
+    <div class="max-w-4xl mx-auto">
+      <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-800">Settings</h1>
+        <p class="text-gray-500 mt-1">Manage system configurations and preferences.</p>
       </div>
 
-      <div class="flex-1 p-8">
-        <div v-if="loading" class="text-center py-10 text-gray-500">
-          <i class="fa fa-spinner fa-spin mr-2"></i> Loading settings...
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="flex border-b border-gray-200">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            @click="currentTab = tab.id"
+            class="px-6 py-4 text-sm font-medium transition-colors duration-200 focus:outline-none flex items-center"
+            :class="currentTab === tab.id ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'"
+          >
+            <i :class="['fa mr-2', tab.icon]"></i>
+            {{ tab.label }}
+          </button>
         </div>
 
-        <form v-else @submit.prevent="saveSettings">
-          <div v-if="message" class="mb-4 px-4 py-2 rounded text-sm" :class="messageType === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'">
-            {{ message }}
-          </div>
+        <div class="p-6">
+          <!-- General Settings -->
+          <div v-if="currentTab === 'general'" class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div>
+              <label class="block text-sm font-bold text-gray-700 mb-2">System Name</label>
+              <input v-model="settings.system_name" type="text" class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition duration-200 p-2.5 border text-sm" placeholder="e.g. Asset Tracker">
+            </div>
+            
+            <div>
+              <label class="block text-sm font-bold text-gray-700 mb-2">Support Email</label>
+              <input v-model="settings.support_email" type="email" class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition duration-200 p-2.5 border text-sm" placeholder="support@example.com">
+            </div>
 
-          <div v-if="activeTab === 'general'" class="space-y-6 max-w-2xl">
             <div>
-              <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Site Name</label>
-              <input v-model="form.site_name" type="text" class="w-full border rounded p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-            </div>
-            <div>
-              <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Company Name</label>
-              <input v-model="form.company_name" type="text" class="w-full border rounded p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-            </div>
-            <div>
-              <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Admin Email</label>
-              <input v-model="form.admin_email" type="email" class="w-full border rounded p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-            </div>
-            <div>
-              <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Support Email</label>
-              <input v-model="form.support_email" type="email" class="w-full border rounded p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-            </div>
-          </div>
-
-          <div v-if="activeTab === 'localization'" class="space-y-6 max-w-2xl">
-            <div>
-              <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Currency Symbol</label>
-              <input v-model="form.currency" type="text" class="w-full border rounded p-2.5 text-sm" placeholder="e.g. $">
-            </div>
-            <div>
-              <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Date Format</label>
-              <select v-model="form.date_format" class="w-full border rounded p-2.5 text-sm">
-                <option value="Y-m-d">YYYY-MM-DD</option>
-                <option value="d/m/Y">DD/MM/YYYY</option>
-                <option value="m/d/Y">MM/DD/YYYY</option>
+              <label class="block text-sm font-bold text-gray-700 mb-2">System Currency</label>
+              <select v-model="settings.currency" class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition duration-200 p-2.5 border text-sm">
+                <option value="KES">Kenyan Shilling (KES)</option>
+                <option value="USD">US Dollar (USD)</option>
+                <option value="EUR">Euro (EUR)</option>
+                <option value="GBP">British Pound (GBP)</option>
               </select>
             </div>
-            <div>
-              <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Timezone</label>
-              <select v-model="form.timezone" class="w-full border rounded p-2.5 text-sm">
-                <option value="Africa/Nairobi">Africa/Nairobi</option>
-                <option value="UTC">UTC</option>
-                <option value="Europe/London">Europe/London</option>
-                <option value="America/New_York">America/New_York</option>
-              </select>
+
+            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
+              <div>
+                <h4 class="font-bold text-gray-800 text-sm">Maintenance Mode</h4>
+                <p class="text-xs text-gray-500">Prevent users from accessing the system.</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" v-model="settings.maintenance_mode" class="sr-only peer">
+                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
             </div>
           </div>
 
-          <div v-if="activeTab === 'operations'" class="space-y-6 max-w-2xl">
-            <div>
-              <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Low Stock Threshold</label>
-              <input v-model.number="form.low_stock_threshold" type="number" min="0" class="w-full border rounded p-2.5 text-sm" />
-              <p class="text-xs text-gray-500 mt-1">Used to flag low quantities in inventory pages.</p>
+          <!-- Notifications -->
+          <div v-if="currentTab === 'notifications'" class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div class="space-y-4">
+              <div class="flex items-start">
+                <div class="flex items-center h-5">
+                  <input id="email_alerts" v-model="settings.email_alerts" type="checkbox" class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded">
+                </div>
+                <div class="ml-3 text-sm">
+                  <label for="email_alerts" class="font-bold text-gray-700">Email Alerts</label>
+                  <p class="text-gray-500">Receive emails for critical system events.</p>
+                </div>
+              </div>
+
+              <div class="flex items-start">
+                <div class="flex items-center h-5">
+                  <input id="asset_movement" v-model="settings.asset_movement_alerts" type="checkbox" class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded">
+                </div>
+                <div class="ml-3 text-sm">
+                  <label for="asset_movement" class="font-bold text-gray-700">Asset Movement</label>
+                  <p class="text-gray-500">Notify admins when assets are assigned or returned.</p>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="mt-10 pt-6 border-t">
+          <!-- Security -->
+          <div v-if="currentTab === 'security'" class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+             <div>
+              <label class="block text-sm font-bold text-gray-700 mb-2">Session Timeout (Minutes)</label>
+              <input v-model="settings.session_timeout" type="number" class="w-full md:w-1/3 rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition duration-200 p-2.5 border text-sm">
+            </div>
+          </div>
+
+          <div class="mt-8 pt-6 border-t border-gray-100 flex justify-end">
             <button 
-              type="submit" 
+              @click="saveSettings" 
               :disabled="saving"
-              class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded text-sm font-bold transition-colors disabled:opacity-50"
+              class="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-all shadow-md hover:shadow-lg flex items-center disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              <i class="fa fa-save mr-2"></i> {{ saving ? 'Saving...' : 'Save Changes' }}
+              <i v-if="saving" class="fa fa-spinner fa-spin mr-2"></i>
+              {{ saving ? 'Saving Changes...' : 'Save Settings' }}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   </div>
@@ -110,44 +108,47 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 
-const activeTab = ref('general');
-const loading = ref(true);
+const tabs = [
+  { id: 'general', label: 'General', icon: 'fa-cog' },
+  { id: 'notifications', label: 'Notifications', icon: 'fa-bell' },
+  { id: 'security', label: 'Security', icon: 'fa-lock' }
+];
+
+const currentTab = ref('general');
 const saving = ref(false);
-const message = ref('');
-const messageType = ref('success');
-const form = ref({
-  site_name: '',
-  company_name: '',
-  admin_email: '',
+const settings = ref({
+  system_name: '',
   support_email: '',
-  currency: '$',
-  date_format: 'Y-m-d',
-  timezone: 'Africa/Nairobi',
-  low_stock_threshold: 5,
+  currency: 'KES',
+  maintenance_mode: false,
+  email_alerts: true,
+  asset_movement_alerts: true,
+  session_timeout: 60
 });
 
 const fetchSettings = async () => {
   try {
-    const res = await axios.get('/api/settings');
-    Object.assign(form.value, res.data);
-  } catch (err) {
-    console.error("Failed to load settings:", err);
-  } finally {
-    loading.value = false;
+    // the public endpoint returns the same data; there is no need for an
+    // additional /admin prefix here.  the composable also uses /api/settings.
+    const response = await axios.get('/api/settings');
+    settings.value = { ...settings.value, ...response.data };
+  } catch (error) {
+    console.error('Failed to fetch settings:', error);
   }
 };
 
 const saveSettings = async () => {
   saving.value = true;
-  message.value = '';
   try {
-    const res = await axios.post('/api/settings', form.value);
-    Object.assign(form.value, res.data?.settings || {});
-    messageType.value = 'success';
-    message.value = 'Settings saved successfully.';
-  } catch (err) {
-    messageType.value = 'error';
-    message.value = err.response?.data?.message || 'Error saving settings.';
+    const resp = await axios.post('/api/settings', settings.value);
+    // the API echoes back the stored values; merge them so any defaults
+    // applied server‑side (or the newly‑saved currency) propagate to every
+    // component that uses the shared settings ref.
+    if (resp.data && resp.data.settings) {
+      settings.value = { ...settings.value, ...resp.data.settings };
+    }
+  } catch (error) {
+    console.error('Failed to save settings:', error);
   } finally {
     saving.value = false;
   }

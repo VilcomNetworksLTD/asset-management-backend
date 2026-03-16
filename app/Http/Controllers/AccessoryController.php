@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Accessory;
+use App\Models\User;
 use App\Services\AccessoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class AccessoryController extends Controller
 {
@@ -82,5 +85,44 @@ class AccessoryController extends Controller
         $accessory->delete();
 
         return response()->json(['message' => 'Accessory deleted successfully']);
+    }
+    public function assign(Request $request, $id)
+{
+    $request->validate([
+        'user_id' => 'required|exists:users,id',
+        'quantity' => 'required|integer|min:1',
+    ]);
+
+    $accessory = Accessory::findOrFail($id);
+
+    $quantity = $request->integer('quantity');
+    $userId = $request->integer('user_id');
+
+    if ($accessory->remaining_qty < $quantity) {
+        return response()->json(['message' => 'Not enough stock'], 400);
+    }
+
+    $user = User::find($userId);
+
+    $user->accessories()->attach($accessory->id, ['quantity' => $quantity]);
+
+    $accessory->decrement('remaining_qty', $quantity);
+
+    ActivityLog::create([
+        'Employee_ID' => Auth::id(),
+        'user_name'   => Auth::user()->name ?? 'System',
+        'action'      => 'Assigned',
+        'target_type' => 'Accessory',
+        'target_name' => $accessory->name,
+        'details'     => "Assigned {$quantity} to user: {$user->name} (ID: {$userId})",
+    ]);
+    
+    return response()->json(['message' => 'Accessory assigned successfully']);
+}
+
+    public function myAccessories()
+    {
+        $accessories = auth()->user()->accessories()->wherePivotNull('returned_at')->get();
+        return response()->json($accessories);
     }
 }

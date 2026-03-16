@@ -10,12 +10,12 @@
       <i :class="['fa', icon]"></i>
     </div>
 
-    <a 
-      href="#" 
+    <router-link 
+      :to="link" 
       class="block bg-black/10 hover:bg-black/20 text-center py-1 text-xs uppercase tracking-wider no-underline text-white/80 hover:text-white transition-colors"
     >
       View All <i class="fa fa-arrow-circle-right ml-1"></i>
-    </a>
+    </router-link>
   </div>
 </template>
 
@@ -39,6 +39,10 @@ defineProps({
   bgColor: {
     type: String,
     default: 'bg-[#00c0ef]' // Default to the Aqua blue seen in Snipe-IT
+  },
+  link: {
+    type: String,
+    default: '/'
   }
 });
 </script>

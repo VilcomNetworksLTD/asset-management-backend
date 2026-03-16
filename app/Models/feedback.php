@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Feedback extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     
     protected $table = 'feedback';
@@ -31,8 +32,9 @@ class Feedback extends Model
     }
 
     
-    public function user(): BelongsTo
+    public function employee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'Employee_ID', 'id');
     }
+    
 }

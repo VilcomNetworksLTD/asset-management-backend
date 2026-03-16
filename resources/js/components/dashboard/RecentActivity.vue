@@ -83,14 +83,26 @@ const iconForAction = (action = '') => {
 }
 
 const mappedActivities = computed(() =>
-  (props.activities || []).map((item) => ({
-    id: item.id,
-    icon: iconForAction(item.action),
-    date: item.created_at ? new Date(item.created_at).toLocaleString() : (item.date || '-'),
-    createdBy: item.user_name || item.createdBy || 'System',
-    action: item.action || '-',
-    item: item.target_name || item.item || '-',
-    target: item.target || null,
-  }))
+  (props.activities || []).map((item) => {
+    // Extract name from strings like "Assigned to user: Michael Scott (ID: 6)"
+    let extractedTarget = item.target;
+    
+    if (!extractedTarget && item.details) {
+      const match = item.details.match(/user:\s*([^(]+)/);
+      if (match) {
+        extractedTarget = match[1].trim();
+      }
+    }
+
+    return {
+      id: item.id,
+      icon: iconForAction(item.action),
+      date: item.created_at ? new Date(item.created_at).toLocaleString() : (item.date || '-'),
+      createdBy: item.user?.name || item.user_name || 'System',
+      action: item.action || '-',
+      item: item.target_name || item.item || '-',
+      target: extractedTarget || null,
+    };
+  })
 )
 </script>

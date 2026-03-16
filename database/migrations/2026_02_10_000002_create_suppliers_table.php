@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('Contact')->nullable();
 
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

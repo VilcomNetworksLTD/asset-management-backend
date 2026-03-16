@@ -13,6 +13,7 @@ class CreateSettingsTable extends Migration
             $table->string('key')->unique(); // e.g., 'site_name', 'logo_path'
             $table->text('value')->nullable(); // Stores the setting value
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

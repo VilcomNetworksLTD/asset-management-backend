@@ -4,7 +4,7 @@
       <div class="bg-[#3c8dbc] p-4 text-white font-bold text-lg">
         <i class="fa fa-laptop mr-2"></i> Request Equipment / Report Issue
       </div>
-      <form @submit.prevent="submitTicket" class="p-6 space-y-4">
+      <form @submit.prevent="submitTicket" class="p-6 space-y-6">
         <div>
           <label class="block text-sm font-bold text-gray-700 mb-1">Request Type</label>
           <div class="flex gap-4 mt-2 text-sm">
@@ -50,13 +50,14 @@
             </option>
           </select>
         </div>
-        <div>
+        <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
           <label class="block text-sm font-bold text-gray-700 mb-1">Description</label>
-          <textarea v-model="form.description" rows="4" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" :placeholder="form.type === 'equipment_request' ? 'Describe what you need and why...' : 'Describe what is wrong...'" required></textarea>
+          <textarea v-model="form.description" rows="4" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white" :placeholder="form.type === 'equipment_request' ? 'Describe what you need and why...' : 'Describe what is wrong...'" required></textarea>
+          <p class="text-xs text-gray-500 mt-1">Please provide as much detail as possible so we can assist you quickly.</p>
         </div>
         <div class="flex justify-end space-x-3">
           <button type="button" @click="$router.push('/dashboard/user')" class="px-4 py-2 text-gray-500">Cancel</button>
-          <button type="submit" class="px-6 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 transition">
+          <button type="submit" :disabled="submitting" class="px-6 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 transition disabled:opacity-50">
             {{ form.type === 'equipment_request' ? 'Submit Request' : 'Submit Ticket' }}
           </button>
         </div>
@@ -80,12 +81,17 @@ const form = ref({
   priority: 'medium'
 });
 
+const submitting = ref(false);
+
 onMounted(async () => {
   const res = await axios.get('/api/user-stats');
   myAssets.value = res.data.recent_assets;
 });
 
 const submitTicket = async () => {
+  if (submitting.value) return;
+  submitting.value = true;
+
   const payload = {
     description: form.value.description,
     priority: form.value.priority
@@ -97,8 +103,15 @@ const submitTicket = async () => {
     payload.asset_id = form.value.asset_id;
   }
 
-  await axios.post('/api/tickets', payload);
-  alert(form.value.type === 'equipment_request' ? 'Request submitted successfully!' : 'Ticket submitted successfully!');
-  router.push('/dashboard/user/my-tickets');
+  try {
+    await axios.post('/api/tickets', payload);
+    alert(form.value.type === 'equipment_request' ? 'Request submitted successfully!' : 'Ticket submitted successfully!');
+    router.push('/dashboard/user/my-tickets');
+  } catch (e) {
+    console.error('ticket submission failed', e);
+    alert('There was an error submitting the ticket, please try again.');
+  } finally {
+    submitting.value = false;
+  }
 };
 </script>

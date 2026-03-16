@@ -18,18 +18,21 @@
             </tr>
           </thead>
           <tbody>
+            <!-- loading state uses the global loader component for consistency -->
             <tr v-if="loading">
-              <td colspan="5" class="p-6 text-center text-gray-400">Loading...</td>
+              <td colspan="5" class="p-6 text-center">
+                <Loader />
+              </td>
             </tr>
 
             <tr v-for="asset in assets" :key="asset.id" class="border-b hover:bg-gray-50">
-              <td class="p-4 font-bold text-blue-600">AST-{{ String(asset.id).padStart(4, '0') }}</td>
-              <td class="p-4">{{ asset.Asset_Name }}</td>
-              <td class="p-4 font-mono text-xs text-gray-400">{{ asset.Serial_No || 'N/A' }}</td>
-              <td class="p-4 text-gray-600">{{ asset.Asset_Category }}</td>
+              <td class="p-4">{{ asset.asset_tag }}</td>
+              <td class="p-4">{{ asset.model }}</td>
+              <td class="p-4 font-mono text-xs text-gray-400">{{ asset.serial || 'N/A' }}</td>
+              <td class="p-4 text-gray-600">{{ asset.category }}</td>
               <td class="p-4">
                 <span class="px-2 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-700 uppercase">
-                  {{ asset.status?.Status_Name || 'Assigned' }}
+                  {{ asset.status?.Status_Name || asset.status_name || 'Assigned' }}
                 </span>
               </td>
             </tr>
@@ -45,16 +48,34 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import axios from 'axios'
+import { useWindowFocus } from '@vueuse/core'
+import Loader from '@/components/Loader.vue'
 
 const assets = ref([])
 const loading = ref(true)
 
+const isFocused = useWindowFocus()
+
+watch(isFocused, (focused) => {
+  if (focused) {
+    fetchAssets()
+  }
+})
+
 const fetchAssets = async () => {
   try {
     const { data } = await axios.get('/api/workflow/my-assets')
-    assets.value = data || []
+    // backend now returns a normalized shape, but apply a safety map
+    assets.value = (data || []).map(a => ({
+      id: a.id,
+      asset_tag: a.asset_tag || ('AST-' + String(a.id).padStart(4, '0')),
+      model: a.model || a.Asset_Name || '',
+      serial: a.serial || a.Serial_No || '',
+      category: a.category || a.Asset_Category || '',
+      status: a.status || a.status_name || null,
+    }))
   } catch (e) {
     console.error('Failed to load assigned assets', e)
     assets.value = []
@@ -64,4 +85,7 @@ const fetchAssets = async () => {
 }
 
 onMounted(fetchAssets)
+
+// expose loader component so template can use it
+const components = { Loader }
 </script>

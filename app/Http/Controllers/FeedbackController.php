@@ -35,10 +35,11 @@ class FeedbackController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'Asset_ID'    => 'required|exists:assets,id',
-            'Employee_ID' => 'required|exists:users,id',
+            'Asset_ID'    => 'nullable|exists:assets,id',
             'Comments'    => 'required|string',
         ]);
+
+        $data['Employee_ID'] = $request->user()->id;
 
         $feedback = $this->feedbackService->store($data);
 

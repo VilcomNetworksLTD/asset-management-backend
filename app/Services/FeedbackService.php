@@ -29,7 +29,7 @@ class FeedbackService
             'user_name'   => Auth::user()->name ?? 'System',
             'action'      => 'Created',
             'target_type' => 'Feedback',
-            'target_name' => "Feedback for Asset #{$feedback->Asset_ID}",
+            'target_name' => isset($feedback->Asset_ID) ? "Feedback for Asset #{$feedback->Asset_ID}" : "General Feedback",
             'details'     => "Comment: " . substr($feedback->Comments, 0, 50) . "...",
         ]);
 

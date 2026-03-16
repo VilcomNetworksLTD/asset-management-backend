@@ -18,6 +18,7 @@ return new class extends Migration
             $table->unsignedBigInteger('Status_ID');
 
             $table->timestamps(); // replaces 'Timestamp'
+            $table->softDeletes();
 
             // FOREIGN KEYS
             $table->foreign('Employee_ID')->references('id')->on('users')->onDelete('cascade');

@@ -18,6 +18,7 @@ class CreateComponentsTable extends Migration
             $table->foreignId('asset_id')->nullable()->constrained('assets');
             $table->decimal('price', 10, 2)->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

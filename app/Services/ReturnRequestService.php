@@ -45,112 +45,296 @@ class ReturnRequestService
 
     public function createRequest(User $user, array $data): ReturnRequest
     {
-        $asset = Asset::findOrFail($data['asset_id']);
-
-        if ((int) $asset->Employee_ID !== (int) $user->id) {
-            abort(response()->json(['message' => 'You can only request return for assets assigned to you.'], 403));
+        // either asset_id or items must be provided
+        $asset = null;
+        if (!empty($data['asset_id'])) {
+            $asset = Asset::findOrFail($data['asset_id']);
+            if ((int) $asset->Employee_ID !== (int) $user->id) {
+                abort(response()->json(['message' => 'You can only request return for assets assigned to you.'], 403));
+            }
         }
 
+        // pick a sensible status even if the database hasn't been seeded with the
+        // expected 'Pending'/'Requested' entries. fall back to the asset's status, or
+        // finally just the very first status row or 1 to satisfy NOT NULL.
+        $statusId = Status::firstOf(['Pending', 'Requested'])
+                    ?? $asset?->Status_ID
+                    ?? Status::first()?->id
+                    ?? 1;
+
         $returnRequest = ReturnRequest::create([
-            'Asset_ID' => $asset->id,
+            'Asset_ID' => $asset?->id,
             'Employee_ID' => $user->id,
             'Sender_ID' => $user->id,
-            'Status_ID' => $this->statusId(['Pending', 'Requested']) ?? $asset->Status_ID,
+            'Status_ID' => $statusId,
             'Request_Date' => now(),
             'Workflow_Status' => 'pending_inspection',
             'Sender_Condition' => $data['sender_condition'] ?? 'Good',
             'Missing_Items' => $data['missing_items'] ?? [],
+            'Items' => $data['items'] ?? [],
             'Notes' => trim(collect([
                 $data['notes'] ?? null,
                 !empty($data['issue_notes']) ? ('Reported issue: ' . $data['issue_notes']) : null,
             ])->filter()->implode(' | ')) ?: null,
         ]);
 
+        // send a quick confirmation email to the requester
+        if ($user->email) {
+            $assetDesc = $asset ? "asset '{$asset->Asset_Name}'" : 'selected items';
+            $subject = "Return request received";
+            $details = "Your return request for {$assetDesc} has been submitted and is awaiting inspection.";
+            \Illuminate\Support\Facades\Mail::to($user->email)
+                ->queue(new \App\Mail\SimpleNotification($subject, $details));
+        }
+
+        // notify administrators about the new request as well
+        $admins = User::where('role', 'admin')->get()->filter(fn($u) => $u->email);
+        if ($admins->isNotEmpty()) {
+            $subject = "New return request submitted";
+            $details = "A new return request has been submitted by {$user->name}.\n";
+            if ($asset) {
+                $details .= "Asset: {$asset->Asset_Name}\n";
+            } else {
+                $details .= "Items: " . collect($data['items'] ?? [])->pluck('type')->implode(', ') . "\n";
+            }
+            $details .= "Please log in to review and inspect.";
+
+            foreach ($admins as $admin) {
+                \Illuminate\Support\Facades\Mail::to($admin->email)
+                    ->queue(new \App\Mail\SimpleNotification($subject, $details));
+            }
+        }
+
         ActivityLog::create([
+            'asset_id' => $asset?->id,
             'Employee_ID' => $user->id,
             'user_name' => $user->name,
             'action' => 'Return Requested',
-            'target_type' => 'Asset',
-            'target_name' => $asset->Asset_Name,
+            'target_type' => $asset ? 'Asset' : 'Mixed Items',
+            'target_name' => $asset ? $asset->Asset_Name : 'Mixed Items',
             'details' => "Return Request #{$returnRequest->id} submitted for admin inspection",
         ]);
 
         return $returnRequest->fresh(['asset.status', 'sender', 'actionedBy']);
     }
 
-    public function updateStatus(int $id, string $status): ReturnRequest
+    public function updateStatus(int $id, string $status, ?string $reason = null): ReturnRequest
     {
-        $request = ReturnRequest::findOrFail($id);
-        $request->update(['Workflow_Status' => strtolower($status)]);
+        $request = ReturnRequest::with('asset')->findOrFail($id);
+        $lower = strtolower($status);
 
+        // handle acceptance / rejection
+        if (in_array($lower, ['accepted', 'rejected'], true)) {
+            $asset = $request->asset;
+            
+            // ONLY unassign items if the request was ACCEPTED
+            if ($lower === 'accepted') {
+                
+                // 1. Unassign primary hardware asset
+                if ($asset) {
+                    $asset->update([
+                        'Employee_ID' => null,
+                        'Status_ID' => Status::firstOf(['Ready to Deploy', 'Available']) ?? $asset->Status_ID,
+                    ]);
+                }
+
+                // 2. Unassign secondary items (Components, Accessories, Consumables, Licenses)
+                $sender = User::find($request->Sender_ID);
+                if ($sender && !empty($request->Items) && is_array($request->Items)) {
+                    foreach ($request->Items as $itm) {
+                        $type = $itm['type'] ?? null;
+                        $itemId = $itm['id'] ?? null;
+                        if (!$type || !$itemId) continue;
+
+                        switch ($type) {
+                            case 'component':
+                                $comp = \App\Models\Component::find($itemId);
+                                if ($comp) {
+                                    $this->returnItemToStock($sender->components(), 'component_id', $itemId);
+                                    $comp->increment('remaining_qty');
+                                }
+                                break;
+                            case 'accessory':
+                                $acc = \App\Models\Accessory::find($itemId);
+                                if ($acc) {
+                                    $this->returnItemToStock($sender->accessories(), 'accessory_id', $itemId);
+                                    $acc->increment('remaining_qty');
+                                }
+                                break;
+                            case 'consumable':
+                                $cons = \App\Models\Consumable::find($itemId);
+                                if ($cons) {
+                                    $this->returnItemToStock($sender->consumables(), 'consumable_id', $itemId);
+                                    $cons->increment('in_stock');
+                                }
+                                break;
+                            case 'license':
+                                $lic = \App\Models\License::find($itemId);
+                                if ($lic) {
+                                    $pivot = $sender->licenses()->where('license_id', $itemId)->wherePivotNull('returned_at')->first();
+                                    if ($pivot) {
+                                        $sender->licenses()->updateExistingPivot($itemId, ['returned_at' => now()]);
+                                        $lic->increment('remaining_seats');
+                                    }
+                                }
+                                break;
+                        }
+                    }
+                }
+            }
+
+            // attach rejection reason if supplied
+            if ($lower === 'rejected' && $reason) {
+                $request->Notes = trim(collect([$request->Notes, 'Rejection reason: ' . $reason])->filter()->implode(' | '));
+            }
+
+            // log the outcome
+            ActivityLog::create([
+                'asset_id' => $asset?->id,
+                'Employee_ID' => auth()->id(),
+                'user_name' => auth()->user()?->name ?? 'System',
+                'action' => $lower === 'accepted' ? 'Return Accepted' : 'Return Rejected',
+                'target_type' => $asset ? 'Asset' : 'Mixed Items',
+                'target_name' => $asset ? $asset->Asset_Name : 'Mixed Items',
+                'details' => "Return request was {$lower}" . ($reason ? ": {$reason}" : ''),
+            ]);
+
+            // let the original requester know of the decision
+            $requester = User::find($request->Sender_ID);
+            if ($requester && $requester->email) {
+                $subj = "Update on your return request";
+                $msg = "Hello {$requester->name},\n\nYour return request has been {$lower}.";
+                if ($reason) {
+                    $msg .= "\nReason: {$reason}";
+                }
+                $msg .= "\n\nThank you.";
+                \Illuminate\Support\Facades\Mail::to($requester->email)
+                    ->queue(new \App\Mail\SimpleNotification($subj, $msg));
+            }
+
+            // determine final workflow status
+            if ($lower === 'accepted') {
+                $lower = 'closed';
+            }
+        }
+
+        $request->update(['Workflow_Status' => $lower]);
         return $request->fresh(['asset.status', 'sender', 'actionedBy']);
+    }
+
+    /**
+     * Helper to process a returned item for a user's pivot table.
+     */
+    private function returnItemToStock($relation, string $foreignKey, int $itemId): void
+    {
+        $pivot = $relation->where($foreignKey, $itemId)->wherePivotNull('returned_at')->first();
+        if ($pivot) {
+            $qty = $pivot->pivot->quantity ?? 1;
+            if ($qty > 1) {
+                $relation->updateExistingPivot($itemId, ['quantity' => $qty - 1]);
+            } else {
+                $relation->updateExistingPivot($itemId, ['returned_at' => now()]);
+            }
+        }
     }
 
     public function completeInspection(int $id, int $adminId, array $data): ReturnRequest
     {
-        $request = ReturnRequest::with('asset')->findOrFail($id);
-        $asset = $request->asset;
+        $request = ReturnRequest::findOrFail($id);
 
-        DB::transaction(function () use ($request, $asset, $data, $adminId) {
-            $statusCandidates = match ($data['disposition']) {
-                'ready_to_deploy' => ['Ready to Deploy', 'Available'],
-                'non_deployable' => ['Non-Deployable', 'Archived/Lost', 'Retired'],
-                'maintenance' => ['Out for Repair', 'Maintenance', 'Pending'],
-            };
+        // build a combined notes string for audit
+        $notes = trim(collect([
+            $request->Notes,
+            !empty($data['admin_notes']) ? ('Admin notes: ' . $data['admin_notes']) : null,
+            'Disposition: ' . str_replace('_', ' ', $data['disposition'] ?? ''),
+        ])->filter()->implode(' | '));
 
-            $asset->update([
-                'Employee_ID' => $adminId,
-                'Status_ID' => $this->statusId($statusCandidates) ?? $asset->Status_ID,
-            ]);
-
+        DB::transaction(function () use ($request, $adminId, $data, $notes) {
             $request->update([
                 'Workflow_Status' => 'inspected',
                 'Admin_Condition' => $data['condition'],
                 'Missing_Items' => $data['missing_items'] ?? [],
-                'Notes' => trim(collect([
-                    $request->Notes,
-                    !empty($data['admin_notes']) ? ('Admin notes: ' . $data['admin_notes']) : null,
-                    'Disposition: ' . str_replace('_', ' ', $data['disposition']),
-                ])->filter()->implode(' | ')),
+                'Notes' => $notes,
                 'Actioned_By' => $adminId,
                 'Actioned_At' => now(),
             ]);
 
-            if ($data['disposition'] === 'maintenance') {
-                Maintenance::create([
-                    'Asset_ID' => $asset->id,
-                    'Ticket_ID' => null,
-                    'Request_Date' => now(),
-                    'Completion_Date' => null,
-                    'Maintenance_Type' => 'Return Inspection - Repair Needed',
-                    'Description' => $data['admin_notes'] ?? 'Flagged during return inspection.',
-                    'Cost' => null,
-                    'Status_ID' => $this->statusId(['Out for Repair', 'Maintenance', 'Pending']) ?? 1,
-                    'Maintenance_Date' => now(),
-                ]);
-            }
+            $assetObj = $request->asset;
+            ActivityLog::create([
+                'asset_id' => $assetObj?->id,
+                'Employee_ID' => $adminId,
+                'user_name' => auth()->user()->name ?? 'Admin',
+                'action' => 'Return Inspection',
+                'target_type' => $assetObj ? 'Asset' : 'Mixed Items',
+                'target_name' => $assetObj ? $assetObj->Asset_Name : 'Mixed Items',
+                'details' => 'Asset inspected; awaiting approval or rejection',
+            ]);
         });
+
+        // notify the requester that their item has been inspected and is now
+        // awaiting final decision
+        $requester = User::find($request->Sender_ID);
+        if ($requester && $requester->email) {
+            $subj = "Your return request has been inspected";
+            $msg = "Hello {$requester->name},\n\n" .
+                   "Your return request has been inspected by an admin. " .
+                   "A final decision (accept/reject) will be communicated shortly.";
+            \Illuminate\Support\Facades\Mail::to($requester->email)
+                ->queue(new \App\Mail\SimpleNotification($subj, $msg));
+        }
 
         return $request->fresh(['asset.status', 'sender', 'actionedBy']);
     }
 
-    public function destroy(int $id, User $user): void
+    /**
+     * Resolve a human-readable name for an item attached to a return request.
+     * This keeps the frontend simple; it just renders the string rather than
+     * having to fetch each model itself.
+     */
+    private function resolveItemName(array $item): string
     {
-        $request = ReturnRequest::findOrFail($id);
-
-        $isAdmin = (($user->role ?? 'user') === 'admin');
-        $isOwnerPending = ((int) $request->Sender_ID === (int) $user->id)
-            && in_array(strtolower($request->Workflow_Status ?? ''), ['pending', 'pending_inspection'], true);
-
-        if (!$isAdmin && !$isOwnerPending) {
-            abort(response()->json(['message' => 'Forbidden'], 403));
+        $type = $item['type'] ?? '';
+        $id = $item['id'] ?? null;
+        if (!$id) {
+            return ucfirst($type ?: 'unknown');
         }
 
-        $request->delete();
+        switch ($type) {
+            case 'component':
+                return \App\Models\Component::find($id)?->name
+                    ?? "Component #{$id}";
+            case 'accessory':
+                return \App\Models\Accessory::find($id)?->name
+                    ?? "Accessory #{$id}";
+            case 'license':
+                return \App\Models\License::find($id)?->name
+                    ?? "License #{$id}";
+            case 'consumable':
+                // consumable uses item_name rather than name
+                return \App\Models\Consumable::find($id)?->item_name
+                    ?? "Consumable #{$id}";
+            default:
+                return ucfirst($type) . " #{$id}";
+        }
     }
 
+    /**
+     * Helper for converting a model instance into the API-friendly array
+     * used by the frontend.  This lives in the service so it can be shared
+     * between multiple controllers.
+     */
     public function mapReturnRequest(ReturnRequest $r): array
     {
+        // ensure items array includes a human-readable name so the front end can
+        // display each returned accessory/component/etc on its own line.
+        $items = collect($r->Items ?? [])->map(function ($i) {
+            return [
+                'type' => $i['type'] ?? 'unknown',
+                'id' => $i['id'] ?? null,
+                'name' => $this->resolveItemName($i),
+            ];
+        })->toArray();
+
         return [
             'id' => $r->id,
             'type' => 'return',
@@ -158,6 +342,7 @@ class ReturnRequestService
             'sender_condition' => $r->Sender_Condition,
             'admin_condition' => $r->Admin_Condition,
             'missing_items' => $r->Missing_Items ?? [],
+            'items' => $items,
             'notes' => $r->Notes,
             'sender' => $r->sender ? ['id' => $r->sender->id, 'name' => $r->sender->name] : null,
             'receiver' => null,
@@ -171,17 +356,5 @@ class ReturnRequestService
             ] : null,
             'created_at' => $r->created_at,
         ];
-    }
-
-    private function statusId(array $names): ?int
-    {
-        foreach ($names as $name) {
-            $status = Status::whereRaw('LOWER(Status_Name) = ?', [strtolower($name)])->first();
-            if ($status) {
-                return (int) $status->id;
-            }
-        }
-
-        return null;
     }
 }

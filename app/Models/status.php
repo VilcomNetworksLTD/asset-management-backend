@@ -34,4 +34,19 @@ class Status extends Model
     {
         return $this->hasMany(Issue::class, 'Status_ID', 'id');
     }
+
+    /**
+     * Return the id for the first matching status name from a list.
+     * Helps the rest of the app avoid hard‑coded numbers.
+     */
+    public static function firstOf(array $names): ?int
+    {
+        foreach ($names as $name) {
+            $status = self::whereRaw('LOWER(Status_Name)=?', [strtolower($name)])->first();
+            if ($status) {
+                return (int)$status->id;
+            }
+        }
+        return null;
+    }
 }
