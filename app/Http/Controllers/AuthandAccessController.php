@@ -106,27 +106,33 @@ class AuthandAccessController extends Controller
 
     public function forgotPassword(Request $request)
     {
+        $request->validate(['email' => 'required|email']);
+
         // Proxy this request to the Safetika Hub's forgot-password API endpoint
         $response = Http::post(rtrim(env('AUTH_HUB_URL'), '/') . '/api/forgot-password', [
             'email' => $request->email,
         ]);
 
-        return response()->json([
-            'message' => $response->successful() 
-                ? 'If your email exists in Safetika, a reset link/OTP has been sent.' 
-                : 'Failed to communicate with identity server.'
-        ], $response->status());
+        return response()->json(
+            $response->json(), 
+            $response->status()
+        );
     }
 
     public function resetPassword(Request $request)
     {
+        $request->validate([
+            'email' => 'required|email',
+            'token' => 'required',
+            'password' => 'required|confirmed|min:8',
+        ]);
+
         // Proxy this request to the Safetika Hub's reset-password API endpoint
         $response = Http::post(rtrim(env('AUTH_HUB_URL'), '/') . '/api/reset-password', $request->all());
 
-        return response()->json([
-            'message' => $response->successful() 
-                ? 'Password reset successfully.' 
-                : 'Invalid token or OTP.'
-        ], $response->status());
+        return response()->json(
+            $response->json(), 
+            $response->status()
+        );
     }
 }
