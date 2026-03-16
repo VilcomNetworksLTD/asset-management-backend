@@ -20,6 +20,9 @@
         "vue-loader": "^17.4.2"
     },
     "dependencies": {
+        "@vueuse/core": "^14.2.1",
+        "lucide-vue-next": "^0.577.0",
+        "mitt": "^3.0.1",
         "vue-router": "^4.6.4"
     },
     "name": "asset-management-backend",

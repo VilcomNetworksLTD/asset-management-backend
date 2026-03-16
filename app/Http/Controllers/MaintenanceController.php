@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Maintenance;
+use App\Models\Status;
 use App\Models\Asset;
 use App\Services\MaintenanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class MaintenanceController extends Controller
 {
@@ -52,15 +54,22 @@ class MaintenanceController extends Controller
         $data = $request->validate([
             'Asset_ID' => 'required|integer|exists:assets,id',
             'Ticket_ID' => 'nullable|integer|exists:tickets,id',
-            'Request_Date' => 'required|date',
+            'Request_Date' => 'nullable|date',
             'Completion_Date' => 'nullable|date|after_or_equal:Request_Date',
             'Maintenance_Type' => 'required|string|max:255',
             'Description' => 'nullable|string',
             'Cost' => 'nullable|numeric|min:0',
-            'Status_ID' => 'required|integer|exists:statuses,id',
+            'Status_ID' => 'nullable|integer|exists:statuses,id',
             'asset_status_id' => 'nullable|integer|exists:statuses,id',
             'Maintenance_Date' => 'nullable|date',
         ]);
+
+        // Provide sensible defaults for fields that might be omitted by a simple form.
+        $data['Request_Date'] = $data['Request_Date'] ?? now();
+        if (empty($data['Status_ID'])) {
+            // Find a generic "Pending" or "Open" status to assign.
+            $data['Status_ID'] = Status::firstOf(['Pending', 'New', 'Open']) ?? 1;
+        }
 
         $maintenance = DB::transaction(function () use ($data) {
             $maintenance = Maintenance::create(collect($data)->except(['asset_status_id'])->toArray());
@@ -75,6 +84,22 @@ class MaintenanceController extends Controller
         });
 
         $maintenance->load(['asset.status', 'status']);
+
+        // notify relevant parties
+        $admins = \App\Models\User::where('role', 'admin')->get()->filter(fn($u)=> $u->email);
+        $assetOwner = $maintenance->asset?->employee;
+        $subject = "Maintenance scheduled for asset #{$maintenance->Asset_ID}";
+        $details = "A maintenance task has been scheduled:\n" .
+            "Type: {$maintenance->Maintenance_Type}\n" .
+            "Asset ID: {$maintenance->Asset_ID}\n" .
+            "Description: {$maintenance->Description}\n" .
+            "Request Date: {$maintenance->Request_Date}";
+        foreach ($admins as $admin) {
+            Mail::to($admin->email)->send(new \App\Mail\SimpleNotification($subject, $details));
+        }
+        if ($assetOwner && $assetOwner->email) {
+            Mail::to($assetOwner->email)->send(new \App\Mail\SimpleNotification($subject, $details));
+        }
 
         return response()->json($maintenance, 201);
     }

@@ -22,6 +22,7 @@ return new class extends Migration
             $table->dateTime('Maintenance_Date')->nullable();
 
             $table->timestamps(); // Laravel default timestamps
+            $table->softDeletes();
 
             // FOREIGN KEYS
             $table->foreign('Asset_ID')->references('id')->on('assets')->onDelete('cascade');

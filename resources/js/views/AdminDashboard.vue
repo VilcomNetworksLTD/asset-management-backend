@@ -10,6 +10,7 @@
         :value="stat.value"
         :icon="stat.icon"
         :bgColor="stat.bgColor"
+        :link="stat.link"
       />
     </div>
 
@@ -47,12 +48,12 @@ export default {
   data() {
     return {
       stats: [
-        { title: 'Assets', value: 0, icon: 'fa-barcode', bgColor: 'bg-[#00c0ef]' },
-        { title: 'Licenses', value: 0, icon: 'fa-save', bgColor: 'bg-[#bc1c5c]' },
-        { title: 'Accessories', value: 0, icon: 'fa-keyboard', bgColor: 'bg-[#f39c12]' },
-        { title: 'Consumables', value: 0, icon: 'fa-tint', bgColor: 'bg-[#0073b7]' },
-        { title: 'Components', value: 0, icon: 'fa-hdd', bgColor: 'bg-[#00a65a]' },
-        { title: 'People', value: 0, icon: 'fa-users', bgColor: 'bg-[#605ca8]' }
+        { title: 'Assets', value: 0, icon: 'fa-barcode', bgColor: 'bg-[#00c0ef]', link: '/dashboard/admin/assets' },
+        { title: 'Licenses', value: 0, icon: 'fa-save', bgColor: 'bg-[#bc1c5c]', link: '/dashboard/admin/licenses' },
+        { title: 'Accessories', value: 0, icon: 'fa-keyboard', bgColor: 'bg-[#f39c12]', link: '/dashboard/admin/accessories' },
+        { title: 'Consumables', value: 0, icon: 'fa-tint', bgColor: 'bg-[#0073b7]', link: '/dashboard/admin/consumables' },
+        { title: 'Components', value: 0, icon: 'fa-hdd', bgColor: 'bg-[#00a65a]', link: '/dashboard/admin/components' },
+        { title: 'People', value: 0, icon: 'fa-users', bgColor: 'bg-[#605ca8]', link: '/dashboard/admin/people' }
       ],
       activities: [],
       statusDistribution: {

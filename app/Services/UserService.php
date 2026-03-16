@@ -12,7 +12,21 @@ class UserService
      */
     public function getAllUsers()
     {
-        return User::all();
+        return User::withTrashed()->get();
+    }
+
+    /**
+     * Fetch a specific user with all their assigned items
+     */
+    public function getUserWithRelations(int $id)
+    {
+        return User::with([
+            'assets', // <--- Changed from 'assets.model'
+            'licenses',
+            'components',
+            'consumables',
+            'accessories'
+        ])->findOrFail($id);
     }
 
     /**

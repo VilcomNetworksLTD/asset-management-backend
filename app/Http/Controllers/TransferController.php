@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\Asset;
 use App\Models\Maintenance;
+use App\Mail\AssetAssigned;
 use App\Models\Status;
 use App\Models\Transfer;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class TransferController extends Controller
 {
@@ -78,6 +81,11 @@ class TransferController extends Controller
     {
         $user = $request->user();
 
+        if (!$user) {
+            // Return an empty array if the user is not authenticated for this request.
+            return response()->json([]);
+        }
+
         $assets = Asset::where('Employee_ID', $user->id)
             ->get(['id', 'Asset_Name', 'Serial_No'])
             ->map(fn ($a) => [
@@ -91,8 +99,17 @@ class TransferController extends Controller
 
     public function storeReturnRequest(Request $request): JsonResponse
     {
+        // If this specific route is hit, default the type to 'return' if not provided.
+        // This makes the endpoint more intuitive and robust against frontend omissions.
+        if ($request->is('api/transfers/return') && !$request->has('type')) {
+            $request->merge(['type' => 'return']);
+        }
+
         $data = $request->validate([
-            'asset_id' => 'required|integer|exists:assets,id',
+            'asset_id' => 'nullable|integer|exists:assets,id',
+            'items' => 'nullable|array',
+            'items.*.type' => 'required_with:items|string|in:asset,component,accessory,license,consumable',
+            'items.*.id' => 'required_with:items|integer',
             'type' => 'required|in:return,transfer',
             'receiver_id' => 'nullable|integer|exists:users,id',
             'sender_condition' => 'nullable|string|max:255',
@@ -103,27 +120,47 @@ class TransferController extends Controller
         ]);
 
         $user = $request->user();
-        $asset = Asset::findOrFail($data['asset_id']);
+        $asset = null;
+        if (!empty($data['asset_id'])) {
+            $asset = Asset::findOrFail($data['asset_id']);
+            if ((int) $asset->Employee_ID !== (int) $user->id) {
+                return response()->json(['message' => 'You can only request transfer for assets assigned to you.'], 403);
+            }
+        }
 
-        if ((int) $asset->Employee_ID !== (int) $user->id) {
-            return response()->json(['message' => 'You can only request transfer for assets assigned to you.'], 403);
+        // A request must contain either a primary asset or at least one other item.
+        if (empty($data['asset_id']) && empty($data['items'])) {
+            return response()->json(['message' => 'You must select an asset or at least one component/accessory to transfer/return.'], 422);
         }
 
         if ($data['type'] === 'transfer' && empty($data['receiver_id'])) {
             return response()->json(['message' => 'Receiver is required for transfer type.'], 422);
         }
 
+        $statusId = Status::firstOf(['Pending', 'Requested'])
+                    ?? $asset?->Status_ID
+                    ?? Status::first()?->id
+                    ?? 1;
+
+        // create Included_Items for user‑initiated transfer/return
+        $included = [];
+        if (!empty($data['items']) && is_array($data['items'])) {
+            $included = array_map(fn($i) => $this->resolveItemName((array)$i), $data['items']);
+        }
+
         $transfer = Transfer::create([
-            'Asset_ID' => $asset->id,
+            'Asset_ID' => $asset?->id,
             'Employee_ID' => $user->id,
             'Sender_ID' => $user->id,
             'Receiver_ID' => $data['receiver_id'] ?? null,
-            'Status_ID' => $this->statusId(['Pending', 'Requested']) ?? $asset->Status_ID,
+            'Status_ID' => $statusId,
             'Transfer_Date' => now(),
             'Type' => $data['type'],
             'Workflow_Status' => 'pending_inspection',
             'Sender_Condition' => $data['sender_condition'] ?? 'Good',
             'Missing_Items' => $data['missing_items'] ?? [],
+            'Included_Items' => $included,
+            'Items' => $data['items'] ?? [],
             'Notes' => trim(collect([
                 $data['notes'] ?? null,
                 !empty($data['issue_notes']) ? ('Reported issue: ' . $data['issue_notes']) : null,
@@ -131,13 +168,52 @@ class TransferController extends Controller
         ]);
 
         ActivityLog::create([
+            'asset_id' => $asset?->id,
             'Employee_ID' => $user->id,
             'user_name' => $user->name,
             'action' => 'Transfer Requested',
-            'target_type' => 'Asset',
-            'target_name' => $asset->Asset_Name,
-            'details' => "Transfer #{$transfer->id} submitted for admin recall/inspection",
+            'target_type' => $asset ? 'Asset' : 'Mixed Items',
+            'target_name' => $asset ? $asset->Asset_Name : 'Mixed Items',
+            'details' => "Transfer request submitted for admin inspection" .
+                (!empty($data['items']) ? ' (items: ' . collect($data['items'])->pluck('type')->implode(', ') . ')' : ''),
         ]);
+
+        // notify the requesting user that their transfer/return has been received
+        if ($user->email) {
+            $subj = "Transfer request received";
+            $detail = "Your request has been logged and is awaiting admin inspection.";
+            Mail::to($user->email)->send(new \App\Mail\SimpleNotification($subj, $detail));
+        }
+
+        // Notify admins about the new request
+        $admins = User::where('role', 'admin')->get()->filter(fn ($u) => $u->email);
+        if ($admins->isNotEmpty()) {
+            $subject = 'New Asset Transfer/Return Request';
+            $details = "A new request has been submitted and is pending inspection.\n\n";
+
+            if ($data['type'] === 'return') {
+                $subject = "New Asset Return Request";
+                $details .= "User: {$user->name}\n";
+                $details .= $asset ? "Asset: {$asset->Asset_Name}\n" : "Items: " . collect($data['items'] ?? [])->pluck('type')->implode(', ') . "\n";
+                $details .= "Type: Return";
+            } elseif ($data['type'] === 'transfer') {
+                $receiver = User::find($data['receiver_id']);
+                $subject = "New Asset Transfer Request";
+                $details .= "Sender: {$user->name}\nReceiver: {$receiver->name}\n";
+                if ($asset) {
+                    $details .= "Asset: {$asset->Asset_Name}\n";
+                } else {
+                    // list each extra with its friendly name
+                    $names = collect($data['items'] ?? [])->map(fn($i) => $this->resolveItemName((array)$i));
+                    $details .= "Items: " . $names->implode(', ') . "\n";
+                }
+                $details .= "Type: Transfer";
+            }
+
+            foreach ($admins as $admin) {
+                Mail::to($admin->email)->send(new \App\Mail\SimpleNotification($subject, $details));
+            }
+        }
 
         return response()->json(['message' => 'Transfer request submitted.', 'transfer' => $this->mapTransfer($transfer->fresh(['asset.status', 'sender', 'receiver', 'actionedBy']))], 201);
     }
@@ -163,25 +239,75 @@ class TransferController extends Controller
             'admin_notes' => 'nullable|string|max:2000',
         ]);
 
-        $transfer = Transfer::with('asset')->findOrFail($id);
+        $transfer = Transfer::with('asset', 'sender', 'receiver')->findOrFail($id);
         $asset = $transfer->asset;
 
-        DB::transaction(function () use ($transfer, $asset, $data) {
+        DB::transaction(function () use ($transfer, $asset, $data, $request) {
             $statusCandidates = match ($data['disposition']) {
                 'ready_to_deploy' => ['Ready to Deploy', 'Available'],
                 'non_deployable' => ['Non-Deployable', 'Archived/Lost', 'Retired'],
                 'maintenance' => ['Out for Repair', 'Maintenance', 'Pending'],
             };
 
-            // asset returns to admin custody after recall inspection
-            $asset->update([
-                'Employee_ID' => Auth::id(),
-                'Status_ID' => $this->statusId($statusCandidates) ?? $asset->Status_ID,
-            ]);
+            // After inspection, if there is a primary asset we unassign it
+            // and update its status based on the disposition.  Mixed‑item requests
+            // don't have an asset row, so $asset may be null.
+            if ($asset) {
+                $asset->update([
+                    'Employee_ID' => null,
+                    'Status_ID' => Status::firstOf($statusCandidates) ?? $asset->Status_ID,
+                ]);
+            }
 
             $next = ($transfer->Type === 'transfer' && $transfer->Receiver_ID)
                 ? 'pending_verification'
                 : 'completed';
+
+            // If the transfer is a "return" and is now completed, process the items.
+            if ($next === 'completed' && !empty($transfer->Items) && is_array($transfer->Items)) {
+                $sender = $transfer->sender;
+                if ($sender) {
+                    foreach ($transfer->Items as $itm) {
+                        $type = $itm['type'] ?? null;
+                        $id = $itm['id'] ?? null;
+                        if (!$type || !$id) continue;
+
+                        switch ($type) {
+                            case 'component':
+                                $item = \App\Models\Component::find($id);
+                                if ($item) {
+                                    $this->returnItemToStock($sender->components(), 'component_id', $item->id);
+                                    $item->increment('remaining_qty');
+                                }
+                                break;
+                            case 'accessory':
+                                $item = \App\Models\Accessory::find($id);
+                                if ($item) {
+                                    $this->returnItemToStock($sender->accessories(), 'accessory_id', $item->id);
+                                    $item->increment('remaining_qty');
+                                }
+                                break;
+                            case 'consumable':
+                                $item = \App\Models\Consumable::find($id);
+                                if ($item) {
+                                    $this->returnItemToStock($sender->consumables(), 'consumable_id', $item->id);
+                                    $item->increment('in_stock');
+                                }
+                                break;
+                            case 'license':
+                                $item = \App\Models\License::find($id);
+                                if ($item) {
+                                    $pivot = $sender->licenses()->where('license_id', $item->id)->wherePivotNull('returned_at')->first();
+                                    if ($pivot) {
+                                        $sender->licenses()->updateExistingPivot($item->id, ['returned_at' => now()]);
+                                    }
+                                    $item->increment('remaining_seats');
+                                }
+                                break;
+                        }
+                    }
+                }
+            }
 
             $transfer->update([
                 'Workflow_Status' => $next,
@@ -192,11 +318,11 @@ class TransferController extends Controller
                     !empty($data['admin_notes']) ? ('Admin notes: ' . $data['admin_notes']) : null,
                     'Disposition: ' . str_replace('_', ' ', $data['disposition']),
                 ])->filter()->implode(' | ')),
-                'Actioned_By' => Auth::id(),
+                'Actioned_By' => $request->user()->id,
                 'Actioned_At' => now(),
             ]);
 
-            if ($data['disposition'] === 'maintenance') {
+            if ($data['disposition'] === 'maintenance' && $asset) {
                 Maintenance::create([
                     'Asset_ID' => $asset->id,
                     'Ticket_ID' => null,
@@ -205,9 +331,38 @@ class TransferController extends Controller
                     'Maintenance_Type' => 'Return Inspection - Repair Needed',
                     'Description' => $data['admin_notes'] ?? 'Flagged during return inspection.',
                     'Cost' => null,
-                    'Status_ID' => $this->statusId(['Out for Repair', 'Maintenance', 'Pending']) ?? 1,
+                    'Status_ID' => Status::firstOf(['Out for Repair', 'Maintenance', 'Pending']) ?? 1,
                     'Maintenance_Date' => now(),
                 ]);
+            }
+
+            // If it's a transfer, notify the receiver it's ready for verification
+            if ($next === 'pending_verification' && $transfer->receiver) {
+                $receiver = $transfer->receiver;
+                $sender = $transfer->sender;
+                $admin = $request->user();
+
+                // build subject/details more generally in case there is no asset
+                if ($asset) {
+                    $subject = "Asset Ready for Verification: {$asset->Asset_Name}";
+                    $details = "An asset, '{$asset->Asset_Name}', originally from {$sender->name}, has been processed by {$admin->name} and is now assigned to you. Please log in to your dashboard to verify the inbound transfer.";
+                } else {
+                    $subject = "Items Ready for Verification";
+                    $details = "A set of items requested by {$sender->name} has been processed by {$admin->name} and is now awaiting your verification. Please log in to review the transfer details.";
+                }
+
+                Mail::raw($details, function ($message) use ($receiver, $subject) {
+                    $message->to($receiver->email)->subject($subject);
+                });
+
+                // also tell the sender their request was inspected
+                if ($sender && $sender->email) {
+                    $sub2 = "Your transfer request #{$transfer->id} was inspected";
+                    $det2 = "Your request has been inspected by {$admin->name}. The asset is now awaiting verification.";
+                    Mail::raw($det2, function ($message) use ($sender, $sub2) {
+                        $message->to($sender->email)->subject($sub2);
+                    });
+                }
             }
         });
 
@@ -217,34 +372,56 @@ class TransferController extends Controller
     public function assignToUser(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'asset_id' => 'required|integer|exists:assets,id',
+            'asset_id' => 'nullable|integer|exists:assets,id',
+            'items' => 'nullable|array',
+            'items.*.type' => 'required_with:items|string|in:asset,component,accessory,license,consumable',
+            'items.*.id' => 'required_with:items|integer',
             'receiver_id' => 'required|integer|exists:users,id',
             'notes' => 'nullable|string|max:2000',
         ]);
 
-        $asset = Asset::findOrFail($data['asset_id']);
+        $asset = null;
+        if (!empty($data['asset_id'])) {
+            $asset = Asset::findOrFail($data['asset_id']);
+        }
+        $admin = $request->user();
+
+        // figure out a human‑readable included items list
+        $included = ['Charger'];
+        if (!empty($data['items']) && is_array($data['items'])) {
+            $included = array_map(function ($i) {
+                return $this->resolveItemName((array) $i);
+            }, $data['items']);
+        }
 
         $transfer = Transfer::create([
-            'Asset_ID' => $asset->id,
+            'Asset_ID' => $asset?->id,
             'Employee_ID' => $data['receiver_id'],
             'Sender_ID' => Auth::id(),
             'Receiver_ID' => $data['receiver_id'],
-            'Status_ID' => $this->statusId(['Pending', 'Requested']) ?? $asset->Status_ID,
+            'Status_ID' => Status::firstOf(['Pending', 'Requested']) ?? ($asset?->Status_ID ?? null),
             'Transfer_Date' => now(),
             'Type' => 'assignment',
             'Workflow_Status' => 'pending_verification',
             'Admin_Condition' => 'Good',
-            'Included_Items' => ['Charger'],
+            'Included_Items' => $included,
+            'Items' => $data['items'] ?? [],
             'Notes' => $data['notes'] ?? 'Assigned by admin',
-            'Actioned_By' => Auth::id(),
+            'Actioned_By' => $admin->id,
             'Actioned_At' => now(),
         ]);
 
         // keep admin custody until receiver verifies inbound
         $asset->update([
-            'Employee_ID' => Auth::id(),
-            'Status_ID' => $this->statusId(['Pending', 'Ready to Deploy', 'Available']) ?? $asset->Status_ID,
+            'Employee_ID' => $admin->id,
+            'Status_ID' => Status::firstOf(['Pending', 'Ready to Deploy', 'Available']) ?? $asset->Status_ID,
         ]);
+
+        // Notify user about the new assignment
+        $receiver = User::find($data['receiver_id']);
+        if ($receiver && $receiver->email) {
+            Mail::to($receiver->email)->send(new AssetAssigned($asset, $receiver, $admin));
+        }
 
         return response()->json(['message' => 'Assignment created, awaiting staff verification.', 'transfer' => $this->mapTransfer($transfer->fresh(['asset.status', 'sender', 'receiver', 'actionedBy']))], 201);
     }
@@ -253,23 +430,12 @@ class TransferController extends Controller
     {
         $user = $request->user();
 
-        $rows = Transfer::with(['asset', 'actionedBy'])
+        $rows = Transfer::with(['asset', 'actionedBy', 'sender'])
             ->where('Receiver_ID', $user->id)
             ->where('Workflow_Status', 'pending_verification')
             ->latest()
             ->get()
-            ->map(fn ($t) => [
-                'id' => $t->id,
-                'admin_condition' => $t->Admin_Condition,
-                'included_items' => $t->Included_Items ?? ['Charger'],
-                'admin' => $t->actionedBy ? ['id' => $t->actionedBy->id, 'name' => $t->actionedBy->name] : ['name' => 'System Admin'],
-                'asset' => $t->asset ? [
-                    'id' => $t->asset->id,
-                    'model' => $t->asset->Asset_Name,
-                    'serial' => $t->asset->Serial_No,
-                    'asset_tag' => 'AST-' . str_pad((string) $t->asset->id, 4, '0', STR_PAD_LEFT),
-                ] : null,
-            ]);
+            ->map(fn ($t) => $this->mapTransfer($t));
 
         return response()->json($rows);
     }
@@ -282,54 +448,290 @@ class TransferController extends Controller
         ]);
 
         return DB::transaction(function () use ($request, $id) {
-            $transfer = Transfer::with('asset')
-                ->where('Receiver_ID', Auth::id())
+            $receiver = $request->user();
+            $transfer = Transfer::with('asset', 'sender', 'actionedBy')
+                ->where('Receiver_ID', $receiver->id)
                 ->findOrFail($id);
 
             $asset = $transfer->asset;
+            $admin = $transfer->actionedBy;
 
             if ($request->status === 'accepted') {
+                // notify sender/admin – omit asset name if missing
+                $sender = $transfer->sender;
+                if ($sender && $sender->email) {
+                    $subj = "Transfer completed";
+                    $details = "Your transfer has been verified and completed.";
+                    if ($asset) {
+                        $details .= " Asset: {$asset->Asset_Name}.";
+                    }
+                    Mail::raw($details, function ($message) use ($sender, $subj) {
+                        $message->to($sender->email)->subject($subj);
+                    });
+                }
+
                 $transfer->update([
                     'Workflow_Status' => 'deployed',
                     'Actioned_At' => now(),
                 ]);
 
-                $asset->update([
-                    'Employee_ID' => Auth::id(),
-                    'Status_ID' => $this->statusId(['Deployed', 'Assigned', 'In Use']) ?? $asset->Status_ID,
-                ]);
+                // relocate primary asset if present
+                if ($asset) {
+                    $asset->update([
+                        'Employee_ID' => $receiver->id,
+                        'Status_ID' => Status::firstOf(['Deployed', 'Assigned', 'In Use']) ?? $asset->Status_ID,
+                    ]);
+
+                    ActivityLog::create([
+                        'asset_id' => $asset->id,
+                        'Employee_ID' => $receiver->id,
+                        'user_name' => $receiver->name,
+                        'action' => 'Transfer Verified',
+                        'target_type' => 'Asset',
+                        'target_name' => $asset->Asset_Name,
+                        'details' => "Transfer verified by {$receiver->name}",
+                    ]);
+                } else {
+                    ActivityLog::create([
+                        'Employee_ID' => $receiver->id,
+                        'user_name' => $receiver->name,
+                        'action' => 'Transfer Verified',
+                        'target_type' => 'Mixed Items',
+                        'target_name' => 'Mixed Items',
+                        'details' => "Transfer verified by {$receiver->name}",
+                    ]);
+                }
+
+                // handle any extra items bundled with the transfer
+                if (!empty($transfer->Items) && is_array($transfer->Items)) {
+                    foreach ($transfer->Items as $itm) {
+                        $type = $itm['type'] ?? null;
+                        $id = $itm['id'] ?? null;
+                        if (!$type || !$id) continue;
+                        switch ($type) {
+                            case 'component':
+                                $comp = \App\Models\Component::find($id);
+                                if ($comp && $comp->remaining_qty > 0) {
+                                    // deduct from sender
+                                    if ($sender) {
+                                        $pivot = $sender->components()->where('component_id', $comp->id)
+                                            ->wherePivotNull('returned_at')
+                                            ->first();
+                                        if ($pivot) {
+                                            $qty = $pivot->pivot->quantity;
+                                            if ($qty > 1) {
+                                                $sender->components()->updateExistingPivot($comp->id, ['quantity' => $qty - 1]);
+                                            } else {
+                                                $sender->components()->updateExistingPivot($comp->id, ['returned_at' => now()]);
+                                            }
+                                        }
+                                    }
+                                    $receiver->components()->attach($comp->id, ['quantity' => 1]);
+                                }
+                                break;
+                            case 'accessory':
+                                $acc = \App\Models\Accessory::find($id);
+                                if ($acc && $acc->remaining_qty > 0) {
+                                    if ($sender) {
+                                        $pivot = $sender->accessories()->where('accessory_id', $acc->id)
+                                            ->wherePivotNull('returned_at')
+                                            ->first();
+                                        if ($pivot) {
+                                            $qty = $pivot->pivot->quantity;
+                                            if ($qty > 1) {
+                                                $sender->accessories()->updateExistingPivot($acc->id, ['quantity' => $qty - 1]);
+                                            } else {
+                                                $sender->accessories()->updateExistingPivot($acc->id, ['returned_at' => now()]);
+                                            }
+                                        }
+                                    }
+                                    $receiver->accessories()->attach($acc->id, ['quantity' => 1]);
+                                }
+                                break;
+                            case 'consumable':
+                                $cons = \App\Models\Consumable::find($id);
+                                if ($cons && $cons->in_stock > 0) {
+                                    if ($sender) {
+                                        $pivot = $sender->consumables()->where('consumable_id', $cons->id)
+                                            ->wherePivotNull('returned_at')
+                                            ->first();
+                                        if ($pivot) {
+                                            $qty = $pivot->pivot->quantity;
+                                            if ($qty > 1) {
+                                                $sender->consumables()->updateExistingPivot($cons->id, ['quantity' => $qty - 1]);
+                                            } else {
+                                                $sender->consumables()->updateExistingPivot($cons->id, ['returned_at' => now()]);
+                                            }
+                                        }
+                                    }
+                                    $receiver->consumables()->attach($cons->id, ['quantity' => 1]);
+                                }
+                                break;
+                            case 'license':
+                                $lic = \App\Models\License::find($id);
+                                if ($lic) {
+                                    if ($sender) {
+                                        $sender->licenses()->updateExistingPivot($lic->id, ['returned_at' => now()]);
+                                    }
+                                    $receiver->licenses()->attach($lic->id);
+                                }
+                                break;
+                        }
+                    }
+                }
 
                 return response()->json(['message' => 'Asset verified and assigned to you.']);
             }
 
+            // otherwise we assume a dispute
             $transfer->update([
                 'Workflow_Status' => 'disputed',
                 'Notes' => $request->notes ?? 'User reported discrepancy during inbound verification.',
             ]);
 
-            $asset->update([
-                'Employee_ID' => $transfer->Sender_ID ?: Auth::id(),
-                'Status_ID' => $this->statusId(['Ready to Deploy', 'Available']) ?? $asset->Status_ID,
+            ActivityLog::create([
+                'asset_id' => $asset?->id,
+                'Employee_ID' => $receiver->id,
+                'user_name' => $receiver->name,
+                'action' => 'Transfer Disputed',
+                'target_type' => $asset ? 'Asset' : 'Mixed Items',
+                'target_name' => $asset ? $asset->Asset_Name : 'Mixed Items',
+                'details' => "Transfer disputed" . ($request->notes ? ": {$request->notes}" : ''),
             ]);
+
+            if ($asset) {
+                $asset->update([
+                    'Employee_ID' => $transfer->Actioned_By,
+                    'Status_ID' => Status::firstOf(['Ready to Deploy', 'Available']) ?? $asset->Status_ID,
+                ]);
+            }
+
+            // Notify admins of dispute
+            $admins = User::where('role', 'admin')->get()->filter(fn ($u) => $u->email);
+            if ($admins->isNotEmpty()) {
+                $subject = "Asset Transfer Disputed: #{$transfer->id}";
+                $details = "{$receiver->name} has disputed the inbound verification for asset '{$asset->Asset_Name}'.\n\nReason: " . ($request->notes ?? 'No reason provided.') . "\n\nPlease review the transfer record #{$transfer->id}.";
+
+                foreach ($admins as $admin) {
+                    Mail::raw($details, function ($message) use ($admin, $subject) {
+                        $message->to($admin->email)->subject($subject);
+                    });
+                }
+            }
 
             return response()->json(['message' => 'Discrepancy reported to admin.'], 422);
         });
     }
 
-    private function statusId(array $names): ?int
+    /**
+     * Helper to process a returned item for a user.
+     * It finds the user's assignment of the item and either decrements the quantity
+     * or marks the entire assignment as returned.
+     */
+    private function returnItemToStock($relation, string $foreignKey, int $itemId): void
     {
-        foreach ($names as $name) {
-            $status = Status::whereRaw('LOWER(Status_Name) = ?', [strtolower($name)])->first();
-            if ($status) {
-                return (int) $status->id;
+        $pivot = $relation->where($foreignKey, $itemId)->wherePivotNull('returned_at')->first();
+        if ($pivot) {
+            $qty = $pivot->pivot->quantity;
+            if ($qty > 1) {
+                // If they have more than one, decrement the pivot quantity
+                $relation->updateExistingPivot($itemId, ['quantity' => $qty - 1]);
+            } else {
+                // If they have one, mark it as returned
+                $relation->updateExistingPivot($itemId, ['returned_at' => now()]);
             }
         }
+    }
 
-        return null;
+
+    /**
+     * Return a displayable name for an item entry from the transfers table.
+     * Mirrors the logic in ReturnRequestService so both APIs behave the same.
+     */
+    /**
+     * Return a display name for an item entry from the transfers table.
+     * Mirrors the logic in ReturnRequestService so both APIs behave the same.
+     */
+    private function resolveItemName(array $item): string
+    {
+        $type = $item['type'] ?? '';
+        $id = $item['id'] ?? null;
+        if (!$id) {
+            return ucfirst($type ?: 'unknown');
+        }
+
+        switch ($type) {
+            case 'component':
+                return \App\Models\Component::find($id)?->name
+                    ?? "Component #{$id}";
+            case 'accessory':
+                return \App\Models\Accessory::find($id)?->name
+                    ?? "Accessory #{$id}";
+            case 'license':
+                return \App\Models\License::find($id)?->name
+                    ?? "License #{$id}";
+            case 'consumable':
+                return \App\Models\Consumable::find($id)?->item_name
+                    ?? "Consumable #{$id}";
+            default:
+                return ucfirst($type) . " #{$id}";
+        }
+    }
+
+    /**
+     * Turn a raw item array into a richer structure suitable for the UI.
+     * Provides name, type and, when possible, a small set of details taken
+     * from the underlying database record (serial, category, quantity, etc.).
+     */
+    private function formatItem(array $item): array
+    {
+        $type = $item['type'] ?? 'unknown';
+        $id   = $item['id'] ?? null;
+        $result = [
+            'type' => $type,
+            'id'   => $id,
+            'name' => $this->resolveItemName($item),
+            'details' => null,
+        ];
+
+        if (!$id) {
+            return $result;
+        }
+
+        switch ($type) {
+            case 'component':
+                $m = \App\Models\Component::find($id);
+                if ($m) {
+                    $result['details'] = $m->only(['id', 'name', 'category', 'serial_no', 'remaining_qty']);
+                }
+                break;
+            case 'accessory':
+                $m = \App\Models\Accessory::find($id);
+                if ($m) {
+                    $result['details'] = $m->only(['id', 'name', 'category', 'model_number', 'remaining_qty']);
+                }
+                break;
+            case 'consumable':
+                $m = \App\Models\Consumable::find($id);
+                if ($m) {
+                    $result['details'] = $m->only(['id', 'item_name', 'in_stock']);
+                }
+                break;
+            case 'license':
+                $m = \App\Models\License::find($id);
+                if ($m) {
+                    $result['details'] = $m->only(['id', 'name']);
+                }
+                break;
+        }
+
+        return $result;
     }
 
     private function mapTransfer(Transfer $t): array
     {
+        $items = collect($t->Items ?? [])->map(fn($i) => $this->formatItem((array) $i))->toArray();
+
         return [
             'id' => $t->id,
             'type' => strtolower($t->Type ?? 'transfer'),
@@ -338,6 +740,7 @@ class TransferController extends Controller
             'admin_condition' => $t->Admin_Condition,
             'included_items' => $t->Included_Items ?? [],
             'missing_items' => $t->Missing_Items ?? [],
+            'items' => $items,
             'notes' => $t->Notes,
             'sender' => $t->sender ? ['id' => $t->sender->id, 'name' => $t->sender->name] : null,
             'receiver' => $t->receiver ? ['id' => $t->receiver->id, 'name' => $t->receiver->name] : null,

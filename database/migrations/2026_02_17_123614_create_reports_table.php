@@ -16,6 +16,7 @@ class CreateReportsTable extends Migration
             $table->string('file_path')->nullable(); // Location of the stored file
             $table->string('generated_by');   // Name of the admin who created it
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

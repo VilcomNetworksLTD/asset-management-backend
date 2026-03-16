@@ -7,6 +7,10 @@ use App\Models\Asset;
 use App\Models\User;
 use App\Models\Ticket;
 use App\Models\ActivityLog;
+use App\Models\Accessory;
+use App\Models\Component;
+use App\Models\Consumable;
+use App\Models\License;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -55,22 +59,37 @@ public function index(Request $request)
 {
     $user = $request->user();
 
-    // Assets and Tickets are already using Employee_ID
-    $assets = Asset::with('status')
+    $assetsQuery = Asset::with('status')
         ->where('Employee_ID', $user->id)
-        ->select('id', 'Asset_Name as model', 'Serial_No as serial', 'Asset_Category as category', 'Status_ID')
-        ->get()
-        ->map(function ($asset) {
-            $asset->asset_tag = 'AST-' . str_pad((string) $asset->id, 4, '0', STR_PAD_LEFT);
-            $asset->status_name = $asset->status->Status_Name ?? 'Deployed';
-            return $asset;
-        });
+        ->get();
+
+    $recentAssetsData = [];
+    foreach ($assetsQuery as $asset) {
+        $recentAssetsData[] = [
+            'id' => $asset->id,
+            'asset_tag' => 'AST-' . str_pad((string) $asset->id, 4, '0', STR_PAD_LEFT),
+            'model' => $asset->Asset_Name,
+            'serial' => $asset->Serial_No,
+            'category' => $asset->Asset_Category,
+            'status_name' => optional($asset->status)->Status_Name ?? 'Deployed',
+        ];
+    }
 
     $openTicketsCount = Ticket::where('Employee_ID', $user->id)
         ->where('Status_ID', '!=', 3)
         ->count();
 
-    // FIXED: Now uses Employee_ID instead of the missing User_ID
+    // Fetch all other assigned items
+    $myLicenses = $user->licenses()->wherePivotNull('returned_at')->get();
+    $myAccessories = $user->accessories()->withPivot('quantity')->wherePivotNull('returned_at')->get();
+    $myConsumables = $user->consumables()->withPivot('quantity')->wherePivotNull('returned_at')->get();
+    $myComponents = $user->components()->withPivot('quantity')->wherePivotNull('returned_at')->get();
+
+    // Calculate total quantities for items that have them
+    $myAccessoriesCount = $myAccessories->sum(fn($i) => $i->pivot->quantity);
+    $myConsumablesCount = $myConsumables->sum(fn($i) => $i->pivot->quantity);
+    $myComponentsCount = $myComponents->sum(fn($i) => $i->pivot->quantity);
+
     $logs = ActivityLog::where('Employee_ID', $user->id)
         ->latest()
         ->take(5)
@@ -86,10 +105,18 @@ public function index(Request $request)
         });
 
     return response()->json([
-        'my_assets_count' => $assets->count(),
+        'my_assets_count' => count($recentAssetsData),
         'open_tickets_count' => $openTicketsCount,
-        'recent_assets' => $assets->take(5),
-        'logs' => $logs
+        'recent_assets' => array_slice($recentAssetsData, 0, 5),
+        'logs' => $logs,
+        'my_licenses_count' => $myLicenses->count(),
+        'my_accessories_count' => $myAccessoriesCount,
+        'my_consumables_count' => $myConsumablesCount,
+        'my_components_count' => $myComponentsCount,
+        'recent_licenses' => $myLicenses->take(5),
+        'recent_accessories' => $myAccessories->take(5),
+        'recent_consumables' => $myConsumables->take(5),
+        'recent_components' => $myComponents->take(5),
     ]);
 }
     private function getStatusColor($type)

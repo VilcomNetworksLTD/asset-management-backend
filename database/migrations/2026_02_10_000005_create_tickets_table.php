@@ -18,6 +18,7 @@ return new class extends Migration
             $table->text('Communication_log')->nullable();
 
             $table->timestamps(); // replaces your custom 'Timestamp'
+            $table->softDeletes();
 
             // FOREIGN KEYS
             $table->foreign('Employee_ID')->references('id')->on('users')->onDelete('cascade');

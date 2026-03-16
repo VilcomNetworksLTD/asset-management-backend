@@ -2,34 +2,37 @@
 
 namespace App\Services;
 
-use App\Models\Ticket;
+use App\Models\ActivityLog;
+use App\Models\Accessory;
+use App\Models\Asset;
+use App\Models\Consumable;
 use App\Models\Issue;
+use App\Models\Maintenance;
+use App\Models\Status;
+use App\Models\Ticket;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class TicketService
 {
     /**
-     * Resolve a ticket and its parent issue simultaneously.
+     * Handles the standard update/resolution of a ticket
      */
-    public function resolveTicket($ticketId, $communication, $statusId)
+    public function resolveTicket(int $id, string $communication, int $statusId): Ticket
     {
-        return DB::transaction(function () use ($ticketId, $communication, $statusId) {
-            // 1. Find and update the Ticket
-            $ticket = Ticket::findOrFail($ticketId);
+        return DB::transaction(function () use ($id, $communication, $statusId) {
+            $ticket = Ticket::findOrFail($id);
+            
             $ticket->update([
-                'Communication_log' => $communication,
                 'Status_ID' => $statusId,
+                'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . $communication),
             ]);
 
-            // 2. Find and update the parent Issue linked to this ticket
-            // Using your Issue_ID foreign key from the Ticket model
-            if ($ticket->Issue_ID) {
-                $issue = Issue::find($ticket->Issue_ID);
-                if ($issue) {
-                    $issue->update([
-                        'Status_ID' => $statusId,
-                    ]);
-                }
+            // If the ticket is linked to an Issue, update the issue status as well
+            if (Schema::hasColumn('tickets', 'Issue_ID') && $ticket->Issue_ID) {
+                Issue::where('id', $ticket->Issue_ID)->update(['Status_ID' => $statusId]);
             }
 
             return $ticket;
@@ -37,16 +40,73 @@ class TicketService
     }
 
     /**
-     * Create a new ticket from an issue (Useful for user-reporting flow).
+     * Handles complex asset and accessory assignment
      */
-    public function createTicketFromIssue(Issue $issue, $priority = 'low')
+    public function assignAssetToTicket(int $ticketId, array $data): array
     {
-        return Ticket::create([
-            'Employee_ID' => $issue->Employee_ID,
-            'Issue_ID'    => $issue->id,
-            'Status_ID'   => $issue->Status_ID,
-            'Priority'    => $priority,
-            'Description' => $issue->Issue_Description,
-        ]);
+        return DB::transaction(function () use ($ticketId, $data) {
+            $ticket = Ticket::findOrFail($ticketId);
+            $asset = Asset::findOrFail($data['asset_id']);
+
+            $deployedStatusId = Status::whereIn('Status_Name', ['Deployed', 'Assigned', 'In Use'])->value('id');
+            $resolvedStatusId = Status::whereIn('Status_Name', ['Resolved', 'Closed', 'Completed'])->value('id');
+
+            // 1. Update Asset Ownership
+            $asset->update([
+                'Employee_ID' => $ticket->Employee_ID,
+                'Status_ID' => $deployedStatusId ?? $asset->Status_ID,
+            ]);
+
+            $bundleItems = [];
+
+            // 2. Handle Accessories
+            foreach (($data['accessory_allocations'] ?? []) as $item) {
+                $accessory = Accessory::lockForUpdate()->findOrFail($item['id']);
+                if ((int) $accessory->remaining_qty < (int) $item['qty']) {
+                    throw ValidationException::withMessages(['accessories' => "Insufficient stock for {$accessory->name}"]);
+                }
+                $accessory->decrement('remaining_qty', $item['qty']);
+                $bundleItems[] = "Accessory: {$accessory->name} x{$item['qty']}";
+            }
+
+            // 3. Handle Consumables
+            foreach (($data['consumable_allocations'] ?? []) as $item) {
+                $consumable = Consumable::lockForUpdate()->findOrFail($item['id']);
+                if ((int) $consumable->in_stock < (int) $item['qty']) {
+                    throw ValidationException::withMessages(['consumables' => "Insufficient stock for {$consumable->item_name}"]);
+                }
+                $consumable->decrement('in_stock', $item['qty']);
+                $bundleItems[] = "Consumable: {$consumable->item_name} x{$item['qty']}";
+            }
+
+            // 4. Update Ticket Logs
+            $bundleLine = empty($bundleItems) ? null : 'Bundle Items: ' . implode(', ', $bundleItems);
+            $log = trim(($data['communication'] ?? 'Asset assigned by admin') . ($bundleLine ? "\n" . $bundleLine : ''));
+
+            $ticket->update([
+                'Status_ID' => $resolvedStatusId ?? $ticket->Status_ID,
+                'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . $log),
+            ]);
+
+            // 5. Update linked Issue
+            if (Schema::hasColumn('tickets', 'Issue_ID') && $ticket->Issue_ID) {
+                Issue::where('id', $ticket->Issue_ID)->update([
+                    'Asset_ID' => $asset->id,
+                    'Status_ID' => $resolvedStatusId ?? 1,
+                ]);
+            }
+
+            // 6. Log Activity
+            ActivityLog::create([
+                'Employee_ID' => Auth::id(),
+                'user_name' => Auth::user()->name ?? 'Admin',
+                'action' => 'Assigned',
+                'target_type' => 'Asset',
+                'target_name' => $asset->Asset_Name,
+                'details' => "Assigned to Employee_ID {$ticket->Employee_ID} via Ticket #{$ticket->id}",
+            ]);
+
+            return ['ticket' => $ticket, 'asset' => $asset, 'bundle' => $bundleItems];
+        });
     }
 }

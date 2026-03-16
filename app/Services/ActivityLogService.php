@@ -7,25 +7,31 @@ use Illuminate\Support\Facades\Auth;
 
 class ActivityLogService
 {
-    /**
-     * Record a new activity in the database.
-     */
+    
     public function log($action, $targetType, $targetName, $details = null)
-    {
-        return ActivityLog::create([
-            'user_name'   => Auth::user() ? Auth::user()->name : 'System',
-            'action'      => $action,      // e.g., 'Created', 'Updated'
-            'target_type' => $targetType,  // e.g., 'Asset', 'License'
-            'target_name' => $targetName,  // e.g., 'MacBook Pro #001'
-            'details'     => $details
-        ]);
-    }
+{
+    $user = Auth::user();
+
+    return ActivityLog::create([
+        'asset_id',
+        'Employee_ID' => $user ? $user->id : null, 
+        'user_name'   => $user ? $user->name : 'System',
+        'action'      => $action,
+        'target_type' => $targetType,
+        'target_name' => $targetName,
+        'details'     => $details
+    ]);
+}
 
     /**
      * Fetch the most recent logs for the UI.
      */
-    public function getRecentLogs($limit = 50)
-    {
-        return ActivityLog::latest()->take($limit)->get();
-    }
+public function getRecentLogs($limit = 50)
+{
+    // Eager load the 'user' relationship defined in your ActivityLog model
+    return ActivityLog::with('user')
+        ->latest()
+        ->take($limit)
+        ->get();
+}
 }

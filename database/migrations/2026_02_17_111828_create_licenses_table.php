@@ -15,8 +15,13 @@ class CreateLicensesTable extends Migration
             $table->string('manufacturer')->nullable();
             $table->integer('total_seats')->default(1);
             $table->integer('remaining_seats')->default(1);
+            $table->date('expiry_date')->nullable();
+            $table->string('departments')->nullable();
+            $table->string('allocation_type')->nullable();
+            $table->string('renewal_type')->nullable();
             $table->decimal('price', 10, 2)->nullable(); // Matches your price format
             $table->timestamps(); // Required for recent activity tracking
+            $table->softDeletes();
         });
     }
 

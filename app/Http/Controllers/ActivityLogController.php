@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\ActivityLogService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ActivityLogController extends Controller
 {
@@ -14,12 +15,15 @@ class ActivityLogController extends Controller
         $this->logService = $logService;
     }
 
-    /**
-     * Display a listing of activities.
-     */
-    public function index(): JsonResponse
+    
+    public function index(Request $request): JsonResponse
     {
-        $logs = $this->logService->getRecentLogs();
+        
+        $limit = $request->query('limit', 50);
+        
+
+        $logs = $this->logService->getRecentLogs($limit);
+        
         return response()->json($logs);
     }
 }

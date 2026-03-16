@@ -16,6 +16,7 @@ class CreateActivityLogsTable extends Migration
             $table->string('target_name'); // e.g., "MacBook Pro #001"
             $table->text('details')->nullable(); // Changes made
             $table->timestamps(); // The "When"
+            $table->softDeletes();
         });
     }
 

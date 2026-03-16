@@ -3,23 +3,24 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
-    /**
-     * The attributes that are mass assignable.
-     */
+    
     protected $fillable = [
         'name',
         'email',
         'password',
         'role',
+        'department_id',
         'is_verified',
         'otp_code',
         'otp_expires_at',
@@ -27,9 +28,7 @@ class User extends Authenticatable
         'reset_otp_expires_at',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     */
+    
     protected $hidden = [
         'password',
         'remember_token',
@@ -37,20 +36,17 @@ class User extends Authenticatable
         'reset_otp',
     ];
 
-    /**
-     * The attributes that should be cast.
-     */
+    
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'is_verified' => 'boolean',
         'otp_expires_at' => 'datetime',
         'reset_otp_expires_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 
-    /*
-     ERD RELATIONSHIPS
-    */
+    
     public function assets(): HasMany
     {
         return $this->hasMany(Asset::class, 'Employee_ID', 'id');
@@ -78,5 +74,30 @@ class User extends Authenticatable
     public function feedback(): HasMany
     {
         return $this->hasMany(Feedback::class, 'Employee_ID', 'id');
+    }
+
+    public function accessories()
+    {
+        return $this->belongsToMany(\App\Models\Accessory::class)->withPivot('quantity', 'returned_at')->withTimestamps();
+    }
+
+    public function components()
+    {
+        return $this->belongsToMany(\App\Models\Component::class)->withPivot('quantity', 'returned_at')->withTimestamps();
+    }
+
+    public function consumables()
+    {
+        return $this->belongsToMany(\App\Models\Consumable::class)->withPivot('quantity', 'returned_at')->withTimestamps();
+    }
+
+    public function licenses()
+    {
+        return $this->belongsToMany(\App\Models\License::class)->withPivot('returned_at')->withTimestamps();
+    }
+
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
     }
 }

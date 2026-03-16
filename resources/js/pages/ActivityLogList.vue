@@ -14,28 +14,36 @@
               <th class="p-3 border-r w-40">User</th>
               <th class="p-3 border-r w-32 text-center">Action</th>
               <th class="p-3 border-r w-40">Module</th>
+              <th class="p-3 border-r w-48">Target</th>
               <th class="p-3">Details</th>
             </tr>
           </thead>
           <tbody class="text-[13px]">
             <tr v-if="loading">
-              <td colspan="5" class="p-6 text-center text-gray-500">Loading logs...</td>
+              <td colspan="6" class="p-6">
+                <Loader />
+              </td>
             </tr>
+
             <tr v-for="log in logs" :key="log.id" class="border-b hover:bg-gray-50 transition-colors">
               <td class="p-3 border-r text-gray-500">{{ formatDate(log.created_at) }}</td>
-              <td class="p-3 border-r font-medium text-gray-700">{{ log.user_name }}</td>
+              <td class="p-3 border-r font-medium text-gray-700">
+                {{ log.user?.name || log.user_name || 'System' }}
+              </td>
               <td class="p-3 border-r text-center">
                 <span :class="getActionClass(log.action)" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase">
                   {{ log.action }}
                 </span>
               </td>
               <td class="p-3 border-r font-semibold text-[#3c8dbc]">{{ log.target_type }}</td>
+              <td class="p-3 border-r font-medium text-gray-800">{{ log.target_name }}</td>
               <td class="p-3 text-gray-600">
-                Changed <span class="font-bold text-gray-800">{{ log.target_name }}</span>: {{ log.details }}
+                {{ formatDetails(log.details) }}
               </td>
             </tr>
+
             <tr v-if="!loading && logs.length === 0">
-              <td colspan="5" class="p-6 text-center text-gray-500">No activity recorded yet.</td>
+              <td colspan="6" class="p-6 text-center text-gray-500">No activity recorded yet.</td>
             </tr>
           </tbody>
         </table>
@@ -73,6 +81,20 @@ const getActionClass = (action) => {
   if (a.includes('delete')) return 'bg-red-100 text-red-700';
   if (a.includes('update')) return 'bg-blue-100 text-blue-700';
   return 'bg-gray-100 text-gray-700';
+};
+
+
+const formatDetails = (text) => {
+  if (!text) return '';
+  
+  return text
+  
+    .replace(/\s*\(ID:\s*\d+\)/gi, '')
+    .replace(/\bID:\s*\d+/gi, '')
+    .replace(/#\d+/g, '')
+    .replace(/\b\d+\b/g, '')
+    .replace(/\s\s+/g, ' ')
+    .trim();
 };
 
 onMounted(fetchLogs);

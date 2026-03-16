@@ -15,14 +15,18 @@ return new class extends Migration
             $table->string('Asset_Category');
             $table->string('Serial_No')->unique()->nullable();
             $table->unsignedBigInteger('Supplier_ID');
-            $table->unsignedBigInteger('Employee_ID');
+            $table->unsignedBigInteger('Employee_ID')->nullable();
             $table->unsignedBigInteger('Status_ID');
             $table->text('Warranty_Details')->nullable();
             $table->text('License_Info')->nullable();
             $table->decimal('Price', 15, 2)->nullable();
+            $table->decimal('depreciation_value', 15, 2)->default(0);
+            $table->decimal('current_value', 15, 2)->default(0);
+            $table->string('location')->nullable();
             $table->unsignedBigInteger('Issue_ID')->nullable(); // renamed from Issue-ID
 
             $table->timestamps(); // Laravel default created_at and updated_at
+            $table->softDeletes();
 
             // FOREIGN KEYS
             $table->foreign('Employee_ID')->references('id')->on('users')->onDelete('cascade');

@@ -1,141 +1,193 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
-import axios from 'axios'
+import { ref, onMounted } from 'vue';
+import axios from 'axios';
+import Loader from '@/components/Loader.vue'; // Assuming you have a loader
 
-const rows = ref([])
-const loading = ref(false)
-const saving = ref(false)
+// State
+const history = ref([]);
+const printers = ref([]); // We need to know WHICH printer is getting the ink
+const consumablesStock = ref([]); // The ink boxes in the warehouse
+const loading = ref(false);
+const submitting = ref(false);
 
-const filters = reactive({ search: '', category: '', per_page: 10 })
-const pagination = reactive({ current_page: 1, last_page: 1, total: 0 })
+const form = ref({
+  asset_id: '', // The Printer ID
+  consumable_id: '', // The Ink ID
+  color: 'Black'
+});
 
-const showForm = ref(false)
-const editingId = ref(null)
-const form = reactive({ item_name: '', category: '', in_stock: 0, min_amt: 0, price: '' })
-
-const categories = computed(() => [...new Set(rows.value.map(r => r.category).filter(Boolean))])
-
-const fetchRows = async (page = 1) => {
-  loading.value = true
+// 1. Fetch the continuous cycle history for ALL printers
+const fetchAllHistory = async () => {
+  loading.value = true;
   try {
-    const { data } = await axios.get('/api/consumables/list', {
-      params: {
-        search: filters.search || undefined,
-        category: filters.category || undefined,
-        per_page: filters.per_page,
-        page
-      }
-    })
-    rows.value = data.data || []
-    pagination.current_page = data.current_page || 1
-    pagination.last_page = data.last_page || 1
-    pagination.total = data.total || 0
+    // We'll use a new endpoint or the toner-history one without an ID
+    const { data } = await axios.get('/api/consumables/usage-history'); 
+    history.value = data;
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
-const openCreate = () => {
-  editingId.value = null
-  Object.assign(form, { item_name: '', category: '', in_stock: 0, min_amt: 0, price: '' })
-  showForm.value = true
-}
+// 2. Fetch the Inventory (The boxes of ink sitting on the shelf)
+const fetchInventory = async () => {
+  const { data } = await axios.get('/api/consumables/list');
+  consumablesStock.value = data.data || data;
+};
 
-const openEdit = (row) => {
-  editingId.value = row.id
-  Object.assign(form, row)
-  showForm.value = true
-}
+// 3. Fetch the Printers (The assets that use the ink)
+const fetchPrinters = async () => {
+  const { data } = await axios.get('/api/assets/list?category=Printer');
+  printers.value = data.data || data;
+};
 
-const save = async () => {
-  saving.value = true
-  const payload = {
-    ...form,
-    in_stock: Number(form.in_stock),
-    min_amt: Number(form.min_amt),
-    price: form.price === '' ? null : Number(form.price)
+const handleReplace = async () => {
+  if (!form.value.asset_id || !form.value.consumable_id) {
+    return alert('Please select both a Printer and a Replacement Cartridge.');
   }
+  
+  submitting.value = true;
   try {
-    if (editingId.value) await axios.put(`/api/consumables/${editingId.value}`, payload)
-    else await axios.post('/api/consumables', payload)
-    showForm.value = false
-    fetchRows(pagination.current_page)
+    // This hits the route we added to AssetController
+    await axios.post(`/api/assets/${form.value.asset_id}/replace-toner`, {
+        consumable_id: form.value.consumable_id,
+        color: form.value.color
+    });
+    
+    alert('Inventory updated and toner cycle recorded!');
+    form.value.consumable_id = ''; // Clear selection
+    fetchAllHistory(); // Refresh the table
+    fetchInventory(); // Refresh stock counts
+  } catch (err) {
+    alert(err.response?.data?.message || 'Error updating consumable');
   } finally {
-    saving.value = false
+    submitting.value = false;
   }
-}
+};
 
-const removeRow = async (id) => {
-  if (!confirm('Delete this consumable?')) return
-  await axios.delete(`/api/consumables/${id}`)
-  fetchRows(pagination.current_page)
-}
+onMounted(() => {
+  fetchAllHistory();
+  fetchInventory();
+  fetchPrinters();
+});
 
-onMounted(() => fetchRows())
+const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '---';
 </script>
 
 <template>
   <div class="p-6">
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-800">Consumables</h1>
-      <button @click="openCreate" class="bg-[#3c8dbc] text-white px-4 py-2 rounded shadow hover:bg-[#367fa9]">
-        <i class="fa fa-plus mr-2"></i> New Consumable
-      </button>
-    </div>
+    <h1 class="text-2xl font-bold text-gray-800 mb-6">Consumables / Toner Lifecycle</h1>
 
-    <div class="bg-white p-3 rounded shadow-sm mb-3 flex gap-2 flex-wrap">
-      <input v-model="filters.search" @keyup.enter="fetchRows(1)" class="border px-3 py-2 rounded text-sm" placeholder="Search" />
-      <select v-model="filters.category" class="border px-3 py-2 rounded text-sm">
-        <option value="">All categories</option>
-        <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
-      </select>
-      <select v-model.number="filters.per_page" class="border px-3 py-2 rounded text-sm"><option :value="10">10</option><option :value="20">20</option><option :value="50">50</option></select>
-      <button @click="fetchRows(1)" class="px-3 py-2 bg-gray-800 text-white rounded text-sm">Apply</button>
-    </div>
+    <div class="bg-white p-6 rounded-lg shadow-sm border border-indigo-100 mb-8">
+      <h3 class="text-sm font-black text-indigo-700 uppercase mb-4 flex items-center gap-2">
+        <i class="fa fa-sync"></i> Record Replacement / Usage
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Select Printer</label>
+          <select v-model="form.asset_id" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            <option value="">Which Printer?</option>
+            <option v-for="p in printers" :key="p.id" :value="p.id">
+              {{ p.Asset_Name || p.name }} ({{ p.Serial_No || p.serial }})
+            </option>
+          </select>
+        </div>
 
-    <div v-if="showForm" class="bg-white p-4 rounded shadow-sm mb-3 grid grid-cols-2 gap-2">
-      <input v-model="form.item_name" class="border p-2 rounded" placeholder="Item Name" />
-      <input v-model="form.category" class="border p-2 rounded" placeholder="Category" />
-      <input v-model="form.in_stock" type="number" class="border p-2 rounded" placeholder="In Stock" />
-      <input v-model="form.min_amt" type="number" class="border p-2 rounded" placeholder="Minimum Amount" />
-      <input v-model="form.price" type="number" class="border p-2 rounded" placeholder="Price" />
-      <div class="col-span-2 flex gap-2">
-        <button :disabled="saving" @click="save" class="px-4 py-2 bg-blue-600 text-white rounded">{{ editingId ? 'Update' : 'Create' }}</button>
-        <button @click="showForm = false" class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+        <div>
+          <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Ink Color</label>
+          <select v-model="form.color" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            <option value="Black">Black (K)</option>
+            <option value="Cyan">Cyan (C)</option>
+            <option value="Magenta">Magenta (M)</option>
+            <option value="Yellow">Yellow (Y)</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        
+        <div>
+          <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">New Cartridge Model</label>
+          <select v-model="form.consumable_id" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            <option value="">Select from Stock...</option>
+            <option v-for="c in consumablesStock" :key="c.id" :value="c.id">
+              {{ c.item_name || c.name }} (Available: {{ c.in_stock }})
+            </option>
+          </select>
+        </div>
+
+        <div class="flex items-end">
+          <button 
+            @click="handleReplace" 
+            :disabled="submitting || !form.asset_id"
+            class="w-full bg-indigo-600 text-white py-2 rounded font-bold text-xs hover:bg-indigo-700 disabled:opacity-50 h-[38px] transition-all shadow-md"
+          >
+            {{ submitting ? 'Updating...' : 'RECORD REPLACEMENT' }}
+          </button>
+        </div>
       </div>
     </div>
 
-    <div class="bg-white border-t-4 border-[#0073b7] rounded shadow-md">
-      <table class="w-full text-left border-collapse">
-        <thead class="bg-gray-50 border-b">
-          <tr class="text-[12px] uppercase text-gray-600 font-bold">
-            <th class="p-4">Item Name</th>
-            <th class="p-4">Category</th>
-            <th class="p-4">In Stock</th>
-            <th class="p-4">Price</th>
-            <th class="p-4 text-right">Actions</th>
+    <div class="bg-white border rounded-xl overflow-hidden shadow-md">
+      <div class="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
+        <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest">Usage History & Active Cycles</h2>
+        <button @click="fetchAllHistory" class="text-indigo-600 hover:text-indigo-800">
+          <i class="fa fa-refresh" :class="{'fa-spin': loading}"></i>
+        </button>
+      </div>
+      <table class="w-full text-left text-sm border-collapse">
+        <thead class="bg-white text-gray-400 font-bold uppercase text-[10px] border-b">
+          <tr>
+            <th class="p-4">Printer (Asset)</th>
+            <th class="p-4">Color</th>
+            <th class="p-4">Ink Model Used</th>
+            <th class="p-4">Started</th>
+            <th class="p-4">Finished</th>
+            <th class="p-4 text-center">Current Status</th>
           </tr>
         </thead>
-        <tbody class="text-sm">
-          <tr v-if="loading"><td colspan="5" class="p-4">Loading...</td></tr>
-          <tr v-for="item in rows" :key="item.id" class="border-b hover:bg-gray-50">
-            <td class="p-4 font-bold text-[#3c8dbc]">{{ item.item_name }}</td>
-            <td class="p-4 text-gray-500">{{ item.category }}</td>
-            <td class="p-4 font-semibold">{{ item.in_stock }}</td>
-            <td class="p-4">${{ item.price }}</td>
-            <td class="p-4 text-right">
-              <button class="text-blue-500 mr-3" @click="openEdit(item)"><i class="fa fa-edit"></i> Edit</button>
-              <button class="text-red-500" @click="removeRow(item.id)"><i class="fa fa-trash"></i> Delete</button>
+        <tbody class="divide-y">
+          <tr v-if="loading"><td colspan="6" class="p-10 text-center text-gray-400 italic">Fetching cycle data...</td></tr>
+          
+          <tr v-for="log in history" :key="log.id" :class="!log.depleted_at ? 'bg-green-50/50' : 'bg-white'">
+            <td class="p-4">
+              <div class="font-bold text-gray-700">{{ log.asset?.Asset_Name || log.asset?.name || 'Unknown Asset' }}</div>
+              <div class="text-[10px] text-gray-400 font-mono">{{ log.asset?.Serial_No || log.asset?.serial || 'N/A' }}</div>
             </td>
+            <td class="p-4">
+              <span class="flex items-center gap-2 font-bold uppercase text-xs">
+                 <div :class="{
+                   'bg-black': (log.color || '').toLowerCase() === 'black',
+                   'bg-cyan-400': (log.color || '').toLowerCase() === 'cyan',
+                   'bg-pink-500': (log.color || '').toLowerCase() === 'magenta',
+                   'bg-yellow-400': (log.color || '').toLowerCase() === 'yellow',
+                   'bg-gray-300': !['black','cyan','magenta','yellow'].includes((log.color || '').toLowerCase())
+                 }" class="w-3 h-3 rounded-full border border-gray-200 shadow-sm"></div>
+                 {{ log.color || 'Unknown' }}
+              </span>
+            </td>
+            <td class="p-4 text-gray-600 font-medium">
+              {{ log.consumable?.item_name || log.consumable?.name || 'Generic Cartridge' }}
+            </td>
+            <td class="p-4 text-gray-500">
+              {{ formatDate(log.installed_at) }}
+            </td>
+            <td class="p-4 text-gray-500">
+              <span v-if="log.depleted_at">{{ formatDate(log.depleted_at) }}</span>
+              <span v-else class="italic text-indigo-400">In Use</span>
+            </td>
+            <td class="p-4 text-center">
+              <span v-if="!log.depleted_at" class="px-3 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-black uppercase tracking-tighter animate-pulse">
+                Running
+              </span>
+              <span v-else class="px-3 py-1 rounded-full bg-gray-100 text-gray-400 text-[10px] font-bold uppercase tracking-tighter">
+                Empty
+              </span>
+            </td>
+          </tr>
+
+          <tr v-if="history.length === 0 && !loading">
+            <td colspan="6" class="p-12 text-center text-gray-400 italic">No usage history found. Use the form above to record the first toner installation.</td>
           </tr>
         </tbody>
       </table>
-    </div>
-
-    <div class="mt-3 flex items-center gap-2 text-sm">
-      <button :disabled="pagination.current_page <= 1" @click="fetchRows(pagination.current_page - 1)" class="px-3 py-1 border rounded">Prev</button>
-      <span>Page {{ pagination.current_page }} / {{ pagination.last_page }} ({{ pagination.total }} records)</span>
-      <button :disabled="pagination.current_page >= pagination.last_page" @click="fetchRows(pagination.current_page + 1)" class="px-3 py-1 border rounded">Next</button>
     </div>
   </div>
 </template>

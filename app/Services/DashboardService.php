@@ -4,7 +4,7 @@ namespace App\Services;
 
 
 
-use App\Models\{Asset, Transfer, User, License, Accessory, Consumable, Component};
+use App\Models\{Asset, Transfer, User, License, Accessory, Consumable, Component, SslCertificate};
 use Illuminate\Support\Facades\DB;
 
 class DashboardService
@@ -25,6 +25,7 @@ class DashboardService
         $consumables = Consumable::count();
         $components = Component::count();
         $users = User::count();
+        $ssl_certificates = SslCertificate::count();
 
         return [
             // Legacy keys
@@ -34,6 +35,7 @@ class DashboardService
             'total_consumables' => $consumables,
             'total_components'  => $components,
             'total_users'       => $users,
+            'total_ssl_certificates' => $ssl_certificates,
 
             // Frontend-friendly keys
             'assets'            => $assets,
@@ -41,6 +43,7 @@ class DashboardService
             'accessories'       => $accessories,
             'consumables'       => $consumables,
             'components'        => $components,
+            'ssl_certificates'  => $ssl_certificates,
             'people'            => $users,
 
             'status_distribution' => [

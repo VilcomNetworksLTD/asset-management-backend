@@ -16,6 +16,7 @@ return new class extends Migration
             $table->text('Comments')->nullable();
 
             $table->timestamps(); // replaces your custom 'Timestamp'
+            $table->softDeletes();
 
             // FOREIGN KEYS
             $table->foreign('Asset_ID')->references('id')->on('assets')->onDelete('cascade');
