@@ -22,14 +22,16 @@ class AuthandAccessController extends Controller
         ]);
 
         // 1. Ask the Hub if the password is correct
-        $response = Http::asForm()->post(rtrim(env('AUTH_HUB_URL'), '/') . '/oauth/token', [
-            'grant_type' => 'password',
-            'client_id' => env('AUTH_HUB_PASSWORD_CLIENT_ID'),
-            'client_secret' => env('AUTH_HUB_PASSWORD_CLIENT_SECRET'),
-            'username' => $request->email,
-            'password' => $request->password,
-            'scope' => '',
-        ]);
+        $response = Http::withHeaders(['Accept' => 'application/json'])
+            ->asForm()
+            ->post(rtrim(env('AUTH_HUB_URL'), '/') . '/api/oauth/token', [
+                'grant_type' => 'password',
+                'client_id' => env('AUTH_HUB_PASSWORD_CLIENT_ID'),
+                'client_secret' => env('AUTH_HUB_PASSWORD_CLIENT_SECRET'),
+                'username' => $request->email,
+                'password' => $request->password,
+                'scope' => '',
+            ]);
 
         if ($response->failed()) {
             // This forces the Asset App to pass the Hub's exact error straight to your Vue screen!
@@ -41,13 +43,21 @@ class AuthandAccessController extends Controller
         $accessToken = $response->json()['access_token'];
 
         // 2. Fetch the user's profile from the Hub
-        $userResponse = Http::withToken($accessToken)->get(rtrim(env('AUTH_HUB_URL'), '/') . '/api/user');
+        $userResponse = Http::withHeaders(['Accept' => 'application/json'])
+            ->withToken($accessToken)
+            ->get(rtrim(env('AUTH_HUB_URL'), '/') . '/api/asset/me');
 
         if ($userResponse->failed()) {
-            return response()->json(['message' => 'Failed to fetch profile from Hub.'], 500);
+            \Illuminate\Support\Facades\Log::error('Failed to fetch profile from Hub.', [
+                'status' => $userResponse->status(),
+                'body' => $userResponse->body(),
+                'hub_url' => env('AUTH_HUB_URL')
+            ]);
+            return response()->json(['message' => 'Failed to fetch profile from Hub. Status: ' . $userResponse->status()], 500);
         }
 
-        $hubUser = $userResponse->json();
+        $responseData = $userResponse->json();
+        $hubUser = $responseData['user'] ?? $responseData;
 
         // 3. Extract data and apply the Role Translation Fix
         $fullName = trim(($hubUser['first_name'] ?? '') . ' ' . ($hubUser['last_name'] ?? ''));
