@@ -3,66 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Services\AuthandAccessService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class AuthandAccessController extends Controller
 {
-    protected $authService;
-
-    public function __construct(AuthandAccessService $authService)
-    {
-        $this->authService = $authService;
-    }
-
     /**
-     * Register user
-     */
-    public function register(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => ['required', 
-                        'email', 
-                        'unique:users', 
-                        'regex:/^[a-zA-Z0-9._%+-]+@vilcom\.co\.ke$/i'],
-            'password' => 'required|min:8|confirmed',
-        ]);
-
-        $this->authService->registerUser($validated);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Registration successful. Please verify your email using the OTP.'
-        ], 201);
-    }
-
-    /**
-     * Verify email OTP
-     */
-    public function verifyOtp(Request $request)
-    {
-        $request->validate([
-            'email' => 'required|email',
-            'otp_code' => 'required|string|size:6',
-        ]);
-
-        $user = $this->authService->verifyOtp($request->email, $request->otp_code);
-
-        if (!$user) {
-            return response()->json(['message' => 'Invalid or expired OTP'], 401);
-        }
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'message' => 'Email verified successfully',
-            'token' => $user->createToken('auth_token')->plainTextToken,
-        ]);
-    }
-
-    /**
-     * Login user
+     * PROXY LOGIN (Password Grant Flow)
+     * Takes credentials from Vue, validates them against the Safetika Hub, 
+     * creates a local shadow user, and issues a Sanctum token.
      */
     public function login(Request $request)
     {
@@ -71,82 +21,128 @@ class AuthandAccessController extends Controller
             'password' => 'required'
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        // 1. Ask the Hub if the password is correct
+        $response = Http::withHeaders(['Accept' => 'application/json'])
+            ->asForm()
+            ->post(rtrim(env('AUTH_HUB_URL'), '/') . '/api/oauth/token', [
+                'grant_type' => 'password',
+                'client_id' => env('AUTH_HUB_PASSWORD_CLIENT_ID'),
+                'client_secret' => env('AUTH_HUB_PASSWORD_CLIENT_SECRET'),
+                'username' => $request->email,
+                'password' => $request->password,
+                'scope' => '',
+            ]);
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
-        }
-
-       if (!$user->is_verified) {
-            $this->authService->processResendOtp($user->email);
+        if ($response->failed()) {
+            // This forces the Asset App to pass the Hub's exact error straight to your Vue screen!
             return response()->json([
-                'message' => 'Account not verified. A new OTP has been sent to your email.',
-                'needs_verification' => true // Helps Vue redirect to the OTP page
-            ], 403);
+                'message' => 'HUB ERROR: ' . json_encode($response->json()) . ' | Status: ' . $response->status()
+            ], 401);
         }
 
-        return response()->json([
-            'token' => $user->createToken('auth_token')->plainTextToken,
-            'user' => $user
-        ]);
-    }
+        $accessToken = $response->json()['access_token'];
 
-    /**
-     * Resend verification OTP
-     */
-    public function resendOtp(Request $request)
-    {
-        $request->validate(['email' => 'required|email']);
+        // 2. Fetch the user's profile from the Hub
+        $userResponse = Http::withHeaders(['Accept' => 'application/json'])
+            ->withToken($accessToken)
+            ->get(rtrim(env('AUTH_HUB_URL'), '/') . '/api/asset/me');
+
+        if ($userResponse->failed()) {
+            \Illuminate\Support\Facades\Log::error('Failed to fetch profile from Hub.', [
+                'status' => $userResponse->status(),
+                'body' => $userResponse->body(),
+                'hub_url' => env('AUTH_HUB_URL')
+            ]);
+            return response()->json(['message' => 'Failed to fetch profile from Hub. Status: ' . $userResponse->status()], 500);
+        }
+
+        $responseData = $userResponse->json();
+        $hubUser = $responseData['user'] ?? $responseData;
+
+        // 3. Extract data and apply the Role Translation Fix
+        $fullName = trim(($hubUser['first_name'] ?? '') . ' ' . ($hubUser['last_name'] ?? ''));
+        $hubRole = strtolower($hubUser['roles'][0]['name'] ?? $hubUser['role'] ?? 'employee');
         
-        $success = $this->authService->processResendOtp($request->email);
+        // Define the strict roles your local Asset App database allows
+        $allowedLocalRoles = ['admin', 'manager', 'employee']; 
+        
+        // If Hub says 'technician', it defaults to 'employee' so MySQL doesn't crash
+        $localRole = in_array($hubRole, $allowedLocalRoles) ? $hubRole : 'employee';
 
-        return $success 
-            ? response()->json(['message' => 'Verification OTP resent successfully.'])
-            : response()->json(['message' => 'User not found.'], 404);
-    }
-
-    /**
-     * Forgot password: generate reset OTP
-     */
-    public function forgotPassword(Request $request)
-    {
-        $request->validate(['email' => 'required|email']);
-
-        $success = $this->authService->forgotPassword($request->email);
-
-        return $success
-            ? response()->json(['message' => 'Password reset OTP sent to email.'])
-            : response()->json(['message' => 'Email not found.'], 404);
-    }
-
-    /**
-     * Reset password
-     */
-    public function resetPassword(Request $request)
-    {
-        $request->validate([
-            'email' => 'required|email',
-            'otp_code' => 'required|string|size:6',
-            'password' => 'required|min:8|confirmed',
-        ]);
-
-        $success = $this->authService->resetUserPassword(
-            $request->email,
-            $request->otp_code,
-            $request->password
+        // 4. Sync the local Shadow User
+        $localUser = User::updateOrCreate(
+            ['email' => $hubUser['email']],
+            [
+                'name' => $fullName ?: ($hubUser['name'] ?? 'Hub User'),
+                'password' => bcrypt(Str::random(24)), // Secure dummy password
+                'role' => $localRole,
+                'is_active' => $hubUser['is_active'] ?? 1,
+            ]
         );
 
-        return $success
-            ? response()->json(['message' => 'Password reset successfully.'])
-            : response()->json(['message' => 'Invalid or expired OTP.'], 401);
+        // 5. Issue a local Sanctum Token for the Vue app
+        $token = $localUser->createToken('ams_auth_token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login successful',
+            'token' => $token,
+            'user' => $localUser
+        ]);
     }
 
     /**
-     * Logout user
+     * LOGOUT
+     * Revokes the local Sanctum token so the Vue app forgets the user.
      */
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Logged out successfully']);
+    }
+
+    /* --------------------------------------------------------------------------
+     * CENTRAL IDENTITY OVERRIDES
+     * Because Safetika Hub manages identity, the Asset App should no longer 
+     * handle local registrations or password resets. We proxy these to the Hub 
+     * or return a message directing the frontend to use the Hub API.
+     * -------------------------------------------------------------------------- */
+
+    public function register(Request $request)
+    {
+        return response()->json([
+            'message' => 'Account creation is managed centrally. Please contact your administrator to create a Safetika Hub account.'
+        ], 403);
+    }
+
+    public function forgotPassword(Request $request)
+    {
+        $request->validate(['email' => 'required|email']);
+
+        // Proxy this request to the Safetika Hub's forgot-password API endpoint
+        $response = Http::post(rtrim(env('AUTH_HUB_URL'), '/') . '/api/forgot-password', [
+            'email' => $request->email,
+        ]);
+
+        return response()->json(
+            $response->json(), 
+            $response->status()
+        );
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'token' => 'required',
+            'password' => 'required|confirmed|min:8',
+        ]);
+
+        // Proxy this request to the Safetika Hub's reset-password API endpoint
+        $response = Http::post(rtrim(env('AUTH_HUB_URL'), '/') . '/api/reset-password', $request->all());
+
+        return response()->json(
+            $response->json(), 
+            $response->status()
+        );
     }
 }

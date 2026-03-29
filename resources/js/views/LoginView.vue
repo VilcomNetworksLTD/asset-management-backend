@@ -59,6 +59,17 @@
         </button>
       </form>
 
+      <div class="mt-6">
+        <div class="relative">
+          <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-gray-300"></div>
+          </div>
+          <div class="relative flex justify-center text-sm">
+            <span class="px-2 bg-white text-gray-500">Vilcom Asset Management System</span>
+          </div>
+        </div>
+      </div>
+
       <div 
         v-if="message" 
         :class="[
@@ -68,11 +79,6 @@
       >
         {{ message }}
       </div>
-
-      <p class="mt-8 text-center text-xs font-medium text-gray-500">
-        New to Vilcom? 
-        <router-link to="/register" class="text-[#1e3a8a] font-bold hover:underline ml-1">Create Account</router-link>
-      </p>
     </div>
   </div>
 </template>
@@ -94,7 +100,7 @@ const handleLogin = async () => {
   loading.value = true;
   message.value = '';
   try {
-    const response = await axios.post('http://127.0.0.1:8000/api/login', form.value);
+    const response = await axios.post('/api/login', form.value);
     
     localStorage.setItem('user_token', response.data.token);
     localStorage.setItem('user_data', JSON.stringify(response.data.user));
@@ -110,7 +116,7 @@ const handleLogin = async () => {
 
   } catch (error) {
     isError.value = true;
-    message.value = error.response?.data?.message || "Invalid credentials.";
+    message.value = error.response?.data?.message || "Invalid credentials. Please check Safetika.";
     
     if (error.response?.status === 403 && error.response?.data?.needs_verification) {
         setTimeout(() => {
