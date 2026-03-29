@@ -4,7 +4,7 @@ namespace App\Services;
 
 
 
-use App\Models\{Asset, Transfer, User, License, Accessory, Consumable, Component, SslCertificate};
+use App\Models\{Asset, Transfer, User, License, Accessory, Consumable, Component, SslCertificate, Ticket};
 use Illuminate\Support\Facades\DB;
 
 class DashboardService
@@ -26,13 +26,13 @@ class DashboardService
         $components = Component::count();
         $users = User::count();
         $ssl_certificates = SslCertificate::count();
+        $tickets = Ticket::count();
 
         return [
             // Legacy keys
             'total_assets'      => $assets,
             'total_licenses'    => $licenses,
             'total_accessories' => $accessories,
-            'total_consumables' => $consumables,
             'total_components'  => $components,
             'total_users'       => $users,
             'total_ssl_certificates' => $ssl_certificates,
@@ -41,15 +41,24 @@ class DashboardService
             'assets'            => $assets,
             'licenses'          => $licenses,
             'accessories'       => $accessories,
-            'consumables'       => $consumables,
             'components'        => $components,
+            'tickets'           => $tickets,
             'ssl_certificates'  => $ssl_certificates,
             'people'            => $users,
 
             'status_distribution' => [
-                'available' => Asset::where('Status_ID', 1)->count(),
-                'pending'   => Asset::where('Status_ID', 2)->count(),
-                'archived'  => Asset::where('Status_ID', 5)->count(),
+                'ready_to_deploy' => Asset::whereIn('Status_ID', function($query) {
+                    $query->select('id')->from('statuses')
+                          ->whereIn('Status_Name', ['Ready to Deploy', 'Available', 'Ready']);
+                })->count(),
+                'deployed' => Asset::whereIn('Status_ID', function($query) {
+                    $query->select('id')->from('statuses')
+                          ->whereIn('Status_Name', ['Deployed', 'Assigned', 'In Use', 'Checked Out']);
+                })->count(),
+                'archived' => Asset::whereIn('Status_ID', function($query) {
+                    $query->select('id')->from('statuses')
+                          ->whereIn('Status_Name', ['Archived', 'Archive']);
+                })->count(),
             ]
         ];
     }

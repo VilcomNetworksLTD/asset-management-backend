@@ -22,7 +22,10 @@ use App\Http\Controllers\{
     SupplierController,
     StatusController,
     UserHistoryController,
-    DepartmentController
+    DepartmentController,
+    CategoryController, 
+    LocationController,
+    BarcodeController
 };
 
 /* --- Public Routes --- */
@@ -32,6 +35,11 @@ Route::controller(AuthandAccessController::class)->group(function () {
     Route::post('/reset-password', 'resetPassword');
 });
 
+Route::get('/barcodes/{asset_id}/image', [AssetController::class, 'showBarcodeImage'])
+    ->where('asset_id', '.*');
+
+ //Route::get('/barcodes/{id}/image', [BarcodeController::class, 'image']);
+
 /* --- Protected Routes --- */
 Route::middleware(['auth:sanctum','maintenance'])->group(function () {
 
@@ -40,6 +48,7 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
     Route::get('/user', function () {
         return response()->json(auth()->user());
     });
+
     Route::post('/logout', [AuthandAccessController::class, 'logout']);
 
     // --- Dashboard & Analytics ---
@@ -64,6 +73,28 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         // === NEW TONER LIFECYCLE ROUTES ===
         Route::post('/assets/{id}/replace-toner', 'replaceToner');
         Route::get('/assets/{id}/toner-history', 'getTonerHistory');
+
+        // === BARCODE FUNCTIONALITY ===
+        // Route for the scanner to find asset details by scanning the VNL code
+        Route::get('/barcodes/{barcode_content}/details', 'findAssetByBarcode')
+            ->where('barcode_content', '.*');
+            
+        Route::post('/assets/{id}/evidence', 'uploadEvidence');
+
+    });
+    // --- Categories & Locations (NEW DYNAMIC ENDPOINTS) ---
+    Route::controller(CategoryController::class)->group(function () {
+        Route::get('/categories', 'index');
+        Route::post('/categories', 'store');
+        Route::put('/categories/{category}', 'update');
+        Route::delete('/categories/{category}', 'destroy');
+    });
+
+    Route::controller(LocationController::class)->group(function () {
+        Route::get('/locations', 'index');
+        Route::post('/locations', 'store');
+        Route::put('/locations/{id}', 'update');
+        Route::delete('/locations/{id}', 'destroy');
     });
 
     // --- Supplier Management ---
@@ -90,6 +121,9 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
     Route::controller(ConsumableController::class)->group(function () {
         Route::get('/consumables', 'index');
         Route::get('/consumables/list', 'list');
+        Route::get('/consumables/history', 'usageHistory'); 
+        Route::get('/consumables/low-stock', 'lowStock');
+        Route::get('/consumables/usage-report', 'usageReport');
         Route::post('/consumables', 'store');
         Route::put('/consumables/{id}', 'update');
         Route::delete('/consumables/{id}', 'destroy');
@@ -114,6 +148,7 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::get('/maintenances/list', 'list');
         Route::post('/maintenances', 'store');
         Route::put('/maintenances/{id}', 'update');
+        Route::post('/maintenances/{id}/archive', 'archive');
         Route::delete('/maintenances/{id}', 'destroy');
     });
     
@@ -163,9 +198,10 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::get('/tickets/list', 'list');
         Route::get('/my-tickets', 'getUserTickets'); 
         Route::get('/workflow/queues', 'getWorkflowQueues'); 
-        Route::get('/workflow/my-assets', 'getMyReturnableAssets'); 
+        Route::get('/workflow/my-assets', [ReturnRequestController::class, 'myAssets']); 
         Route::post('/tickets', 'store');            
         Route::post('/tickets/{id}/assign-asset', 'assignAsset'); 
+        Route::post('/tickets/{id}/escalate', 'escalateToPurchase');
         Route::post('/workflow/returns', 'createReturnRequest'); 
         Route::post('/workflow/returns/{id}/process', 'processReturn');
         Route::put('/tickets/{id}', 'update');
@@ -186,6 +222,7 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::post('/profile/update', 'update');     
         Route::post('/profile/password', 'changePassword'); 
         Route::get('/users-list', 'index');           
+        Route::get('/my-assigned-items', 'getMyAssignedItems');
     });
 
     // --- Logs, Reports & Global Settings ---
@@ -224,5 +261,18 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
             Route::post('/ssl-certificates/{id}/acknowledge', 'acknowledge');
             Route::get('/ssl-certificates/{id}/change-logs', 'changeLogs');
         });
+    });
+
+    // --- Purchase Requests (Management Workflow) ---
+    Route::controller(\App\Http\Controllers\PurchaseController::class)->group(function () {
+        Route::get('/purchase-requests', 'index');
+        Route::post('/purchase-requests', 'store');
+        Route::post('/purchase-requests/maintenance-escalate', 'escalateFromMaintenance');
+        Route::post('/purchase-requests/{id}/approve', 'approve');
+        Route::post('/purchase-requests/{id}/reject', 'reject');
+        Route::put('/purchase-requests/{id}/status', 'updateStatus');
+        Route::post('/purchase-requests/{id}/mark-purchased', 'markAsPurchased');
+        Route::get('/admin/purchase-requests', 'adminIndex');
+        Route::post('/purchase-requests/{id}/escalate', 'escalateToManagement');
     });
 });

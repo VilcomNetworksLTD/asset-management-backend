@@ -33,6 +33,7 @@ class ReturnRequest extends Model
         'Missing_Items',
         'Items',          // new: other item types
         'Notes',
+        'reason',
         'Actioned_By',
         'Actioned_At',
         'Ticket_ID',

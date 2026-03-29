@@ -6,7 +6,13 @@ export default {
         "./resources/**/*.vue",
     ],
     theme: {
-        extend: {},
+        extend: {
+            colors: {
+                'vilcom-blue': '#1e40af',
+                'vilcom-orange': '#f97316',
+                'surface-bg': '#f8fafc',
+            }
+        },
     },
     plugins: [],
 }

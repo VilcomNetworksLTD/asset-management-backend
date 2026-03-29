@@ -61,6 +61,7 @@ class ReturnRequestController extends Controller
             'missing_items.*' => 'string|max:255',
             'issue_notes' => 'nullable|string|max:2000',
             'notes' => 'nullable|string|max:2000',
+            'reason' => 'nullable|string|max:2000',
         ]);
 
         // A request must contain either a primary asset or at least one other item.

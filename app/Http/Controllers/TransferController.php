@@ -17,14 +17,25 @@ use Illuminate\Support\Facades\Mail;
 
 class TransferController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $rows = Transfer::with(['asset.status', 'sender', 'receiver', 'actionedBy'])
-            ->latest()
-            ->get()
-            ->map(fn ($t) => $this->mapTransfer($t));
+        $query = Transfer::with(['asset.status', 'sender', 'receiver', 'actionedBy']);
 
-        return response()->json($rows);
+        if ($request->boolean('pending')) {
+            // hide items that have been closed or rejected – everything else is
+            // still actionable (pending_inspection, inspected, approved, etc.)
+            $query->whereNotIn('Workflow_Status', ['closed', 'rejected']);
+        }
+
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
+
+        $paginated = $query->latest()->paginate($perPage);
+
+        // map results using the shared helper so the shape stays
+        // consistent with other endpoints
+        $paginated->getCollection()->transform(fn($t) => $this->mapTransfer($t));
+
+        return response()->json($paginated);
     }
 
     public function store(Request $request): JsonResponse
@@ -36,17 +47,22 @@ class TransferController extends Controller
     {
         $userId = $request->user()->id;
 
-        $rows = Transfer::with(['asset.status', 'sender', 'receiver', 'actionedBy'])
+        $query = Transfer::with(['asset.status', 'sender', 'receiver', 'actionedBy'])
             ->where(function ($q) use ($userId) {
                 $q->where('Sender_ID', $userId)
                     ->orWhere('Receiver_ID', $userId)
                     ->orWhere('Employee_ID', $userId);
-            })
-            ->latest()
-            ->get()
-            ->map(fn ($t) => $this->mapTransfer($t));
+            });
 
-        return response()->json($rows);
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
+
+        $paginated = $query->latest()->paginate($perPage);
+
+        // map results using the shared helper so the shape stays
+        // consistent with other endpoints
+        $paginated->getCollection()->transform(fn($t) => $this->mapTransfer($t));
+
+        return response()->json($paginated);
     }
 
     public function updateStatus(Request $request, int $id): JsonResponse
@@ -79,15 +95,23 @@ class TransferController extends Controller
 
     public function getMyAssets(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = Auth::user();
+        if (!$user) return response()->json([]);
 
-        if (!$user) {
-            // Return an empty array if the user is not authenticated for this request.
-            return response()->json([]);
+        $query = Asset::query();
+
+        // Admin can see all available assets for assignment
+        if ($user->role === 'admin') {
+             $query->where(function($q) {
+                 $q->whereNull('Employee_ID')
+                   ->orWhereHas('status', fn($s) => $s->whereIn('Status_Name', ['Available', 'Ready to Deploy']));
+             });
+        } else {
+             // Staff and HOD see only their assigned assets
+             $query->where('Employee_ID', $user->id);
         }
 
-        $assets = Asset::where('Employee_ID', $user->id)
-            ->get(['id', 'Asset_Name', 'Serial_No'])
+        $assets = $query->with(['status', 'category', 'location_model'])->get()
             ->map(fn ($a) => [
                 'id' => $a->id,
                 'model' => $a->Asset_Name,
@@ -117,6 +141,7 @@ class TransferController extends Controller
             'missing_items.*' => 'string|max:255',
             'issue_notes' => 'nullable|string|max:2000',
             'notes' => 'nullable|string|max:2000',
+            'reason' => 'nullable|string|max:2000',
         ]);
 
         $user = $request->user();
@@ -165,6 +190,7 @@ class TransferController extends Controller
                 $data['notes'] ?? null,
                 !empty($data['issue_notes']) ? ('Reported issue: ' . $data['issue_notes']) : null,
             ])->filter()->implode(' | ')) ?: null,
+            'reason' => $data['reason'] ?? null,
         ]);
 
         ActivityLog::create([
@@ -218,15 +244,20 @@ class TransferController extends Controller
         return response()->json(['message' => 'Transfer request submitted.', 'transfer' => $this->mapTransfer($transfer->fresh(['asset.status', 'sender', 'receiver', 'actionedBy']))], 201);
     }
 
-    public function indexPending(): JsonResponse
+    public function indexPending(Request $request): JsonResponse
     {
-        $rows = Transfer::with(['asset.status', 'sender', 'receiver'])
-            ->where('Workflow_Status', 'pending_inspection')
-            ->latest()
-            ->get()
-            ->map(fn ($t) => $this->mapTransfer($t));
+        $query = Transfer::with(['asset.status', 'sender', 'receiver'])
+            ->where('Workflow_Status', 'pending_inspection');
 
-        return response()->json($rows);
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
+
+        $paginated = $query->latest()->paginate($perPage);
+
+        // map results using the shared helper so the shape stays
+        // consistent with other endpoints
+        $paginated->getCollection()->transform(fn($t) => $this->mapTransfer($t));
+
+        return response()->json($paginated);
     }
 
     public function completeInspection(Request $request, int $id): JsonResponse
@@ -374,10 +405,11 @@ class TransferController extends Controller
         $data = $request->validate([
             'asset_id' => 'nullable|integer|exists:assets,id',
             'items' => 'nullable|array',
-            'items.*.type' => 'required_with:items|string|in:asset,component,accessory,license,consumable',
+            'items.*.type' => 'required_with:items|string|in:asset,component,accessory,license', // Removed consumable
             'items.*.id' => 'required_with:items|integer',
             'receiver_id' => 'required|integer|exists:users,id',
             'notes' => 'nullable|string|max:2000',
+            'direct' => 'nullable|boolean',
         ]);
 
         $asset = null;
@@ -385,59 +417,124 @@ class TransferController extends Controller
             $asset = Asset::findOrFail($data['asset_id']);
         }
         $admin = $request->user();
+        $receiver = User::findOrFail($data['receiver_id']);
+        $direct = $request->boolean('direct', false);
+
+        // Filter out any consumables just in case
+        $filteredItems = collect($data['items'] ?? [])
+            ->filter(fn($i) => ($i['type'] ?? '') !== 'consumable')
+            ->toArray();
 
         // figure out a human‑readable included items list
         $included = ['Charger'];
-        if (!empty($data['items']) && is_array($data['items'])) {
+        if (!empty($filteredItems)) {
             $included = array_map(function ($i) {
                 return $this->resolveItemName((array) $i);
-            }, $data['items']);
+            }, $filteredItems);
         }
+
+        $workflowStatus = $direct ? 'deployed' : 'pending_verification';
 
         $transfer = Transfer::create([
             'Asset_ID' => $asset?->id,
             'Employee_ID' => $data['receiver_id'],
             'Sender_ID' => Auth::id(),
             'Receiver_ID' => $data['receiver_id'],
-            'Status_ID' => Status::firstOf(['Pending', 'Requested']) ?? ($asset?->Status_ID ?? null),
+            'Status_ID' => $direct ? (Status::firstOf(['Deployed', 'Assigned']) ?? 2) : (Status::firstOf(['Pending', 'Requested']) ?? 1),
             'Transfer_Date' => now(),
             'Type' => 'assignment',
-            'Workflow_Status' => 'pending_verification',
+            'Workflow_Status' => $workflowStatus,
             'Admin_Condition' => 'Good',
             'Included_Items' => $included,
-            'Items' => $data['items'] ?? [],
+            'Items' => $filteredItems,
             'Notes' => $data['notes'] ?? 'Assigned by admin',
             'Actioned_By' => $admin->id,
             'Actioned_At' => now(),
         ]);
 
-        // keep admin custody until receiver verifies inbound
-        $asset->update([
-            'Employee_ID' => $admin->id,
-            'Status_ID' => Status::firstOf(['Pending', 'Ready to Deploy', 'Available']) ?? $asset->Status_ID,
-        ]);
+        if ($direct) {
+            // Direct assignment: move custody immediately
+            if ($asset) {
+                $asset->update([
+                    'Employee_ID' => $receiver->id,
+                    'Status_ID' => Status::firstOf(['Deployed', 'Assigned', 'In Use']) ?? $asset->Status_ID,
+                ]);
+
+                ActivityLog::create([
+                    'asset_id' => $asset->id,
+                    'Employee_ID' => $admin->id,
+                    'user_name' => $admin->name,
+                    'action' => 'Direct Assignment',
+                    'target_type' => 'Asset',
+                    'target_name' => $asset->Asset_Name,
+                    'details' => "Directly assigned to {$receiver->name} by admin",
+                ]);
+            }
+
+            // Sync extra items
+            foreach ($filteredItems as $itm) {
+                $type = $itm['type'] ?? null;
+                $id = $itm['id'] ?? null;
+                if (!$type || !$id) continue;
+                switch ($type) {
+                    case 'component':
+                        $comp = \App\Models\Component::find($id);
+                        if ($comp && $comp->remaining_qty > 1) {
+                            $receiver->components()->attach($comp->id, ['quantity' => 1]);
+                        }
+                        break;
+                    case 'accessory':
+                        $acc = \App\Models\Accessory::find($id);
+                        if ($acc && $acc->remaining_qty > 1) {
+                            $receiver->accessories()->attach($acc->id, ['quantity' => 1]);
+                        }
+                        break;
+                    case 'license':
+                        $lic = \App\Models\License::find($id);
+                        if ($lic) {
+                            $receiver->licenses()->attach($lic->id);
+                        }
+                        break;
+                }
+            }
+        } else {
+            // Traditional flow: keep admin custody until receiver verifies
+            if ($asset) {
+                $asset->update([
+                    'Employee_ID' => $admin->id,
+                    'Status_ID' => Status::firstOf(['Pending', 'Ready to Deploy', 'Available']) ?? $asset->Status_ID,
+                ]);
+            }
+        }
 
         // Notify user about the new assignment
-        $receiver = User::find($data['receiver_id']);
-        if ($receiver && $receiver->email) {
+        if ($receiver->email) {
             Mail::to($receiver->email)->send(new AssetAssigned($asset, $receiver, $admin));
         }
 
-        return response()->json(['message' => 'Assignment created, awaiting staff verification.', 'transfer' => $this->mapTransfer($transfer->fresh(['asset.status', 'sender', 'receiver', 'actionedBy']))], 201);
+        return response()->json([
+            'message' => $direct ? 'Asset assigned successfully.' : 'Assignment created, awaiting staff verification.',
+            'transfer' => $this->mapTransfer($transfer->fresh(['asset.status', 'sender', 'receiver', 'actionedBy']))
+        ], 201);
     }
 
     public function getPendingAssignments(Request $request): JsonResponse
     {
         $user = $request->user();
 
-        $rows = Transfer::with(['asset', 'actionedBy', 'sender'])
+        $query = Transfer::with(['asset', 'actionedBy', 'sender'])
             ->where('Receiver_ID', $user->id)
-            ->where('Workflow_Status', 'pending_verification')
-            ->latest()
-            ->get()
-            ->map(fn ($t) => $this->mapTransfer($t));
+            ->where('Workflow_Status', 'pending_verification');
 
-        return response()->json($rows);
+        $perPage = max(1, min(100, $request->integer('per_page', 15)));
+
+        $paginated = $query->latest()->paginate($perPage);
+
+        // map results using the shared helper so the shape stays
+        // consistent with other endpoints
+        $paginated->getCollection()->transform(fn($t) => $this->mapTransfer($t));
+
+        return response()->json($paginated);
     }
 
     public function verifyInbound(Request $request, int $id): JsonResponse
@@ -742,6 +839,7 @@ class TransferController extends Controller
             'missing_items' => $t->Missing_Items ?? [],
             'items' => $items,
             'notes' => $t->Notes,
+            'reason' => $t->reason,
             'sender' => $t->sender ? ['id' => $t->sender->id, 'name' => $t->sender->name] : null,
             'receiver' => $t->receiver ? ['id' => $t->receiver->id, 'name' => $t->receiver->name] : null,
             'admin' => $t->actionedBy ? ['id' => $t->actionedBy->id, 'name' => $t->actionedBy->name] : null,

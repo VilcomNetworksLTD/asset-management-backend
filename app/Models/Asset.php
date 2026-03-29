@@ -9,14 +9,23 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 
-
 class Asset extends Model
 {
     use SoftDeletes;
 
     protected $fillable = [
         'Asset_Name', 
-        'Asset_Category', 
+        'system_name',
+        'system_manufacturer',
+        'evidence_image',
+        
+        // --- NEW DYNAMIC FIELDS ---
+        'category_id', // Replaces 'Asset_Category'
+        'Asset_Category', // Kept for backward compatibility/DB constraints
+        'location_id', // Replaces 'location'
+        'barcode',     // New Barcode field
+        // --------------------------
+
         'Serial_No', 
         'Supplier_ID', 
         'Employee_ID', 
@@ -26,12 +35,12 @@ class Asset extends Model
         'Price',
         'depreciation_value',
         'current_value',
-        'location',
         'Timestamp',
         'Issue_ID',
         'Purchase_Date',
         'warranty_expiry',
         'warranty_image_path',
+        'custom_attributes',
     ];
 
     /**
@@ -39,9 +48,40 @@ class Asset extends Model
      *
      * @var array
      */
-    protected $appends = ['warranty_image_url'];
+    protected $appends = ['warranty_image_url', 'transfer_reason', 'return_reason', 'specific_data'];
 
-    /* RELATIONSHIPS */
+    protected $casts = [
+        'custom_attributes' => 'array',
+    ];
+
+    /* ==========================================
+       NEW DYNAMIC RELATIONSHIPS
+       ========================================== */
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
+    }
+
+    public function locationModel(): BelongsTo
+    {
+        // Named 'locationModel' just in case you still have the old string 'location' 
+        // column hanging around in your DB to prevent naming conflicts.
+        return $this->belongsTo(Location::class, 'location_id');
+    }
+
+    /**
+     * Link to the central polymorphic specification table.
+     * This REPLACES the old `public function specs()`
+     */
+    public function specification(): HasOne
+    {
+        return $this->hasOne(AssetSpecification::class);
+    }
+
+    /* ==========================================
+       EXISTING RELATIONSHIPS (Untouched)
+       ========================================== */
 
     public function user(): BelongsTo
     {
@@ -63,12 +103,8 @@ class Asset extends Model
         return $this->hasMany(Maintenance::class, 'Asset_ID', 'id');
     }
 
-    /**
-     * ADDED: The assignments relationship
-     */
     public function assignments(): HasMany
     {
-        // Assuming your assignments table uses 'Asset_ID' as the foreign key
         return $this->hasMany(Assignment::class, 'Asset_ID', 'id');
     }
     
@@ -86,23 +122,45 @@ class Asset extends Model
     {
         return $this->hasMany(Feedback::class, 'Asset_ID', 'id');
     }
-    public function specs(): HasOne
-{
-    return $this->hasOne(AssetSpec::class, 'asset_id');
 
-}
-public function activityLogs()
-{
-    return $this->hasMany(ActivityLog::class);
-}
+    public function activityLogs()
+    {
+        return $this->hasMany(ActivityLog::class);
+    }
 
-    /* ACCESSORS */
+    public function returnRequests(): HasMany
+    {
+        return $this->hasMany(ReturnRequest::class, 'Asset_ID', 'id');
+    }
+
+    public function toners()
+    {
+        return $this->hasMany(AssetConsumable::class, 'asset_id');
+    }
+
+    public function activeToners()
+    {
+        return $this->hasMany(AssetConsumable::class, 'asset_id')->whereNull('depleted_at');
+    }
+
+    public function tonerHistory()
+    {
+        return $this->hasMany(\App\Models\AssetConsumable::class, 'asset_id');
+    }
+
+    /* ==========================================
+       ACCESSORS
+       ========================================== */
 
     /**
-     * Get the full URL for the warranty image.
-     *
-     * @return string|null
+     * HELPER METHOD: This makes getting dynamic spec data much easier in Vue!
+     * It appends 'specific_data' to your JSON responses.
      */
+    public function getSpecificDataAttribute()
+    {
+        return $this->specification ? $this->specification->specificationable : null;
+    }
+
     public function getWarrantyImageUrlAttribute(): ?string
     {
         if ($this->warranty_image_path) {
@@ -110,22 +168,20 @@ public function activityLogs()
         }
         return null;
     }
-    public function toners()
-{
-    // A printer has many toner lifecycle logs
-    return $this->hasMany(AssetConsumable::class, 'asset_id');
-}
 
-// Helper to get ONLY the currently active ink in the printer
-public function activeToners()
-{
-    return $this->hasMany(AssetConsumable::class, 'asset_id')->whereNull('depleted_at');
-}
-/**
- * Get all toner replacement logs for this printer.
- */
-public function tonerHistory()
-{
-    return $this->hasMany(\App\Models\AssetConsumable::class, 'asset_id');
-}
+    public function getTransferReasonAttribute()
+    {
+        return $this->transfers()
+            ->whereNotIn('Workflow_Status', ['closed', 'rejected'])
+            ->latest()
+            ->first()?->reason;
+    }
+
+    public function getReturnReasonAttribute()
+    {
+        return $this->returnRequests()
+            ->whereNotIn('Workflow_Status', ['closed', 'rejected'])
+            ->latest()
+            ->first()?->reason;
+    }
 }

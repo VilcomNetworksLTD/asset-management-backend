@@ -1,84 +1,92 @@
 <template>
-  <div class="flex h-screen bg-[#ecf0f5] overflow-hidden">
+  <div class="min-h-screen bg-[#f8fafc] flex flex-col font-inter">
+    <!-- TOP NAVIGATION HUB (New Architecture) -->
+    <TopNav />
 
-    <!-- ================= SIDEBAR ================= -->
-    <Sidebar :collapsed="collapsed" @toggle="collapsed = !collapsed" />
-
-    <!-- ================= MAIN CONTENT ================= -->
-    <div class="flex flex-col flex-1 min-w-0">
-
-      <!-- HEADER -->
-      <header class="h-[50px] bg-[#3c8dbc] shadow flex items-center justify-between px-6 flex-shrink-0">
-        <h1 class="font-semibold text-base text-white tracking-wide">
-          User Dashboard
-        </h1>
-        <div class="flex items-center gap-4">
-          <span class="text-white text-sm">{{ user?.name ?? '' }}</span>
-          <button
-            @click="logout"
-            class="px-3 py-1 bg-white text-[#3c8dbc] text-sm font-semibold rounded hover:bg-gray-100 transition"
+    <!-- MAIN APP SURFACE -->
+    <main class="flex-1 flex flex-col min-w-0">
+      <div class="p-8 max-w-[1700px] mx-auto w-full relative">
+        <router-view v-slot="{ Component }">
+          <transition 
+            name="fade-slide" 
+            mode="out-in"
           >
-            <i class="fa fa-sign-out-alt mr-1"></i> Logout
-          </button>
-        </div>
-      </header>
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </div>
+    </main>
 
-      <!-- PAGE CONTENT -->
-      <main class="flex-1 overflow-y-auto p-6">
-        <!-- router-view is always mounted; authentication guards handle redirects -->
-        <router-view />
-      </main>
-
-    </div>
+    <!-- FOOTER -->
+    <footer class="py-6 px-12 border-t border-gray-100 flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] bg-white">
+       <div>© 2026 Vilcom Networks LTD | Personal Workspace v2.0</div>
+       <div class="flex gap-6">
+         <span class="hover:text-vilcom-orange cursor-pointer">Staff Portal</span>
+         <span class="hover:text-vilcom-orange cursor-pointer">Helpdesk</span>
+       </div>
+    </footer>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
-import Sidebar from './Sidebar.vue'
+import TopNav from './TopNav.vue'
 
-const collapsed = ref(false)
-const user = ref(null)
 const router = useRouter()
-
-const toggleSidebar = () => (collapsed.value = !collapsed.value)
-
-const logout = async () => {
-  try {
-    const token = localStorage.getItem('user_token')
-    if (!token) {
-      localStorage.removeItem('user_token')
-      localStorage.removeItem('user_data')
-      router.push({ name: 'login' })
-      return
-    }
-    await axios.post('/api/logout', {}, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    localStorage.removeItem('user_token')
-    localStorage.removeItem('user_data')
-    router.push({ name: 'login' })
-  } catch (err) {
-    console.error('Logout API failed', err)
-    localStorage.removeItem('user_token')
-    localStorage.removeItem('user_data')
-    router.push({ name: 'login' })
-  }
-}
 
 onMounted(() => {
   const storedUser = localStorage.getItem('user_data')
-  if (storedUser) {
-    try {
-      user.value = JSON.parse(storedUser)
-    } catch (err) {
-      console.error('Failed to parse user_data from storage', err)
-      localStorage.removeItem('user_data')
-      user.value = null
-      router.push({ name: 'login' })
+  if (!storedUser) {
+    router.push({ name: 'login' })
+    return
+  }
+
+  try {
+    const user = JSON.parse(storedUser)
+    // Basic role check if needed, though router usually handles this
+    if (user.role?.toLowerCase() === 'admin') {
+       // Admins can stay in UserLayout if they are viewing user pages, 
+       // but usually we redirect them to AdminDashboard if they hit the root
     }
+  } catch (err) {
+    console.error('Session corruption detected', err)
+    localStorage.clear()
+    router.push({ name: 'login' })
   }
 })
 </script>
+
+<style>
+/* Transitions are global if defined in layout, but scoped here is fine */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.3s ease-out;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* Global Scrollbar Refinement */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+</style>

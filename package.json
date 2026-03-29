@@ -4,7 +4,7 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite --host"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.1.18",
@@ -21,6 +21,7 @@
     },
     "dependencies": {
         "@vueuse/core": "^14.2.1",
+        "html5-qrcode": "^2.3.8",
         "lucide-vue-next": "^0.577.0",
         "mitt": "^3.0.1",
         "vue-router": "^4.6.4"

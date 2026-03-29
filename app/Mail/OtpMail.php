@@ -22,9 +22,7 @@ class OtpMail extends Mailable implements ShouldQueue
 
     public function build()
     {
-        $subject = ($this->type === 'verification') ? 'Verify Your Account' : 'Password Reset Code';
-        
-        return $this->subject($subject)
-                    ->view('emails.otp');
+        return $this->view('emails.v2.otp')
+                    ->subject('Security Verification Code');
     }
 }

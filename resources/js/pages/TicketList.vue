@@ -1,205 +1,317 @@
 <template>
-  <div class="p-6 bg-gray-100 min-h-screen">
-    <div class="max-w-7xl mx-auto">
-      <h1 class="text-2xl font-semibold text-gray-800 mb-4">Support Tickets</h1>
+  <div class="p-8 max-w-7xl mx-auto space-y-10">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div>
+        <h1 class="text-4xl font-black text-slate-800 tracking-tight">Support <span class="text-vilcom-blue">Tickets</span></h1>
+        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+          <span class="size-1.5 bg-vilcom-orange rounded-full"></span>
+          Centralized Response & Resolution Hub
+        </p>
+      </div>
+      
+      <div class="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 flex gap-1">
+        <button @click="currentTab = 'asset'" :class="tabClass('asset')">Inventory Requests</button>
+        <button @click="currentTab = 'general'" :class="tabClass('general')">IT Support</button>
+      </div>
+    </div>
 
-      <div class="bg-white rounded-lg shadow overflow-hidden">
-        <div class="border-b border-gray-200 bg-gray-50">
-          <nav class="flex -mb-px" aria-label="Tabs">
-            <button @click="currentTab = 'asset'" :class="tabClass('asset')">
-              Asset Tickets
-            </button>
-            <button @click="currentTab = 'general'" :class="tabClass('general')">
-              General / IT Support Tickets
-            </button>
-          </nav>
+    <div class="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
+      <!-- Admin Filters -->
+      <div v-if="role === 'admin'" class="p-8 border-b border-gray-50 flex flex-wrap gap-4 items-center bg-gray-50/30">
+        <div class="relative group">
+          <input 
+            v-model="filters.search" 
+            @keyup.enter="fetchRows(1)" 
+            class="bg-white border-none rounded-xl py-3 pl-10 pr-6 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue transition-all w-64 shadow-sm" 
+            placeholder="Search tickets..." 
+          />
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-300 group-focus-within:text-vilcom-blue transition-colors" />
         </div>
 
-        <div v-if="role === 'admin'" class="p-4 bg-white border-b flex gap-2 flex-wrap items-center">
-          <input v-model="filters.search" @keyup.enter="fetchRows(1)" class="border px-3 py-2 rounded text-sm focus:ring-blue-400 outline-none" placeholder="Search..." />
-          <select v-model="filters.priority" class="border px-3 py-2 rounded text-sm">
-            <option value="">All priorities</option>
-            <option value="low">low</option>
-            <option value="medium">medium</option>
-            <option value="high">high</option>
-          </select>
-          
-          <select v-model.number="filters.per_page" class="border px-3 py-2 rounded text-sm">
-            <option :value="10">10</option>
-            <option :value="20">20</option>
-            <option :value="50">50</option>
-          </select>
-          <button @click="fetchRows(1)" class="px-3 py-2 bg-gray-800 text-white rounded text-sm hover:bg-black transition-colors">Apply</button>
+        <select v-model="filters.priority" class="bg-white border-none rounded-xl py-3 px-6 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue appearance-none min-w-[140px] shadow-sm">
+          <option value="">All Priorities</option>
+          <option value="low">Low Priority</option>
+          <option value="medium">Medium Priority</option>
+          <option value="high">High Priority</option>
+        </select>
+
+        <button @click="fetchRows(1)" class="bg-slate-800 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-lg shadow-black/5">Apply Filter</button>
+      </div>
+
+      <!-- Update Panel -->
+      <div v-if="showUpdate" class="p-10 bg-blue-50/30 border-b border-blue-100 space-y-6">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="p-2 bg-vilcom-blue rounded-lg text-white">
+            <Edit3 class="size-4" />
+          </div>
+          <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Synchronize Ticket Status</h3>
         </div>
 
-        <div v-if="showUpdate" class="bg-gray-50 p-4 border-b grid grid-cols-2 gap-4">
-          <div class="col-span-2">
-            <label class="text-xs font-bold text-gray-500 mb-1 block">Description</label>
-            <textarea v-model="updateForm.description" rows="3" class="border p-2 rounded w-full" placeholder="Ticket description..."></textarea>
-          </div>
-          <div>
-            <label class="text-xs font-bold text-gray-500 mb-1 block">Priority</label>
-            <select v-model="updateForm.priority" class="border p-2 rounded w-full">
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-          <!-- status is now handled automatically by the server; no manual input -->
-          <div class="col-span-2">
-            <textarea v-model="updateForm.communication" class="border p-2 rounded w-full" placeholder="Add a new communication note..."></textarea>
-          </div>
-          <div class="col-span-2 flex gap-2">
-            <button :disabled="saving" @click="saveUpdate" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
-            <button @click="showUpdate = false" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
-          </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+           <div class="space-y-4">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Description refinement</label>
+              <textarea v-model="updateForm.description" rows="3" class="w-full bg-white border-none rounded-2xl p-6 text-sm font-bold shadow-sm focus:ring-2 focus:ring-vilcom-blue"></textarea>
+           </div>
+           <div class="space-y-4">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Escalation Level</label>
+              <select v-model="updateForm.priority" class="w-full bg-white border-none rounded-2xl p-6 text-sm font-bold shadow-sm focus:ring-2 focus:ring-vilcom-blue appearance-none">
+                <option value="low">Routine (Low)</option>
+                <option value="medium">Critical (Medium)</option>
+                <option value="high">Emergency (High)</option>
+              </select>
+           </div>
+           <div class="col-span-2 space-y-4">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Internal Communication Log</label>
+              <textarea v-model="updateForm.communication" class="w-full bg-white border-none rounded-2xl p-6 text-sm font-bold shadow-sm focus:ring-2 focus:ring-vilcom-blue" placeholder="Add resolution details or handover notes..."></textarea>
+           </div>
         </div>
 
-        <div v-if="showAssign" class="bg-gray-50 p-4 border-b grid grid-cols-2 gap-3">
-          <select v-model="assignForm.asset_id" class="border p-2 rounded col-span-2">
-            <option value="" disabled>Select asset to assign</option>
-            <option v-for="asset in assignOptions" :key="asset.id" :value="asset.id">
-              {{ asset.Asset_Name }} ({{ asset.Serial_No || 'No Serial' }}) - {{ asset.status?.Status_Name || 'N/A' }}
-            </option>
-          </select>
+        <div class="flex gap-4">
+           <button @click="saveUpdate" :disabled="saving" class="bg-vilcom-blue text-white px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-900/10 hover:opacity-90 transition-all active:scale-95">
+             {{ saving ? 'SYNCING...' : 'COMMIT CHANGES' }}
+           </button>
+           <button @click="showUpdate = false" class="text-gray-400 font-black text-[10px] uppercase tracking-widest hover:text-red-500 transition-colors">Abort Update</button>
+        </div>
+      </div>
 
-          <div class="col-span-2 border rounded p-2 bg-white">
-            <div class="flex items-center justify-between mb-2">
-              <p class="text-xs font-bold uppercase text-gray-500">Accessories (Optional)</p>
-              <button type="button" @click="addAccessoryRow" class="text-xs px-2 py-1 border rounded hover:bg-gray-100">+ Add</button>
-            </div>
-            <div v-for="(row, idx) in assignForm.accessory_allocations" :key="`acc-${idx}`" class="grid grid-cols-12 gap-2 mb-2">
-              <select v-model="row.id" class="border p-2 rounded col-span-8">
-                <option value="" disabled>Select accessory</option>
-                <option v-for="item in accessoryOptions" :key="item.id" :value="item.id">
-                  {{ item.name }} (Stock: {{ item.remaining_qty }})
+      <!-- Assign Panel -->
+      <div v-if="showAssign" class="p-10 bg-green-50/20 border-b border-green-100 space-y-8">
+        <div class="flex items-center justify-between">
+           <div class="flex items-center gap-3">
+              <div class="p-2 bg-green-600 rounded-lg text-white">
+                <UserPlus class="size-4" />
+              </div>
+              <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Inventory Assignment Workflow</h3>
+           </div>
+           <p class="text-[10px] font-bold text-green-600 uppercase tracking-widest bg-green-50 px-3 py-1 rounded-lg">Fulfilling Ticket #{{ assignTicket?.id }}</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+           <div class="space-y-4">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Asset Allocation</label>
+              <div class="relative">
+                <input 
+                  v-model="assignSearch" 
+                  class="w-full bg-white border-none rounded-2xl p-5 pl-12 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue" 
+                  placeholder="Scan or Search Assets..." 
+                />
+                <Search class="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-gray-300" />
+              </div>
+              <select v-model="assignForm.asset_id" class="w-full bg-white border-none rounded-2xl p-5 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue appearance-none">
+                <option value="">Select Target Hardware...</option>
+                <option v-for="asset in assignOptions" :key="asset.id" :value="asset.id">
+                  {{ asset.Asset_Name }} [{{ asset.barcode || id }}]
                 </option>
               </select>
-              <input v-model.number="row.qty" type="number" min="1" class="border p-2 rounded col-span-3" placeholder="Qty" />
-              <button type="button" @click="removeAccessoryRow(idx)" class="col-span-1 text-red-600 font-bold text-lg hover:text-red-800">×</button>
-            </div>
-          </div>
+           </div>
 
-          <div class="col-span-2 border rounded p-2 bg-white">
-            <div class="flex items-center justify-between mb-2">
-              <p class="text-xs font-bold uppercase text-gray-500">Consumables (Optional)</p>
-              <button type="button" @click="addConsumableRow" class="text-xs px-2 py-1 border rounded hover:bg-gray-100">+ Add</button>
-            </div>
-            <div v-for="(row, idx) in assignForm.consumable_allocations" :key="`con-${idx}`" class="grid grid-cols-12 gap-2 mb-2">
-              <select v-model="row.id" class="border p-2 rounded col-span-8">
-                <option value="" disabled>Select consumable</option>
-                <option v-for="item in consumableOptions" :key="item.id" :value="item.id">
-                  {{ item.item_name }} (Stock: {{ item.in_stock }})
-                </option>
-              </select>
-              <input v-model.number="row.qty" type="number" min="1" class="border p-2 rounded col-span-3" placeholder="Qty" />
-              <button type="button" @click="removeConsumableRow(idx)" class="col-span-1 text-red-600 font-bold text-lg hover:text-red-800">×</button>
-            </div>
-          </div>
-
-          <textarea v-model="assignForm.communication" class="border p-2 rounded col-span-2" placeholder="Assignment note"></textarea>
-          <div class="col-span-2 flex gap-2">
-            <button @click="submitAssign" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Assign</button>
-            <button @click="showAssign = false" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
-          </div>
+           <div class="space-y-4">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Peripheral Bundling</label>
+              <div class="bg-white rounded-2xl p-6 shadow-sm ring-1 ring-gray-100 space-y-3 max-h-48 overflow-y-auto custom-scrollbar">
+                <div v-for="(row, idx) in assignForm.accessory_allocations" :key="idx" class="flex gap-2">
+                   <select v-model="row.id" class="flex-1 bg-gray-50 border-none rounded-xl p-3 text-xs font-bold focus:ring-1 focus:ring-vilcom-blue">
+                      <option value="" disabled>Select peripheral</option>
+                      <option v-for="item in accessoryOptions" :key="item.id" :value="item.id">{{ item.name }} ({{ item.remaining_qty }})</option>
+                   </select>
+                   <input v-model.number="row.qty" type="number" class="w-16 bg-gray-50 border-none rounded-xl p-3 text-xs font-bold text-center" />
+                   <button @click="removeAccessoryRow(idx)" class="size-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors">×</button>
+                </div>
+                <button @click="addAccessoryRow" class="w-full py-3 border-2 border-dashed border-gray-100 rounded-xl text-[10px] font-black text-gray-300 uppercase tracking-widest hover:border-vilcom-blue hover:text-vilcom-blue transition-all">+ Add Peripheral</button>
+              </div>
+           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full text-left">
-            <thead class="bg-gray-50 border-b">
-              <tr class="text-[11px] uppercase text-gray-500 font-bold">
-                <th v-if="role === 'admin'" class="p-4">Employee</th>
-                <th class="p-4">{{ currentTab === 'asset' ? 'Asset & Issue' : 'Subject & Description' }}</th>
-                <th class="p-4">Priority</th>
-                <th class="p-4">Status</th>
-                <th class="p-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y text-sm">
-              <tr v-if="loading">
-                <td :colspan="role === 'admin' ? 5 : 4" class="p-8 text-center text-gray-400">Loading...</td>
-              </tr>
-              <tr v-for="ticket in rows" :key="ticket.id" class="hover:bg-gray-50">
-                <td v-if="role === 'admin'" class="p-4">
-                  <div class="font-medium">{{ ticket.user?.name || 'Unknown' }}</div>
-                </td>
+        <div class="flex gap-4">
+           <button @click="submitAssign" class="bg-green-600 text-white px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-green-900/10 hover:opacity-90 transition-all active:scale-95">AUTHORIZE ASSIGNMENT</button>
+           <button @click="showAssign = false" class="text-gray-400 font-black text-[10px] uppercase tracking-widest hover:text-red-500 transition-colors">Cancel Allocation</button>
+        </div>
+      </div>
 
-                <td class="p-4">
-                  <div :class="role !== 'admin' ? 'bg-yellow-50 p-3 rounded-lg' : ''">
-                    <div class="font-bold text-gray-700 mb-1">
-                      {{ currentTab === 'asset' ? (ticket.issue?.asset?.Asset_Name || 'Asset Request') : extractSubject(ticket.Description) }}
+      <!-- Escalate Panel -->
+      <div v-if="showEscalate" class="p-10 bg-purple-50/20 border-b border-purple-100 space-y-8">
+        <div class="flex items-center justify-between">
+           <div class="flex items-center gap-3">
+              <div class="p-2 bg-purple-600 rounded-lg text-white">
+                <ArrowUpRight class="size-4" />
+              </div>
+              <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Escalate to Management</h3>
+           </div>
+           <p class="text-[10px] font-bold text-purple-600 uppercase tracking-widest bg-purple-50 px-3 py-1 rounded-lg">Ticket #{{ escalateTicket?.id }}</p>
+        </div>
+
+        <div class="space-y-6">
+           <div class="space-y-4">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Item Name *</label>
+              <input 
+                v-model="escalateForm.item_name" 
+                class="w-full bg-white border-none rounded-2xl p-5 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue" 
+                placeholder="Enter item name for purchase..." 
+              />
+           </div>
+
+           <div class="space-y-4">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Estimated Cost</label>
+              <input 
+                v-model="escalateForm.estimated_cost" 
+                type="number"
+                class="w-full bg-white border-none rounded-2xl p-5 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue" 
+                placeholder="Enter estimated cost..." 
+              />
+           </div>
+
+           <div class="space-y-4">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Reason *</label>
+              <textarea 
+                v-model="escalateForm.reason" 
+                rows="4"
+                class="w-full bg-white border-none rounded-2xl p-5 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue" 
+                placeholder="Explain why this needs to be purchased..."
+              ></textarea>
+           </div>
+        </div>
+
+        <div class="flex gap-4">
+           <button @click="submitEscalation" class="bg-purple-600 text-white px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-purple-900/10 hover:opacity-90 transition-all active:scale-95">ESCALATE TO MANAGEMENT</button>
+           <button @click="showEscalate = false" class="text-gray-400 font-black text-[10px] uppercase tracking-widest hover:text-red-500 transition-colors">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Table View -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-50/50 border-b border-gray-50">
+              <th v-if="role === 'admin'" class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Originator</th>
+              <th class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Objective Details</th>
+              <th class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Priority</th>
+              <th class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40 text-center">Protocol Status</th>
+              <th class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32 text-right">Interactions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            <tr v-if="loading">
+              <td :colspan="role === 'admin' ? 5 : 4" class="p-20 text-center">
+                 <Loader />
+              </td>
+            </tr>
+            <tr v-for="ticket in rows" :key="ticket.id" class="group transition-all hover:bg-blue-50/30">
+              <td v-if="role === 'admin'" class="p-8">
+                 <div class="flex items-center gap-3">
+                    <div class="size-10 bg-slate-100 rounded-full flex items-center justify-center font-black text-slate-400 text-xs uppercase">
+                       {{ ticket.user?.name.charAt(0) }}
                     </div>
-                    <div class="text-xs text-gray-500 italic max-w-xs whitespace-pre-line break-words" :title="ticket.Description">
-                    {{ ticket.Description }}
-                  </div>
-                  </div>
-                </td>
-                <td class="p-4"><span :class="priorityClass(ticket.Priority)" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase">{{ ticket.Priority }}</span></td>
-                <td class="p-4"><span class="text-gray-600">{{ ticket.status?.Status_Name || 'Pending' }}</span></td>
-                <td class="p-4 text-right">
-                  <div class="flex justify-end gap-2">
-                    <button @click="openUpdate(ticket)" class="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Update Log">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
+                    <div>
+                      <div class="font-black text-slate-700 text-sm tracking-tight">{{ ticket.user?.name }}</div>
+                      <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{{ ticket.user?.department?.name || 'Staff Member' }}</div>
+                    </div>
+                 </div>
+              </td>
 
-                    <button v-if="role === 'admin' && currentTab === 'general'" @click="resolveTicket(ticket)" class="p-1 text-teal-600 hover:bg-teal-50 rounded transition-colors" title="Mark as Resolved">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                    </button>
+              <td class="p-8">
+                 <div class="space-y-1.5 max-w-xl">
+                    <div class="font-black text-slate-800 text-base tracking-tight group-hover:text-vilcom-blue transition-colors">
+                       {{ currentTab === 'asset' ? (ticket.issue?.asset?.Asset_Name || 'Inventory Acquisition') : extractSubject(ticket.Description) }}
+                    </div>
+                    <div class="text-[11px] font-bold text-gray-400 leading-relaxed line-clamp-2 italic">
+                       {{ ticket.Description }}
+                    </div>
+                 </div>
+              </td>
 
-                    <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset" @click="openAssign(ticket)" class="p-1 text-green-600 hover:bg-green-50 rounded transition-colors" title="Assign Asset">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                      </svg>
-                    </button>
+              <td class="p-8">
+                <span :class="priorityClass(ticket.Priority)" class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                  {{ ticket.Priority }}
+                </span>
+              </td>
 
-                    <button v-if="role === 'admin'" @click="removeRow(ticket.id)" class="p-1 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-              <tr v-if="!loading && rows.length === 0">
-                <td :colspan="role === 'admin' ? 5 : 4" class="p-8 text-center text-gray-400">No {{ currentTab }} tickets found.</td>
-              </tr>
-            </tbody>
-          </table>
+              <td class="p-8 text-center">
+                <div :class="statusContainerClass(ticket.status?.Status_Name)" class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all">
+                   <div :class="statusDotClass(ticket.status?.Status_Name)" class="size-1.5 rounded-full animate-pulse"></div>
+                   <span class="text-[10px] font-black uppercase tracking-widest">{{ ticket.status?.Status_Name || 'Processing' }}</span>
+                </div>
+              </td>
+
+              <td class="p-8 text-right">
+                <div class="flex justify-end gap-3 opacity-40 group-hover:opacity-100 transition-opacity">
+                   <!-- ACTION TRANSITIONS -->
+                   <template v-if="!isResolved(ticket)">
+                      <button @click="openUpdate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-blue hover:border-vilcom-blue hover:shadow-lg transition-all" title="Sync Logs">
+                        <Edit3 class="size-4" />
+                      </button>
+
+                      <button v-if="role === 'admin' && currentTab === 'general'" @click="resolveTicket(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Resolve Protocol">
+                        <CheckCircle class="size-4" />
+                      </button>
+
+                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset" @click="openAssign(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-orange hover:border-vilcom-orange hover:shadow-lg transition-all" title="Fulfill Hardware">
+                        <Package class="size-4" />
+                      </button>
+
+                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset" @click="openEscalate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-purple-600 hover:border-purple-600 hover:shadow-lg transition-all" title="Escalate to Management">
+                        <ArrowUpRight class="size-4" />
+                      </button>
+                   </template>
+                   <template v-else>
+                      <div class="p-3 bg-green-50 text-green-600 rounded-xl border border-green-100 flex items-center gap-2" title="Resolution Finalized">
+                        <ShieldCheck class="size-4" />
+                        <span class="text-[9px] font-black uppercase tracking-widest">Archived</span>
+                      </div>
+                   </template>
+
+                   <button v-if="role === 'admin'" @click="removeRow(ticket.id)" class="p-3 bg-white border border-gray-100 text-slate-400 rounded-xl hover:text-red-500 hover:border-red-500 hover:shadow-lg transition-all" title="Purge Record">
+                     <Trash2 class="size-4" />
+                   </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!loading && rows.length === 0">
+              <td :colspan="role === 'admin' ? 5 : 4" class="p-24 text-center">
+                 <div class="flex flex-col items-center gap-4">
+                    <div class="size-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-200">
+                       <Inbox class="size-8" />
+                    </div>
+                    <p class="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">No operational data found</p>
+                 </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="role === 'admin' && pagination.last_page > 1" class="p-8 border-t border-gray-50 flex items-center justify-between bg-gray-50/20">
+        <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+          Quantum {{ pagination.current_page }} of {{ pagination.last_page }} <span class="mx-2 text-gray-200">|</span> Total Items: {{ pagination.total }}
         </div>
-
-        <div v-if="role === 'admin' && pagination.last_page > 1" class="p-4 border-t flex items-center justify-between text-sm">
-          <div>
-            Page {{ pagination.current_page }} of {{ pagination.last_page }} ({{ pagination.total }} records)
-          </div>
-          <div class="flex items-center gap-2">
-            <button :disabled="pagination.current_page <= 1" @click="fetchRows(pagination.current_page - 1)" class="p-2 border rounded bg-white hover:bg-gray-50 disabled:opacity-50">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-            </button>
-            <button :disabled="pagination.current_page >= pagination.last_page" @click="fetchRows(pagination.current_page + 1)" class="p-2 border rounded bg-white hover:bg-gray-50 disabled:opacity-50">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            </button>
-          </div>
+        <div class="flex items-center gap-3">
+          <button :disabled="pagination.current_page <= 1" @click="fetchRows(pagination.current_page - 1)" class="p-3 border border-gray-100 rounded-xl bg-white hover:bg-gray-50 disabled:opacity-20 transition-all font-black text-xs">
+            <ChevronLeft class="size-4" />
+          </button>
+          <button :disabled="pagination.current_page >= pagination.last_page" @click="fetchRows(pagination.current_page + 1)" class="p-3 border border-gray-100 rounded-xl bg-white hover:bg-gray-50 disabled:opacity-20 transition-all font-black text-xs">
+            <ChevronRight class="size-4" />
+          </button>
         </div>
-
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, computed } from 'vue'
+import { onMounted, reactive, ref, computed, watch } from 'vue'
 import axios from 'axios';
+import { 
+  Search, Edit3, UserPlus, CheckCircle, Package, 
+  Trash2, ChevronLeft, ChevronRight, Inbox,
+  ShieldCheck, Info, AlertCircle, ArrowUpRight
+} from 'lucide-vue-next';
+import Loader from '@/components/Loader.vue';
 
 const all_rows = ref([])
 const loading = ref(false);
 const saving = ref(false);
 const currentTab = ref('asset');
 
-// Removed status_id from filters
 const filters = reactive({ search: '', priority: '', per_page: 10 })
 const pagination = reactive({ current_page: 1, last_page: 1, total: 0 })
 
@@ -208,11 +320,15 @@ const editingId = ref(null)
 const updateForm = reactive({ description: '', priority: 'medium', communication: '' })
 const showAssign = ref(false)
 const assignTicket = ref(null)
-const assignForm = reactive({ asset_id: '', communication: '', accessory_allocations: [], consumable_allocations: [] })
+const assignForm = reactive({ asset_id: '', communication: '', accessory_allocations: [] })
 const assignOptions = ref([])
 const accessoryOptions = ref([])
-const consumableOptions = ref([])
 const statuses = ref([])
+const assignSearch = ref('')
+
+const showEscalate = ref(false)
+const escalateTicket = ref(null)
+const escalateForm = reactive({ item_name: '', estimated_cost: '', reason: '' }) 
 
 const role = (() => {
   try { return JSON.parse(localStorage.getItem('user_data') || '{}').role || 'user' } catch { return 'user' }
@@ -226,7 +342,6 @@ const fetchRows = async (page = 1) => {
         params: {
           search: filters.search || undefined,
           priority: filters.priority || undefined,
-          // status_id removed from params
           per_page: filters.per_page,
           page
         }
@@ -264,26 +379,24 @@ const isAssetTicket = (ticket) => {
 const rows = computed(() => {
   if (currentTab.value === 'asset') {
     return all_rows.value.filter(t => isAssetTicket(t));
-  } else { // general
+  } else { 
     return all_rows.value.filter(t => !isAssetTicket(t));
   }
 });
 
 const extractSubject = (desc) => {
-  if (!desc) return 'No Subject';
+  if (!desc) return 'General Request';
   const lines = desc.split('\n');
   const subjectLine = lines.find(l => l.startsWith('Subject:'));
-  if (subjectLine) {
-    return subjectLine.split(':')[1].trim();
-  }
-  return 'General Inquiry';
+  if (subjectLine) return subjectLine.split(':')[1].trim();
+  return 'IT Support Query';
 };
 
 const tabClass = (tabName) => [
-  'w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm sm:text-base transition-colors',
+  'px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
   currentTab.value === tabName
-    ? 'border-blue-500 text-blue-600'
-    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+    ? 'bg-vilcom-blue text-white shadow-lg shadow-blue-900/10'
+    : 'text-gray-400 hover:text-slate-700 hover:bg-gray-50'
 ];
 
 const openUpdate = (ticket) => {
@@ -294,18 +407,38 @@ const openUpdate = (ticket) => {
   showUpdate.value = true
 }
 
+const isResolved = (ticket) => {
+  const statusName = ticket.status?.Status_Name?.toLowerCase() || '';
+  return ['resolved', 'closed', 'completed'].includes(statusName);
+}
+
+const statusContainerClass = (status) => {
+  const s = String(status || '').toLowerCase();
+  if (['resolved', 'closed', 'completed'].includes(s)) return 'bg-green-50 text-green-600 border-green-100 shadow-sm shadow-green-900/5';
+  if (s === 'pending' || s === 'new' || s === 'open') return 'bg-orange-50 text-vilcom-orange border-orange-100 shadow-sm shadow-orange-900/5';
+  if (s === 'in progress') return 'bg-blue-50 text-vilcom-blue border-blue-100 shadow-sm shadow-blue-900/5';
+  return 'bg-gray-50 text-gray-500 border-gray-100';
+}
+
+const statusDotClass = (status) => {
+  const s = String(status || '').toLowerCase();
+  if (['resolved', 'closed', 'completed'].includes(s)) return 'bg-green-500';
+  if (s === 'pending' || s === 'new' || s === 'open') return 'bg-vilcom-orange';
+  if (s === 'in progress') return 'bg-vilcom-blue';
+  return 'bg-gray-400';
+}
+
 const resolveTicket = async (ticket) => {
-  if (!confirm('Mark this general ticket as resolved?')) return;
+  if (!confirm('Mark this support ticket as resolved?')) return;
   try {
     await axios.put(`/api/tickets/${ticket.id}`, {
       action: 'resolve',
-      communication: 'Issue has been resolved by IT Support.'
+      communication: 'Issue has been finalized and resolved by IT support team.'
     });
-    alert('Ticket marked as resolved.');
+    alert('Ticket resolution committed.');
     fetchRows(pagination.current_page);
-    eventBus.emit('ticket-changed');
   } catch (err) {
-    alert('Failed to resolve ticket.');
+    alert('Failed to finalize resolution.');
   }
 }
 
@@ -321,7 +454,6 @@ const saveUpdate = async () => {
     showUpdate.value = false
     editingId.value = null
     fetchRows(pagination.current_page)
-    eventBus.emit('ticket-changed');
   } catch (err) {
     console.error("Update failed", err);
   } finally {
@@ -340,43 +472,71 @@ const openAssign = async (ticket) => {
   assignForm.asset_id = ''
   assignForm.communication = ''
   assignForm.accessory_allocations = []
-  assignForm.consumable_allocations = []
   showAssign.value = true
 
   const category = extractRequestedCategory(ticket)
-  const { data } = await axios.get('/api/assets/list', {
-    params: { category: category || undefined, per_page: 100, status_id: undefined }
-  })
+  assignSearch.value = category 
+  
+  await performAssignSearch()
 
-  const rows = data?.data || []
-  assignOptions.value = rows.filter((a) => {
-    const status = String(a?.status?.Status_Name || '').toLowerCase()
-    return status.includes('ready') || status.includes('available')
-  })
+  const { data } = await axios.get('/api/accessories/list', { params: { per_page: 100 } });
+  accessoryOptions.value = (data?.data || []).filter((a) => Number(a.remaining_qty) > 0)
+}
 
-  const [accessoryRes, consumableRes] = await Promise.all([
-    axios.get('/api/accessories/list', { params: { per_page: 100 } }),
-    axios.get('/api/consumables/list', { params: { per_page: 100 } }),
-  ])
+const openEscalate = (ticket) => {
+  escalateTicket.value = ticket
+  escalateForm.item_name = ''
+  escalateForm.estimated_cost = ''
+  escalateForm.reason = ''
+  showEscalate.value = true
+}
 
-  accessoryOptions.value = (accessoryRes?.data?.data || []).filter((a) => Number(a.remaining_qty) > 0)
-  consumableOptions.value = (consumableRes?.data?.data || []).filter((c) => Number(c.in_stock) > 0)
+const submitEscalation = async () => {
+  if (!escalateTicket.value) return
+  if (!escalateForm.item_name || !escalateForm.reason) {
+    alert('Please provide item name and reason for escalation.')
+    return
+  }
+  
+  try {
+    await axios.post(`/api/tickets/${escalateTicket.value.id}/escalate`, {
+      item_name: escalateForm.item_name,
+      reason: escalateForm.reason,
+      estimated_cost: escalateForm.estimated_cost || null
+    })
+    showEscalate.value = false
+    alert('Ticket escalated to management for approval.')
+    fetchRows(pagination.current_page)
+  } catch (err) {
+    console.error('Escalation failed:', err)
+    alert('Failed to escalate ticket.')
+  }
 }
 
 const addAccessoryRow = () => { assignForm.accessory_allocations.push({ id: '', qty: 1 }) }
 const removeAccessoryRow = (index) => { assignForm.accessory_allocations.splice(index, 1) }
-const addConsumableRow = () => { assignForm.consumable_allocations.push({ id: '', qty: 1 }) }
-const removeConsumableRow = (index) => { assignForm.consumable_allocations.splice(index, 1) }
+
+const performAssignSearch = async () => {
+  const { data } = await axios.get('/api/assets/list', {
+    params: { 
+      search: assignSearch.value || undefined, 
+      available: true, 
+      per_page: 100 
+    }
+  })
+  assignOptions.value = data?.data || []
+}
+
+watch(assignSearch, () => {
+  performAssignSearch()
+})
 
 const submitAssign = async () => {
   if (!assignTicket.value) return
   await axios.post(`/api/tickets/${assignTicket.value.id}/assign-asset`, {
     asset_id: Number(assignForm.asset_id),
-    communication: assignForm.communication || 'Asset assigned by admin',
+    communication: assignForm.communication || 'Hardware allocated and deployed per ticket request.',
     accessory_allocations: assignForm.accessory_allocations
-      .filter((x) => x.id && Number(x.qty) > 0)
-      .map((x) => ({ id: Number(x.id), qty: Number(x.qty) })),
-    consumable_allocations: assignForm.consumable_allocations
       .filter((x) => x.id && Number(x.qty) > 0)
       .map((x) => ({ id: Number(x.id), qty: Number(x.qty) })),
   })
@@ -386,18 +546,16 @@ const submitAssign = async () => {
 
 const removeRow = async (id) => {
   if (role !== 'admin') return
-  if (!confirm('Delete this ticket?')) return
+  if (!confirm('Permanent delete this record?')) return
   await axios.delete(`/api/tickets/${id}`)
   fetchRows(pagination.current_page)
 }
 
 const priorityClass = (p) => {
-  const colors = {
-    high: 'bg-red-100 text-red-700',
-    medium: 'bg-yellow-100 text-yellow-700',
-    low: 'bg-green-100 text-green-700'
-  }
-  return colors[String(p || '').toLowerCase()] || 'bg-gray-100 text-gray-700'
+  const s = String(p || '').toLowerCase();
+  if (s === 'high') return 'bg-red-50 text-red-600 border-red-100';
+  if (s === 'medium') return 'bg-orange-50 text-vilcom-orange border-orange-100';
+  return 'bg-blue-50 text-vilcom-blue border-blue-100';
 }
 
 onMounted(() => {

@@ -43,7 +43,7 @@ class AssetAssigned extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            markdown: 'emails.assets.assigned',
+            view: 'emails.v2.asset_assigned',
         );
     }
 

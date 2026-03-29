@@ -205,14 +205,19 @@ onMounted(() => fetchRows())
           <tr v-if="loading"><td colspan="5" class="p-8 text-center text-gray-500 italic">Loading suppliers...</td></tr>
           <tr v-else-if="rows.length === 0"><td colspan="5" class="p-8 text-center text-gray-500 italic">No suppliers found.</td></tr>
           <tr v-for="supplier in rows" :key="supplier.id"
-              :class="supplier.deleted_at ? 'bg-red-50' : 'hover:bg-gray-50'"
+              :class="supplier.status?.Status_Name === 'Deactivated' || supplier.deleted_at ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50'"
               class="transition-colors">
             <td class="p-4 font-bold text-[#3c8dbc]">{{ supplier.Supplier_Name }}</td>
             <td class="p-4 text-gray-600">{{ supplier.Location || 'N/A' }}</td>
             <td class="p-4 text-gray-600">{{ supplier.Contact || 'N/A' }}</td>
             <td class="p-4 text-center">
-              <span v-if="supplier.deleted_at" class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold">DELETED</span>
-              <span v-else class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">ACTIVE</span>
+              <span v-if="supplier.status?.Status_Name === 'Deactivated' || supplier.deleted_at"
+                    class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold uppercase">
+                Deactivated
+              </span>
+              <span v-else class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase">
+                {{ supplier.status?.Status_Name || 'Active' }}
+              </span>
             </td>
             <td class="p-4">
               <div class="flex items-center justify-center gap-4">

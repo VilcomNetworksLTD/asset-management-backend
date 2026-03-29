@@ -36,15 +36,17 @@ class Status extends Model
     }
 
     /**
-     * Return the id for the first matching status name from a list.
-     * Helps the rest of the app avoid hard‑coded numbers.
+     * Get the first status ID matching any of the given names.
+     *
+     * @param array $names
+     * @return int|null
      */
     public static function firstOf(array $names): ?int
     {
         foreach ($names as $name) {
-            $status = self::whereRaw('LOWER(Status_Name)=?', [strtolower($name)])->first();
+            $status = self::where('Status_Name', $name)->first();
             if ($status) {
-                return (int)$status->id;
+                return $status->id;
             }
         }
         return null;

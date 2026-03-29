@@ -24,7 +24,7 @@
           <select v-model="form.requested_category" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" required>
             <option value="" disabled>-- What do you need? --</option>
             <option value="Laptop">Laptop</option>
-            <option value="Desktop">Desktop</option>
+            <option value="Desktop CPU">Desktop CPU</option>
             <option value="Monitor">Monitor</option>
             <option value="Printer">Printer</option>
             <option value="Accessory">Accessory</option>

@@ -76,6 +76,7 @@ class ReturnRequestService
                 $data['notes'] ?? null,
                 !empty($data['issue_notes']) ? ('Reported issue: ' . $data['issue_notes']) : null,
             ])->filter()->implode(' | ')) ?: null,
+            'reason' => $data['reason'] ?? null,
         ]);
 
         // send a quick confirmation email to the requester
@@ -218,6 +219,10 @@ class ReturnRequestService
             }
         }
 
+        if ($reason) {
+            $request->reason = $reason;
+        }
+
         $request->update(['Workflow_Status' => $lower]);
         return $request->fresh(['asset.status', 'sender', 'actionedBy']);
     }
@@ -344,6 +349,7 @@ class ReturnRequestService
             'missing_items' => $r->Missing_Items ?? [],
             'items' => $items,
             'notes' => $r->Notes,
+            'reason' => $r->reason,
             'sender' => $r->sender ? ['id' => $r->sender->id, 'name' => $r->sender->name] : null,
             'receiver' => null,
             'admin' => $r->actionedBy ? ['id' => $r->actionedBy->id, 'name' => $r->actionedBy->name] : null,

@@ -17,27 +17,21 @@ class Consumable extends Model
      * These match the columns in your UI and migration.
      */
     protected $fillable = [
-        'item_name', // Maps to "ITEM NAME" in your UI
-        'category',  // Maps to "CATEGORY" in your UI
-        'in_stock',  // Maps to "IN STOCK" in your UI
-        'price',     // Maps to "PRICE" in your UI
-        'min_amt',   // Useful for low-stock alerts
+        'item_name', 
+        'category',  
+        'price',     
     ];
 
-    /**
-     * Optional: Casting price to a float/decimal ensures 
-     * correct math operations in your service.
-     */
     protected $casts = [
         'price' => 'decimal:2',
-        'in_stock' => 'integer',
-        'min_amt' => 'integer',
     ];
 
-    /**
-     * Attributes to append to the JSON form.
-     */
     protected $appends = ['status', 'total_value'];
+
+    public function colorStocks(): HasMany
+    {
+        return $this->hasMany(ConsumableColorStock::class, 'consumable_id');
+    }
 
     public function usageHistory(): HasMany
     {
@@ -51,17 +45,25 @@ class Consumable extends Model
 
     public function getStatusAttribute(): string
     {
-        if ($this->in_stock <= 0) {
+        $stocks = $this->colorStocks;
+        if ($stocks->isEmpty()) {
+            return 'No Colors';
+        }
+
+        if ($stocks->every(fn($s) => $s->in_stock <= 0)) {
             return 'Out of Stock';
         }
-        if ($this->in_stock <= $this->min_amt) {
+
+        if ($stocks->contains(fn($s) => $s->in_stock <= $s->min_amt)) {
             return 'Low Stock';
         }
+
         return 'In Stock';
     }
 
     public function getTotalValueAttribute(): float
     {
-        return (float) ($this->in_stock * $this->price);
+        $totalStock = $this->colorStocks->sum('in_stock');
+        return (float) ($totalStock * $this->price);
     }
 }

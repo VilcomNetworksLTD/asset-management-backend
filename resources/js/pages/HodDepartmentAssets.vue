@@ -1,226 +1,323 @@
+Here is the updated minimalist component with the asset images and assignment history section removed, keeping only the essential information.
+```vue
 <template>
-  <div class="p-8 bg-[#f8fafc] min-h-screen font-sans">
-    <div class="max-w-7xl mx-auto mb-8">
-      <div class="flex items-center justify-between">
-        <div>
-          <h1 class="text-3xl font-bold text-slate-800 tracking-tight">
-            Department <span class="text-indigo-500">Assets</span>
-          </h1>
-          <p class="text-slate-500 mt-1">View assets assigned to staff in your department.</p>
+  <div class="p-6 md:p-8 max-w-6xl mx-auto space-y-6 font-sans min-h-screen bg-white">
+    <!-- Header Section -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-5 pb-2 border-b border-gray-100">
+      <div class="space-y-1.5">
+        <div class="flex items-center gap-2">
+          <div class="w-1 h-5 bg-blue-500 rounded-full"></div>
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Department Oversight</span>
         </div>
-        <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200">
-          <i class="fa fa-layer-group text-slate-800 text-xl"></i>
+        <h1 class="text-3xl md:text-4xl font-light text-gray-900 tracking-tight">
+          Personnel Inventory
+        </h1>
+        <p class="text-sm text-gray-400 mt-1">
+          Monitor assets assigned to staff members
+        </p>
+      </div>
+
+      <div class="flex items-center gap-4 bg-gray-50 px-5 py-3 rounded-lg">
+        <Users class="size-4 text-blue-500" />
+        <div>
+          <p class="text-xs text-gray-400 uppercase tracking-wide">Active Staff</p>
+          <p class="text-2xl font-semibold text-gray-900 leading-none">{{ staffWithAssets.length }}</p>
         </div>
       </div>
     </div>
 
-    <div v-if="loading">
-      <Loader />
+    <!-- Search & Filter -->
+    <div class="flex flex-col sm:flex-row gap-3 justify-between items-center py-2">
+      <div class="relative w-full sm:w-80">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-300" />
+        <input 
+          v-model="searchQuery"
+          type="text" 
+          placeholder="Search staff or assets..." 
+          class="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-200 transition-all"
+        />
+      </div>
+      <div class="flex gap-2">
+        <button 
+          v-for="filter in filters" 
+          :key="filter.value"
+          @click="activeFilter = filter.value"
+          :class="[
+            'px-4 py-1.5 rounded-md text-xs font-medium transition-all',
+            activeFilter === filter.value 
+              ? 'bg-blue-500 text-white' 
+              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+          ]"
+        >
+          {{ filter.label }}
+        </button>
+      </div>
     </div>
 
-    <div v-if="error" class="max-w-3xl mx-auto bg-red-50 border-l-4 border-red-500 p-6 rounded-xl shadow-md flex items-center">
-      <i class="fa fa-exclamation-triangle text-red-500 mr-4 text-2xl"></i>
-      <p class="text-red-700 font-bold">{{ error }}</p>
+    <!-- Loading State -->
+    <div v-if="loading" class="flex flex-col items-center justify-center py-32 space-y-4">
+      <Loader class="size-6 text-blue-400 animate-spin" />
+      <p class="text-xs text-gray-400 uppercase tracking-wide">Loading personnel data...</p>
     </div>
 
-    <div v-if="!loading && !error" class="max-w-7xl mx-auto space-y-4">
-      <div v-for="staff in staffWithAssets" :key="staff.id" 
-           class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all">
+    <!-- Error State -->
+    <div v-if="error" class="bg-red-50 border border-red-100 p-4 rounded-lg flex items-center gap-3">
+      <AlertCircle class="text-red-400 size-5" />
+      <p class="text-sm text-red-600">{{ error }}</p>
+      <button @click="fetchDepartmentAssets" class="ml-auto text-xs text-red-500 hover:text-red-700 font-medium">
+        Retry
+      </button>
+    </div>
+
+    <!-- Main Content -->
+    <div v-if="!loading && !error" class="space-y-3">
+      <div v-for="staff in filteredStaff" :key="staff.id" 
+           class="bg-white border border-gray-100 rounded-xl overflow-hidden transition-all duration-200 hover:border-blue-200 hover:shadow-sm">
         
+        <!-- Staff Header -->
         <div @click="toggleStaff(staff.id)" 
-             class="flex justify-between items-center p-6 cursor-pointer hover:bg-slate-50 transition-colors"
-             :class="{'border-b border-slate-100 bg-slate-50/50': expandedStaff.includes(staff.id)}">
-          <div class="flex items-center space-x-5">
-            <div class="h-12 w-12 rounded-xl bg-[#1e3a8a] flex items-center justify-center text-white text-xl shadow-lg">
-              <i class="fa fa-user-tie"></i>
+             class="flex justify-between items-center p-5 cursor-pointer hover:bg-gray-50/50 transition-colors">
+          
+          <div class="flex items-center gap-4">
+            <div class="size-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
+              <UserCheck class="size-5" />
             </div>
+            
             <div>
-              <h2 class="font-bold text-slate-800 text-xl">{{ staff.name }}</h2>
-              <div class="flex items-center space-x-2 mt-1">
-                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-[#fff7ed] text-[#c2410c] border border-[#ffedd5]">
-                  {{ staff.assets?.length || 0 }} ASSETS
+              <h2 class="text-base font-medium text-gray-900">{{ staff.name }}</h2>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="inline-flex items-center gap-1 text-xs text-gray-400">
+                  <Package class="size-3" />
+                  {{ staff.assets?.length || 0 }} assets
+                </span>
+                <span class="text-xs text-gray-300">•</span>
+                <span class="text-xs text-gray-400">
+                  {{ formatTotalValue(staff.assets) }}
                 </span>
               </div>
             </div>
           </div>
-          <i :class="['fa', 'text-slate-400 transition-transform duration-300', expandedStaff.includes(staff.id) ? 'fa-chevron-down rotate-180 text-slate-800' : 'fa-chevron-right']"></i>
+          
+          <ChevronDown :class="[
+            'size-5 text-gray-400 transition-transform duration-200',
+            expandedStaff.includes(staff.id) ? 'rotate-180 text-blue-500' : ''
+          ]" />
         </div>
 
-        <div v-if="expandedStaff.includes(staff.id)" class="p-6 bg-[#fcfcfc]">
-          <div v-if="staff.assets?.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            <div v-for="asset in staff.assets" :key="asset.id"
-                 @click="showAssetDetails(asset, staff)"
-                 class="bg-white p-5 rounded-2xl border border-slate-200 hover:border-[#f97316] hover:shadow-xl cursor-pointer transition-all group relative overflow-hidden">
-              <div class="absolute top-0 right-0 h-1 w-0 group-hover:w-full bg-[#f97316] transition-all duration-300"></div>
+        <!-- Assets Grid -->
+        <Transition name="expand">
+          <div v-show="expandedStaff.includes(staff.id)">
+            <div class="border-t border-gray-100 bg-gray-50/30 p-5">
+              <div v-if="staff.assets?.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Asset Card - No Image -->
+                <div v-for="asset in staff.assets" :key="asset.id"
+                     @click="showAssetDetails(asset, staff)"
+                     class="group bg-white rounded-lg border border-gray-100 p-4 hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer">
+                  
+                  <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                      <h3 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                        {{ asset.Asset_Name }}
+                      </h3>
+                      <p class="text-xs text-gray-400 font-mono mt-1">{{ asset.Serial_No || 'No SN' }}</p>
+                    </div>
+                    <div class="size-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shrink-0 ml-3">
+                      <Package class="size-4" />
+                    </div>
+                  </div>
+                  
+                  <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-50">
+                    <span class="text-xs font-medium text-gray-500">{{ asset.Asset_Category || 'Asset' }}</span>
+                    <span class="text-xs font-medium text-blue-600">{{ formatMoney(asset.current_value) }}</span>
+                  </div>
+                </div>
+              </div>
               
-              <div class="mb-4 overflow-hidden rounded-lg h-32 bg-slate-100">
-                <img :src="asset.image_url || getAssetImage(asset.Asset_Category)" 
-                     class="w-full h-full object-cover transition-transform group-hover:scale-110" />
+              <!-- Empty State -->
+              <div v-else class="text-center py-12">
+                <div class="size-12 mx-auto bg-gray-50 rounded-lg flex items-center justify-center mb-3">
+                  <Package class="size-5 text-gray-300" />
+                </div>
+                <h3 class="text-sm font-medium text-gray-500">No assets assigned</h3>
+                <p class="text-xs text-gray-400 mt-1">This staff member has no assets in custody</p>
               </div>
+            </div>
+          </div>
+        </Transition>
+      </div>
+      
+      <!-- Empty State for No Results -->
+      <div v-if="filteredStaff.length === 0" class="text-center py-16">
+        <div class="size-16 mx-auto bg-gray-50 rounded-xl flex items-center justify-center mb-4">
+          <Users class="size-7 text-gray-300" />
+        </div>
+        <h3 class="text-base font-medium text-gray-500">No staff found</h3>
+        <p class="text-sm text-gray-400 mt-1">Try adjusting your search or filter</p>
+      </div>
+    </div>
 
-              <div class="flex items-start justify-between">
+    <!-- Modal - Minimal without History -->
+    <Transition name="modal">
+      <div v-if="selectedAsset" class="fixed inset-0 z-50 flex items-center justify-center p-4" @click.self="selectedAsset = null">
+        <div class="fixed inset-0 bg-black/20 backdrop-blur-sm" @click="selectedAsset = null"></div>
+        
+        <div class="bg-white w-full max-w-2xl rounded-xl shadow-xl relative flex flex-col max-h-[85vh] z-10">
+          <!-- Modal Header -->
+          <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+            <div>
+              <p class="text-xs text-blue-500 uppercase tracking-wide">Asset Details</p>
+              <p class="text-sm font-medium text-gray-900">{{ selectedAsset.Asset_Name }}</p>
+            </div>
+            <button @click="selectedAsset = null" class="p-1.5 rounded-md hover:bg-gray-100 transition-colors">
+              <X class="size-4 text-gray-400" />
+            </button>
+          </div>
+
+          <!-- Modal Body -->
+          <div class="flex-grow overflow-y-auto p-6 space-y-6">
+            <!-- Basic Info -->
+            <div class="space-y-4">
+              <div class="flex flex-wrap gap-2">
+                <span class="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-md">
+                  {{ selectedAsset.Asset_Category || 'General' }}
+                </span>
+                <span class="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 text-gray-600 text-xs rounded-md font-mono">
+                  TAG: {{ selectedAsset.Asset_Tag || 'N/A' }}
+                </span>
+                <span class="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 text-gray-600 text-xs rounded-md font-mono">
+                  SN: {{ selectedAsset.Serial_No || 'N/A' }}
+                </span>
+              </div>
+              
+              <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <h3 class="font-black text-slate-800 text-lg leading-tight group-hover:text-indigo-500 transition-colors">{{ asset.Asset_Name }}</h3>
-                  <p class="text-[10px] font-mono text-slate-400 mt-1 uppercase tracking-tighter">S/N: {{ asset.Serial_No || 'N/A' }}</p>
+                  <label class="text-xs text-gray-400 uppercase tracking-wide">Current User</label>
+                  <p class="text-sm font-medium text-gray-900 mt-0.5">{{ selectedAsset.current_user || 'Unassigned' }}</p>
+                </div>
+                <div>
+                  <label class="text-xs text-gray-400 uppercase tracking-wide">Location</label>
+                  <p class="text-sm font-medium text-gray-900 mt-0.5">{{ selectedAsset.location || 'Headquarters' }}</p>
+                </div>
+                <div>
+                  <label class="text-xs text-gray-400 uppercase tracking-wide">Purchase Price</label>
+                  <p class="text-sm font-medium text-gray-900 mt-0.5">{{ formatMoney(selectedAsset.purchase_price) }}</p>
+                </div>
+                <div>
+                  <label class="text-xs text-gray-400 uppercase tracking-wide">Current Value</label>
+                  <p class="text-sm font-semibold text-blue-600 mt-0.5">{{ formatMoney(selectedAsset.current_value) }}</p>
+                </div>
+                <div v-if="selectedAsset.purchase_date">
+                  <label class="text-xs text-gray-400 uppercase tracking-wide">Purchase Date</label>
+                  <p class="text-sm font-medium text-gray-900 mt-0.5">{{ formatDate(selectedAsset.purchase_date) }}</p>
+                </div>
+                <div v-if="selectedAsset.warranty_expiry">
+                  <label class="text-xs text-gray-400 uppercase tracking-wide">Warranty Expiry</label>
+                  <p class="text-sm font-medium text-gray-900 mt-0.5">{{ formatDate(selectedAsset.warranty_expiry) }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Specs Section -->
+            <div v-if="selectedAsset.specs && Object.keys(selectedAsset.specs).length" class="border-t border-gray-100 pt-5">
+              <h4 class="text-sm font-medium text-gray-900 mb-3">Specifications</h4>
+              <div class="grid grid-cols-2 gap-3">
+                <div v-if="selectedAsset.specs.processor" class="bg-gray-50 rounded-md p-3">
+                  <label class="text-xs text-gray-400">Processor</label>
+                  <p class="text-sm text-gray-700">{{ selectedAsset.specs.processor }}</p>
+                </div>
+                <div v-if="selectedAsset.specs.memory" class="bg-gray-50 rounded-md p-3">
+                  <label class="text-xs text-gray-400">Memory</label>
+                  <p class="text-sm text-gray-700">{{ selectedAsset.specs.memory }}</p>
+                </div>
+                <div v-if="selectedAsset.specs.storage" class="bg-gray-50 rounded-md p-3">
+                  <label class="text-xs text-gray-400">Storage</label>
+                  <p class="text-sm text-gray-700">{{ selectedAsset.specs.storage }}</p>
+                </div>
+                <div v-if="selectedAsset.specs.os" class="bg-gray-50 rounded-md p-3">
+                  <label class="text-xs text-gray-400">Operating System</label>
+                  <p class="text-sm text-gray-700">{{ selectedAsset.specs.os }}</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-
-    <div v-if="selectedAsset" class="fixed inset-0 bg-[#f8fafc] z-50 overflow-y-auto animate-in fade-in duration-300">
-      <div class="max-w-7xl mx-auto p-8">
-        <div class="flex justify-end mb-6">
-          <button @click="selectedAsset = null" class="bg-[#1e3a8a] text-white px-6 py-2.5 rounded-full font-bold hover:bg-[#f97316] transition-colors shadow-lg flex items-center">
-            <i class="fa fa-arrow-left mr-2"></i> BACK TO LIST
-          </button>
-        </div>
-
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden mb-8 flex flex-col lg:flex-row relative">
-          <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-[#f97316]"></div>
-          
-          <div class="p-10 lg:w-1/3 flex items-center justify-center bg-slate-50/30 border-r border-slate-100 min-h-[300px]">
-            <img :src="selectedAsset.image_url || getAssetImage(selectedAsset.Asset_Category)" 
-                 class="max-w-full h-auto max-h-64 object-contain drop-shadow-2xl rounded-2xl shadow-xl" 
-                 alt="Asset Image">
-          </div>
-
-          <div class="p-10 flex-grow">
-            <div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8">
-              <div>
-                <h2 class="text-5xl font-black text-slate-800 tracking-tight">{{ selectedAsset.Asset_Name }}</h2>
-                <div class="flex items-center space-x-3 mt-3">
-                  <span class="text-indigo-500 font-black text-xs uppercase tracking-widest italic">TAG: {{ selectedAsset.Asset_Tag || 'NO TAG' }}</span>
-                  <span class="text-slate-300">|</span>
-                  <span class="text-indigo-500 font-black text-xs uppercase tracking-widest italic">S/N: {{ selectedAsset.Serial_No }}</span>
-                </div>
-              </div>
-              <span class="px-5 py-2 rounded-full bg-blue-50 text-slate-800 font-black text-xs uppercase tracking-widest border border-blue-100">
-                {{ selectedAsset.status?.Status_Name || 'READY TO DEPLOY' }}
-              </span>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 pt-8 border-t border-slate-100">
-              <div>
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">CATEGORY</p>
-                <p class="text-slate-800 font-bold text-lg">{{ selectedAsset.Asset_Category || 'Desktop' }}</p>
-              </div>
-              <div>
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">CURRENT USER</p>
-                <p class="text-slate-800 font-bold text-lg">{{ selectedAsset.current_user || 'Unassigned' }}</p>
-              </div>
-              <div>
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">LOCATION</p>
-                <p class="text-slate-800 font-bold text-lg">{{ selectedAsset.location || 'Mombasa Office' }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden border-t-4 border-t-[#2563eb]">
-            <div class="p-6 border-b border-slate-100 flex items-center space-x-3">
-              <div class="bg-[#2563eb] p-2 rounded-lg text-white text-sm"><i class="fa fa-cog"></i></div>
-              <h4 class="font-black text-slate-800 text-xs uppercase tracking-widest">SYSTEM CONFIGURATION</h4>
-            </div>
-            <div class="p-8 grid grid-cols-2 gap-y-8 gap-x-4 text-slate-700">
-              <div>
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">PROCESSOR</p>
-                <p class="font-bold">{{ selectedAsset.specs?.processor || 'N/A' }}</p>
-              </div>
-              <div>
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">MEMORY</p>
-                <p class="font-bold">{{ selectedAsset.specs?.memory || 'N/A' }}</p>
-              </div>
-              </div>
-          </div>
-          
-          <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden border-t-4 border-t-[#f97316]">
-            <div class="p-6 border-b border-slate-100 flex items-center space-x-3">
-              <div class="bg-[#f97316] p-2 rounded-lg text-white text-sm"><i class="fa fa-wallet"></i></div>
-              <h4 class="font-black text-slate-800 text-xs uppercase tracking-widest">FINANCIALS</h4>
-            </div>
-            <div class="p-8 grid grid-cols-2 gap-y-8 gap-x-4">
-              <div>
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">PURCHASE PRICE</p>
-                <p class="text-slate-800 font-black text-lg">{{ formatMoney(selectedAsset.purchase_price) }}</p>
-              </div>
-              <div>
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CURRENT VALUE</p>
-                <p class="text-indigo-500 font-black text-lg">{{ formatMoney(selectedAsset.current_value) }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-          <div class="bg-[#1e3a8a] p-6 text-white"><h4 class="font-black text-xs uppercase tracking-widest">ASSIGNMENT HISTORY LOG</h4></div>
-          <div v-if="selectedAsset.history && selectedAsset.history.length > 0" class="overflow-x-auto">
-            <table class="w-full text-left">
-              <thead class="bg-blue-50/50 border-b border-slate-100">
-                <tr>
-                  <th class="px-8 py-4 text-[10px] font-black text-slate-800 uppercase tracking-widest">USER NAME</th>
-                  <th class="px-8 py-4 text-[10px] font-black text-slate-800 uppercase tracking-widest">DATE ASSIGNED</th>
-                  <th class="px-8 py-4 text-[10px] font-black text-slate-800 uppercase tracking-widest">DATE RETURNED</th>
-                  <th class="px-8 py-4 text-[10px] font-black text-slate-800 uppercase tracking-widest">NOTES</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="entry in selectedAsset.history" :key="entry.id" class="border-b border-slate-50 last:border-0 hover:bg-slate-50">
-                  <td class="px-8 py-4 text-slate-700 font-bold">{{ entry.user_name }}</td>
-                  <td class="px-8 py-4 text-slate-500 font-mono text-sm">{{ entry.date }}</td>
-                  <td class="px-8 py-4 text-slate-500 font-mono text-sm">{{ entry.date_returned || '---' }}</td>
-                  <td class="px-8 py-4 text-slate-500 text-sm italic">{{ entry.notes || '---' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div v-else class="p-8 text-center text-slate-400 italic">
-            No assignment history available.
-          </div>
-        </div>
-      </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 import { useSettings } from '../composables/useSettings';
+import Loader from '@/components/Loader.vue';
+
+import { 
+  Users, UserCheck, ChevronDown, Package, 
+  X, AlertCircle, Search 
+} from 'lucide-vue-next';
 
 const staffWithAssets = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const expandedStaff = ref([]);
 const selectedAsset = ref(null);
+const searchQuery = ref('');
+const activeFilter = ref('all');
 
 const { settings } = useSettings();
+
+const filters = [
+  { label: 'All', value: 'all' },
+  { label: 'Has Assets', value: 'hasAssets' },
+  { label: 'No Assets', value: 'noAssets' }
+];
+
+const filteredStaff = computed(() => {
+  let filtered = staffWithAssets.value;
+  
+  if (activeFilter.value === 'hasAssets') {
+    filtered = filtered.filter(staff => staff.assets?.length > 0);
+  } else if (activeFilter.value === 'noAssets') {
+    filtered = filtered.filter(staff => !staff.assets?.length);
+  }
+  
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase();
+    filtered = filtered.filter(staff => 
+      staff.name.toLowerCase().includes(query) ||
+      staff.assets?.some(asset => 
+        asset.Asset_Name?.toLowerCase().includes(query) ||
+        asset.Serial_No?.toLowerCase().includes(query)
+      )
+    );
+  }
+  
+  return filtered;
+});
+
+const formatTotalValue = (assets) => {
+  if (!assets || assets.length === 0) return '0';
+  const total = assets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0);
+  const curr = settings.value?.currency || 'KES';
+  return `${curr} ${total.toLocaleString()}`;
+};
+
 function formatMoney(amount) {
-  if (amount == null || amount === '') return '0.00';
+  if (amount == null || amount === '') return '0';
   const curr = settings.value?.currency || 'KES';
   return `${curr} ${Number(amount).toLocaleString()}`;
 }
 
-// Placeholder image logic based on category
-const getAssetImage = (category) => {
-  const cat = category?.toLowerCase() || '';
-  if (cat.includes('laptop') || cat.includes('macbook')) 
-    return 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=500';
-  if (cat.includes('phone') || cat.includes('tablet')) 
-    return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=500';
-  if (cat.includes('network') || cat.includes('router')) 
-    return 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?q=80&w=500';
-  if (cat.includes('printer')) 
-    return 'https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6?q=80&w=500';
-  if (cat.includes('monitor') || cat.includes('desktop')) 
-    return 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?q=80&w=500';
-  return 'https://images.unsplash.com/photo-1586769852836-bc069f19e1b6?q=80&w=500';
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
 const fetchDepartmentAssets = async () => {
+  loading.value = true;
+  error.value = null;
   try {
     const response = await axios.get('/api/hod/department-assets');
     staffWithAssets.value = response.data;
@@ -237,24 +334,48 @@ const toggleStaff = (staffId) => {
 };
 
 const showAssetDetails = async (asset, staff) => {
-  console.log("FUNCTION TRIGGERED");
-  
   selectedAsset.value = {
     ...asset,
     current_user: staff.name,
-    history: []
   };
 
   try {
-   
     const response = await axios.get(`/api/assets/${asset.id}`);
-    console.log("SUCCESS:", response.data);
-   
     selectedAsset.value = { ...selectedAsset.value, ...response.data, current_user: staff.name };
   } catch (err) {
-    console.error("ERROR:", err);
+    console.error("Error:", err);
   }
 };
 
 onMounted(fetchDepartmentAssets);
 </script>
+
+<style scoped>
+.expand-enter-active,
+.expand-leave-active {
+  transition: all 0.2s ease;
+}
+.expand-enter-from,
+.expand-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.2s ease;
+}
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+.modal-enter-active .bg-white,
+.modal-leave-active .bg-white {
+  transition: transform 0.2s ease;
+}
+.modal-enter-from .bg-white,
+.modal-leave-to .bg-white {
+  transform: scale(0.95);
+}
+</style>
+```

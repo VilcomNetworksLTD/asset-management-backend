@@ -38,6 +38,7 @@ class Transfer extends Model
         'Missing_Items',
         'Items',           // new
         'Notes',
+        'reason',
         'Actioned_By',
         'Actioned_At',
         'Ticket_ID',

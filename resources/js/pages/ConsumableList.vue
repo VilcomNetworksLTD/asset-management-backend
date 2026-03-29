@@ -5,36 +5,36 @@ import Loader from '@/components/Loader.vue'; // Assuming you have a loader
 
 // State
 const history = ref([]);
-const printers = ref([]); // We need to know WHICH printer is getting the ink
-const consumablesStock = ref([]); // The ink boxes in the warehouse
+const printers = ref([]); 
+const consumablesStock = ref([]); 
 const loading = ref(false);
 const submitting = ref(false);
 
 const form = ref({
-  asset_id: '', // The Printer ID
-  consumable_id: '', // The Ink ID
-  color: 'Black'
+  asset_id: '', 
+  consumable_id: '', 
+  color: '' // Will be populated based on selection
 });
 
 // 1. Fetch the continuous cycle history for ALL printers
 const fetchAllHistory = async () => {
   loading.value = true;
   try {
-    // We'll use a new endpoint or the toner-history one without an ID
-    const { data } = await axios.get('/api/consumables/usage-history'); 
-    history.value = data;
+    const { data } = await axios.get('/api/consumables/history'); 
+    history.value = data.data || data;
   } finally {
     loading.value = false;
   }
 };
 
-// 2. Fetch the Inventory (The boxes of ink sitting on the shelf)
+// 2. Fetch the Inventory
 const fetchInventory = async () => {
   const { data } = await axios.get('/api/consumables/list');
-  consumablesStock.value = data.data || data;
+  // Store the full objects including colorStocks
+  consumablesStock.value = (data.data || data).filter(c => ['Toner', 'Ink'].includes(c.category));
 };
 
-// 3. Fetch the Printers (The assets that use the ink)
+// 3. Fetch the Printers
 const fetchPrinters = async () => {
   const { data } = await axios.get('/api/assets/list?category=Printer');
   printers.value = data.data || data;
@@ -92,24 +92,30 @@ const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-GB', {
           </select>
         </div>
 
-        <div>
-          <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Ink Color</label>
-          <select v-model="form.color" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-            <option value="Black">Black (K)</option>
-            <option value="Cyan">Cyan (C)</option>
-            <option value="Magenta">Magenta (M)</option>
-            <option value="Yellow">Yellow (Y)</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        
-        <div>
+        <div class="md:col-span-2">
           <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">New Cartridge Model</label>
           <select v-model="form.consumable_id" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
             <option value="">Select from Stock...</option>
             <option v-for="c in consumablesStock" :key="c.id" :value="c.id">
-              {{ c.item_name || c.name }} (Available: {{ c.in_stock }})
+              {{ c.item_name }}
             </option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Select Color from Stock</label>
+          <select v-model="form.color" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none" :disabled="!form.consumable_id">
+            <option value="">Which Color?</option>
+            <template v-if="form.consumable_id">
+              <option 
+                v-for="cs in (consumablesStock.find(c => c.id === form.consumable_id)?.color_stocks || [])" 
+                :key="cs.id" 
+                :value="cs.color"
+                :disabled="cs.in_stock <= 0"
+              >
+                {{ cs.color }} (Available: {{ cs.in_stock }})
+              </option>
+            </template>
           </select>
         </div>
 
