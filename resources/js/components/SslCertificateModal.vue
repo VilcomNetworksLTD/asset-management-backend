@@ -83,7 +83,7 @@
                     </label>
                     <select v-model="form.assigned_owner_id" class="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:shadow-outline" id="assigned_owner_id">
                       <option :value="null">-- Unassigned --</option>
-                      <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
+                      <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }} ({{ user.department?.name || user.role || 'Staff' }})</option>
                     </select>
                   </div>
                 </form>

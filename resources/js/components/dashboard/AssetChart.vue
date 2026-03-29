@@ -1,37 +1,32 @@
 <template>
-  <div class="bg-white border-t-4 border-[#3c8dbc] shadow-md rounded-sm mb-5">
-    <div class="px-4 py-3 border-b border-[#f4f4f4] flex justify-between items-center">
-      <h3 class="text-lg font-normal text-[#444]">{{ title }}</h3>
-      <div class="flex gap-2 text-gray-300 text-xs">
-        <button class="hover:text-gray-600"><i class="fa fa-minus"></i></button>
-        <button class="hover:text-gray-600"><i class="fa fa-times"></i></button>
+  <div class="bg-white p-8 shadow-sm border border-gray-100 rounded-[2rem] h-full flex flex-col transition-all duration-500 hover:shadow-xl group">
+    <div class="flex justify-between items-center mb-10">
+      <div>
+        <h3 class="text-lg font-black text-slate-800 tracking-tight">{{ title }}</h3>
+        <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Global Distribution</p>
+      </div>
+      <div class="p-2 bg-gray-50 rounded-xl group-hover:bg-vilcom-blue group-hover:text-white transition-colors duration-300">
+        <PieChart class="size-5" />
       </div>
     </div>
 
-    <div class="p-4 flex flex-col items-center">
+    <div class="flex flex-col items-center">
       <div 
-        class="w-[220px] h-[220px] rounded-full my-5 transition-transform hover:scale-105 duration-500"
-        :style="{ background: chartBackground }"
-      ></div>
+        class="relative w-[240px] h-[240px] rounded-full shadow-2xl transition-all duration-700 group-hover:rotate-[360deg] p-4 bg-white"
+        :style="{ background: innerChartBackground }"
+      >
+        <div class="w-full h-full rounded-full bg-white shadow-inner flex items-center justify-center font-black text-2xl text-slate-800">
+          {{ totalCount }}
+        </div>
+      </div>
 
-      <div class="w-full mt-4 space-y-2">
-        <div class="flex items-center justify-between text-xs border-b border-gray-100 pb-1">
-          <span class="flex items-center gap-2">
-            <span class="w-3 h-3 bg-[#00a65a] rounded-sm"></span> Ready to Deploy
+      <div class="w-full mt-12 space-y-4">
+        <div v-for="item in legendItems" :key="item.label" class="flex items-center justify-between p-3 rounded-2xl border border-gray-50 hover:bg-gray-50 transition-colors">
+          <span class="flex items-center gap-3">
+            <span :class="['w-3 h-3 rounded-full shadow-lg', item.color]"></span>
+            <span class="text-sm font-bold text-gray-700">{{ item.label }}</span>
           </span>
-          <span class="font-bold text-gray-600">{{ available }}</span>
-        </div>
-        <div class="flex items-center justify-between text-xs border-b border-gray-100 pb-1">
-          <span class="flex items-center gap-2">
-            <span class="w-3 h-3 bg-[#f39c12] rounded-sm"></span> Pending
-          </span>
-          <span class="font-bold text-gray-600">{{ pending }}</span>
-        </div>
-        <div class="flex items-center justify-between text-xs">
-          <span class="flex items-center gap-2">
-            <span class="w-3 h-3 bg-[#dd4b39] rounded-sm"></span> Archived
-          </span>
-          <span class="font-bold text-gray-600">{{ archived }}</span>
+          <span class="text-sm font-black text-slate-800 bg-white px-3 py-1 rounded-full shadow-sm">{{ item.value }}</span>
         </div>
       </div>
     </div>
@@ -40,36 +35,42 @@
 
 <script setup>
 import { computed } from 'vue'
+import { PieChart } from 'lucide-vue-next'
 
 const props = defineProps({
   title: {
     type: String,
-    default: 'Assets by Status' //
+    default: 'Status Distribution'
   },
   statusDistribution: {
     type: Object,
-    default: () => ({ available: 0, pending: 0, archived: 0 })
+    default: () => ({ ready_to_deploy: 0, deployed: 0, archived: 0 })
   }
 });
 
-const available = computed(() => Number(props.statusDistribution?.available || 0))
-const pending = computed(() => Number(props.statusDistribution?.pending || 0))
+const available = computed(() => Number(props.statusDistribution?.ready_to_deploy || 0))
+const deployed = computed(() => Number(props.statusDistribution?.deployed || 0))
 const archived = computed(() => Number(props.statusDistribution?.archived || 0))
+const totalCount = computed(() => available.value + deployed.value + archived.value)
 
-const chartBackground = computed(() => {
-  const total = available.value + pending.value + archived.value
-  if (total <= 0) {
-    return 'conic-gradient(#e5e7eb 0% 100%)'
-  }
+const legendItems = computed(() => [
+  { label: 'Ready to Deploy', value: available.value, color: 'bg-green-500' },
+  { label: 'Deployed', value: deployed.value, color: 'bg-vilcom-blue' },
+  { label: 'Archived', value: archived.value, color: 'bg-vilcom-orange' },
+]);
+
+const innerChartBackground = computed(() => {
+  const total = totalCount.value
+  if (total <= 0) return 'conic-gradient(#f3f4f6 0% 100%)'
 
   const availablePct = (available.value / total) * 100
-  const pendingPct = (pending.value / total) * 100
-  const archivedPct = 100 - availablePct - pendingPct
+  const deployedPct = (deployed.value / total) * 100
+  const archivedPct = 100 - availablePct - deployedPct
 
   return `conic-gradient(
-    #00a65a 0% ${availablePct}%,
-    #f39c12 ${availablePct}% ${availablePct + pendingPct}%,
-    #dd4b39 ${availablePct + pendingPct}% ${availablePct + pendingPct + archivedPct}%
+    #22c55e 0% ${availablePct}%,
+    #1e40af ${availablePct}% ${availablePct + deployedPct}%,
+    #f97316 ${availablePct + deployedPct}% ${availablePct + deployedPct + archivedPct}%
   )`
 })
 </script>

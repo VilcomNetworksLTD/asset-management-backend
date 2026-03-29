@@ -3,6 +3,7 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 import { useWindowFocus } from '@vueuse/core'
 import { useSettings } from '../composables/useSettings';
+import { Send, X, Eye } from 'lucide-vue-next';
 
 const rows = ref([])
 const loading = ref(false)
@@ -20,6 +21,14 @@ const pagination = reactive({ current_page: 1, last_page: 1, total: 0 })
 
 const showForm = ref(false)
 const editingId = ref(null)
+const showEscalateModal = ref(false)
+const activeMaintenance = ref(null)
+const escalationForm = ref({
+  item_name: '',
+  estimated_cost: '',
+  reason: ''
+})
+const escalating = ref(false)
 
 const form = reactive({
   Asset_ID: '',
@@ -28,7 +37,7 @@ const form = reactive({
   Maintenance_Type: '',
   Description: '',
   Cost: '',
-  Status_ID: '',
+  Cost: '',
   
 })
 
@@ -87,8 +96,7 @@ const openCreate = () => {
     Maintenance_Type: '',
     Description: '',
     Cost: '',
-    Status_ID: '',
-    
+    Cost: '',
   })
   showForm.value = true
 }
@@ -102,8 +110,6 @@ const openEdit = (row) => {
     Maintenance_Type: row.Maintenance_Type || '',
     Description: row.Description || '',
     Cost: row.Cost || '',
-    Status_ID: row.Status_ID || '',
-    
   })
   showForm.value = true
 }
@@ -114,7 +120,6 @@ const save = async () => {
   const payload = {
     ...form,
     Asset_ID: Number(form.Asset_ID),
-    Status_ID: Number(form.Status_ID),
     Cost: form.Cost === '' ? null : Number(form.Cost)
   }
   console.log("PAYLOAD BEING SENT:", payload)
@@ -137,6 +142,64 @@ const removeRow = async (id) => {
   if (!confirm('Delete this maintenance record?')) return
   await axios.delete(`/api/maintenances/${id}`)
   fetchRows(pagination.current_page)
+}
+
+const archiveRow = async (id) => {
+  if (!confirm('Are you sure you want to ARCHIVE/DISPOSE of this asset? This action will set both Maintenance and Asset status to Archived.')) return
+  try {
+    saving.value = true
+    await axios.post(`/api/maintenances/${id}/archive`)
+    fetchRows(pagination.current_page)
+  } finally {
+    saving.value = false
+  }
+}
+
+const transitionStatus = async (row, status) => {
+  try {
+    saving.value = true
+    await axios.put(`/api/maintenances/${row.id}`, {
+      Workflow_Status: status
+    })
+    fetchRows(pagination.current_page)
+  } finally {
+    saving.value = false
+  }
+}
+
+const openEscalateModal = (row) => {
+  activeMaintenance.value = row
+  escalationForm.value = {
+    item_name: '',
+    estimated_cost: '',
+    reason: ''
+  }
+  showEscalateModal.value = true
+}
+
+const submitMaintenanceEscalation = async () => {
+  if (!escalationForm.value.item_name || !escalationForm.value.reason) {
+    alert('Please provide item name and reason for the purchase request.')
+    return
+  }
+  
+  escalating.value = true
+  try {
+    await axios.post('/api/purchase-requests/maintenance-escalate', {
+      maintenance_id: activeMaintenance.value.id,
+      item_name: escalationForm.value.item_name,
+      estimated_cost: escalationForm.value.estimated_cost || null,
+      reason: escalationForm.value.reason
+    })
+    showEscalateModal.value = false
+    alert('Purchase request escalated to management for approval.')
+    fetchRows(pagination.current_page)
+  } catch (err) {
+    console.error('Escalation failed:', err)
+    alert('Failed to escalate purchase request.')
+  } finally {
+    escalating.value = false
+  }
 }
 
 
@@ -217,15 +280,7 @@ onMounted(async () => {
         </select>
       </div>
 
-      <div class="flex flex-col">
-        <label class="text-xs font-bold text-gray-500 mb-1">Status</label>
-        <select v-model="form.Status_ID" class="border p-2 rounded focus:ring-2 focus:ring-blue-200 outline-none">
-          <option value="">Select Status</option>
-          <option v-for="s in statuses" :key="s.id" :value="s.id">
-            {{ s.Status_Name }}
-          </option>
-        </select>
-      </div>
+
 
       <div class="flex flex-col">
         <label class="text-xs font-bold text-gray-500 mb-1">Maintenance Type</label>
@@ -286,6 +341,49 @@ onMounted(async () => {
       </div>
     </div>
 
+    <!-- Escalation Modal for Maintenance Parts -->
+    <div v-if="showEscalateModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-bold text-gray-800">Escalate Part Purchase</h3>
+          <button @click="showEscalateModal = false" class="text-gray-400 hover:text-gray-600">
+            <X class="size-5" />
+          </button>
+        </div>
+        
+        <div class="space-y-4">
+          <div class="bg-blue-50 p-3 rounded-lg">
+            <p class="text-xs text-gray-500">Asset</p>
+            <p class="font-bold text-gray-800">{{ activeMaintenance?.asset?.Asset_Name }}</p>
+          </div>
+          
+          <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">Part/Component Name *</label>
+            <input v-model="escalationForm.item_name" type="text" class="w-full border rounded p-2 text-sm" placeholder="e.g. RAM upgrade 16GB">
+          </div>
+          
+          <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">Estimated Cost</label>
+            <input v-model="escalationForm.estimated_cost" type="number" class="w-full border rounded p-2 text-sm" placeholder="0.00">
+          </div>
+          
+          <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">Reason *</label>
+            <textarea v-model="escalationForm.reason" rows="3" class="w-full border rounded p-2 text-sm" placeholder="Why is this part needed?"></textarea>
+          </div>
+        </div>
+        
+        <div class="mt-4 flex gap-2">
+          <button @click="submitMaintenanceEscalation" :disabled="escalating" class="flex-1 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 text-sm font-bold">
+            {{ escalating ? 'Escalating...' : 'Escalate to Management' }}
+          </button>
+          <button @click="showEscalateModal = false" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="bg-white border-t-4 border-[#3c8dbc] rounded shadow-md overflow-hidden">
       <table class="w-full text-left border-collapse">
 
@@ -336,13 +434,62 @@ onMounted(async () => {
             </td>
 
             <td class="p-4 text-center">
-              <span class="px-2 py-0.5 rounded-full bg-blue-50 text-[#3c8dbc] text-[10px] font-bold border border-blue-100">
-                {{ item.status?.Status_Name || 'N/A' }}
-              </span>
+              <div class="flex flex-col items-center gap-1">
+                <span 
+                  :class="[
+                    'px-2 py-0.5 rounded-full text-[10px] font-bold border',
+                    item.status?.Status_Name === 'Completed' ? 'bg-green-50 text-green-700 border-green-100' :
+                    item.status?.Status_Name === 'Cancelled' ? 'bg-red-50 text-red-700 border-red-100' :
+                    item.status?.Status_Name === 'Archived' ? 'bg-gray-100 text-gray-700 border-gray-200' :
+                    'bg-blue-50 text-[#3c8dbc] border-blue-100'
+                  ]"
+                >
+                  {{ item.status?.Status_Name || 'N/A' }}
+                </span>
+                
+                <!-- Quick Transitions -->
+                <div v-if="item.status?.Status_Name !== 'Completed' && item.status?.Status_Name !== 'Cancelled' && item.status?.Status_Name !== 'Archived'" class="flex gap-1">
+                   <button 
+                     v-if="item.status?.Status_Name === 'Scheduled' || item.status?.Status_Name === 'Out for Repair'"
+                     @click="transitionStatus(item, 'In Progress')"
+                     class="text-[9px] text-blue-500 hover:underline"
+                   >
+                     Start
+                   </button>
+                   <button 
+                     v-if="item.status?.Status_Name === 'In Progress'"
+                     @click="transitionStatus(item, 'Completed')"
+                     class="text-[10px] text-green-600 hover:underline font-bold"
+                   >
+                     Finish
+                   </button>
+                   <button 
+                     v-if="item.status?.Status_Name !== 'Cancelled'"
+                     @click="transitionStatus(item, 'Cancelled')"
+                     class="text-[9px] text-gray-400 hover:text-red-500"
+                   >
+                     Cancel
+                   </button>
+                </div>
+              </div>
             </td>
 
             <td class="p-4">
               <div class="flex items-center justify-center gap-4">
+                <button 
+                  v-if="item.status?.Status_Name !== 'Archived'"
+                  class="text-amber-600 hover:text-amber-800 transition-colors" 
+                  @click="archiveRow(item.id)"
+                  title="Archive/Dispose Asset"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                  </svg>
+                </button>
+
                 <button 
                   class="text-blue-500 hover:text-blue-700 transition-colors" 
                   @click="openEdit(item)"
@@ -355,15 +502,22 @@ onMounted(async () => {
                 </button>
 
                 <button 
+                  class="text-purple-500 hover:text-purple-700 transition-colors" 
+                  @click="openEscalateModal(item)"
+                  title="Escalate Part Purchase to Management"
+                >
+                  <Send class="size-[18]" />
+                </button>
+
+                <button 
                   class="text-red-500 hover:text-red-700 transition-colors" 
                   @click="removeRow(item.id)"
                   title="Delete Record"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
                   </svg>
                 </button>
               </div>

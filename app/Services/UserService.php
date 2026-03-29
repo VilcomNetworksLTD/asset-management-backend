@@ -12,7 +12,9 @@ class UserService
      */
     public function getAllUsers()
     {
-        return User::withTrashed()->get();
+        return User::select('id', 'name', 'email')
+            ->orderBy('name')
+            ->get();
     }
 
     /**

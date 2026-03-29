@@ -21,8 +21,8 @@
           <p class="text-gray-800 font-semibold mt-1">{{ user.email || '—' }}</p>
         </div>
         <div class="bg-gray-50 p-4 rounded border">
-          <label class="text-xs font-bold text-gray-400 uppercase">Employee ID</label>
-          <p class="text-gray-800 font-semibold mt-1">#{{ String(user.id || '').padStart(4, '0') }}</p>
+          <label class="text-xs font-bold text-gray-400 uppercase">Department</label>
+          <p class="text-gray-800 font-semibold mt-1">{{ user.department?.name || user.role || 'Staff Member' }}</p>
         </div>
         <div class="bg-gray-50 p-4 rounded border">
           <label class="text-xs font-bold text-gray-400 uppercase">Account Status</label>

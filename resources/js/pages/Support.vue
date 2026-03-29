@@ -24,7 +24,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
               <tr v-for="ticket in tickets" :key="ticket.id">
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#{{ ticket.id }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ ticket.user?.name || 'Unknown' }}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {{ ticket.user?.name || 'Unknown' }}
                 </td>
@@ -119,7 +119,7 @@
       <!-- RESOLVE MODAL -->
       <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg p-6 w-full max-w-md">
-          <h3 class="text-lg font-bold mb-4">Resolve Ticket #{{ selectedTicket?.id }}</h3>
+          <h3 class="text-lg font-bold mb-4">Resolve Ticket for {{ selectedTicket?.user?.name || 'Unknown' }}</h3>
           
           <!-- new status no longer selected manually; resolution action will set it automatically -->
 

@@ -42,7 +42,7 @@ class SupplierController extends Controller
     public function list(Request $request): JsonResponse
     {
         try {
-            $query = Supplier::query();
+            $query = Supplier::query()->withTrashed()->with('status');
 
             if ($search = $request->input('search')) {
                 $query->where('Supplier_Name', 'like', "%{$search}%")

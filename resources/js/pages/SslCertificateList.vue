@@ -62,7 +62,7 @@
                 </div>
                 <div>
                   <div class="font-bold text-gray-900 uppercase tracking-tight">{{ cert.common_name }}</div>
-                  <div class="text-[11px] text-gray-500 font-mono italic">{{ cert.ip_address || 'Unmapped' }}</div>
+                  <div class="text-[11px] text-gray-500 font-mono italic">{{ cert.domain || cert.common_name || 'Unmapped' }}</div>
                 </div>
               </div>
             </td>

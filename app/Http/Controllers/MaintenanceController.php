@@ -42,6 +42,10 @@ class MaintenanceController extends Controller
 
         if ($statusId = $request->integer('status_id')) {
             $query->where('Status_ID', $statusId);
+        } elseif ($statusName = $request->string('status_name')->toString()) {
+            $query->whereHas('status', function ($q) use ($statusName) {
+                $q->where('Status_Name', 'like', "%{$statusName}%");
+            });
         }
 
         $perPage = max(1, min(100, $request->integer('per_page', 10)));
@@ -55,13 +59,14 @@ class MaintenanceController extends Controller
             'Asset_ID' => 'required|integer|exists:assets,id',
             'Ticket_ID' => 'nullable|integer|exists:tickets,id',
             'Request_Date' => 'nullable|date',
-            'Completion_Date' => 'nullable|date|after_or_equal:Request_Date',
+            'Completion_Date' => 'nullable|date',
             'Maintenance_Type' => 'required|string|max:255',
             'Description' => 'nullable|string',
             'Cost' => 'nullable|numeric|min:0',
             'Status_ID' => 'nullable|integer|exists:statuses,id',
             'asset_status_id' => 'nullable|integer|exists:statuses,id',
             'Maintenance_Date' => 'nullable|date',
+            'is_undeployable' => 'nullable|boolean',
         ]);
 
         // Provide sensible defaults for fields that might be omitted by a simple form.
@@ -72,9 +77,11 @@ class MaintenanceController extends Controller
         }
 
         $maintenance = DB::transaction(function () use ($data) {
-            $maintenance = Maintenance::create(collect($data)->except(['asset_status_id'])->toArray());
+            $maintenance = Maintenance::create(collect($data)->except(['asset_status_id', 'is_undeployable'])->toArray());
 
-            if (!empty($data['asset_status_id'])) {
+            if (!empty($data['is_undeployable']) && $data['is_undeployable']) {
+                $maintenance->transitionTo(Maintenance::WORKFLOW_ARCHIVED);
+            } elseif (!empty($data['asset_status_id'])) {
                 Asset::where('id', $maintenance->Asset_ID)->update([
                     'Status_ID' => (int) $data['asset_status_id'],
                 ]);
@@ -117,21 +124,43 @@ class MaintenanceController extends Controller
             'Description' => 'nullable|string',
             'Cost' => 'nullable|numeric|min:0',
             'Status_ID' => 'sometimes|required|integer|exists:statuses,id',
-            'asset_status_id' => 'nullable|integer|exists:statuses,id',
+            'Workflow_Status' => 'nullable|string|in:Scheduled,In Progress,On Hold,Completed,Cancelled,Out for Repair,Archived',
             'Maintenance_Date' => 'nullable|date',
         ]);
 
-        DB::transaction(function () use ($maintenance, $data) {
-            $maintenance->update(collect($data)->except(['asset_status_id'])->toArray());
-
-            if (array_key_exists('asset_status_id', $data) && !empty($data['asset_status_id'])) {
-                Asset::where('id', $maintenance->Asset_ID)->update([
-                    'Status_ID' => (int) $data['asset_status_id'],
-                ]);
+        $maintenance = DB::transaction(function () use ($maintenance, $data) {
+            $workflowStatus = $data['Workflow_Status'] ?? null;
+            
+            // If the status comes from the Status_ID, try to map it back to workflow if possible
+            if (empty($workflowStatus) && !empty($data['Status_ID'])) {
+                $status = Status::find($data['Status_ID']);
+                if ($status) {
+                    $workflowStatus = $status->Status_Name;
+                }
             }
+
+            if ($workflowStatus) {
+                $maintenance->transitionTo($workflowStatus, auth()->user(), collect($data)->except(['Workflow_Status', 'Status_ID'])->toArray());
+            } else {
+                $maintenance->update(collect($data)->except(['Workflow_Status'])->toArray());
+            }
+            
+            return $maintenance;
         });
 
         return response()->json($maintenance->fresh()->load(['asset.status', 'status']));
+    }
+
+    public function archive(int $id): JsonResponse
+    {
+        $maintenance = Maintenance::findOrFail($id);
+        
+        $maintenance->transitionTo(Maintenance::WORKFLOW_ARCHIVED, auth()->user());
+
+        return response()->json([
+            'message' => 'Asset archived successfully from maintenance',
+            'maintenance' => $maintenance->load(['asset.status', 'status'])
+        ]);
     }
 
     public function destroy(int $id): JsonResponse

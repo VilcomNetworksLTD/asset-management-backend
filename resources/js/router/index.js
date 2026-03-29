@@ -14,6 +14,7 @@ import MaintenanceList from '../pages/MaintenanceList.vue';
 import ActivityLogList from '../pages/ActivityLogList.vue';
 import ReportsList from '../pages/ReportsList.vue';
 import Settings from '../pages/Settings.vue';
+
 import TransferList from '../pages/TransferList.vue';
 import TicketList from '../pages/TicketList.vue';
 import UserAssetList from '../pages/UserAssetList.vue';
@@ -23,6 +24,17 @@ import DepartmentAssets from '../pages/DepartmentAssets.vue';
 import HodDepartmentAssets from '../pages/HodDepartmentAssets.vue';
 import Support from '../pages/Support.vue';
 import Feedback from '../pages/Feedback.vue';
+import TonerInventory from '../pages/TonerInventory.vue';
+import Scanner from '../pages/Scanner.vue';
+
+// Hub Imports
+import InventoryHub from '../pages/InventoryHub.vue';
+import MovementsHub from '../pages/MovementsHub.vue';
+import DirectoryHub from '../pages/DirectoryHub.vue';
+import OperationsHub from '../pages/OperationsHub.vue';
+import MyWorkspaceHub from '../pages/MyWorkspaceHub.vue';
+import ManagementPurchaseRequests from '../pages/ManagementPurchaseRequests.vue';
+import AdminPurchaseRequests from '../pages/AdminPurchaseRequests.vue';
 
 const routes = [{
         path: '/',
@@ -67,6 +79,12 @@ const routes = [{
         children: [
             { path: '', name: 'dashboard-admin', component: AdminDashboard },
             {
+                path: 'scan',
+                name: 'admin-scanner',
+                component: Scanner,
+                props: { targetRoute: 'asset-detail' }
+            },
+            {
                 path: 'assets',
                 name: 'assets-list',
                 component: AssetList,
@@ -77,7 +95,8 @@ const routes = [{
                 name: 'asset-detail',
                 props: true
             },
-            { path: 'consumables', name: 'consumables-list', component: ConsumableList },
+            { path: 'toner-lifecycle', name: 'consumables-list', component: ConsumableList },
+            { path: 'toner-inventory', name: 'toner-inventory', component: TonerInventory },
             { path: 'people', name: 'people-list', component: PeopleList },
             // REMOVED: UserHistoryPage route was here
             { path: 'suppliers', name: 'suppliers-list', component: Supplier },
@@ -87,7 +106,19 @@ const routes = [{
             { path: 'maintenances', name: 'maintenances-list', component: MaintenanceList },
             { path: 'logs', name: 'activitylogs-list', component: ActivityLogList },
             { path: 'reports', name: 'reports-list', component: ReportsList },
-            { path: 'settings', name: 'settings', component: Settings },
+            {
+                path: 'settings',
+                name: 'settings',
+                component: Settings,
+            },
+            { path: 'tickets', name: 'ticket-list', component: TicketList },
+
+            // Hub Routes
+            { path: 'inventory', name: 'admin-inventory-hub', component: InventoryHub },
+            { path: 'movements', name: 'admin-movements-hub', component: MovementsHub },
+            { path: 'directory', name: 'admin-directory-hub', component: DirectoryHub },
+            { path: 'operations', name: 'admin-operations-hub', component: OperationsHub },
+
             { path: 'transfers', redirect: { name: 'transfer-assets-list' } },
             {
                 path: 'transfers/assets',
@@ -101,15 +132,16 @@ const routes = [{
                 component: TransferList,
                 props: { mode: 'return', title: 'Asset Return Requests' }
             },
-            { path: 'tickets', name: 'ticket-list', component: TicketList },
             {
                 path: 'ssl-certificates',
                 name: 'ssl-certificates',
                 component: SslCertificateList,
                 meta: { requiresAuth: false }
             },
+            { path: 'support-tickets', name: 'admin-tickets', component: TicketList },
             { path: 'support', name: 'admin-support', component: Support },
             { path: 'feedback', name: 'admin-feedback', component: Feedback },
+            { path: 'purchase-escalations', name: 'admin-purchase-requests', component: AdminPurchaseRequests },
         ]
     },
 
@@ -120,6 +152,13 @@ const routes = [{
         meta: { requiresAuth: true },
         children: [
             { path: '', name: 'dashboard-user', component: UserDashboard },
+            { path: 'workspace', name: 'user-workspace-hub', component: MyWorkspaceHub },
+            {
+                path: 'scan',
+                name: 'user-scanner',
+                component: Scanner,
+                props: { targetRoute: 'user-asset-detail' }
+            },
             { path: 'my-assets', name: 'user-assets', component: UserAssetList },
             {
                 path: 'my-licenses',
@@ -133,13 +172,6 @@ const routes = [{
                 name: 'user-components',
                 component: () =>
                     import ('../pages/UserComponentList.vue'),
-                meta: { layout: 'UserLayout', requiresAuth: true }
-            },
-            {
-                path: 'my-consumables',
-                name: 'user-consumables',
-                component: () =>
-                    import ('../pages/UserConsumableList.vue'),
                 meta: { layout: 'UserLayout', requiresAuth: true }
             },
             {
@@ -192,6 +224,7 @@ const routes = [{
                     import ('../pages/InboundTransfer.vue'),
                 meta: { layout: 'UserLayout', requiresAuth: true }
             },
+
             // REMOVED: MyHistory route was here
             {
                 path: 'department-assets',
@@ -199,8 +232,40 @@ const routes = [{
                 component: HodDepartmentAssets,
                 meta: { layout: 'UserLayout', requiresAuth: true }
             },
+            {
+                path: 'manage-definitions',
+                name: 'hod-definitions',
+                component: Settings,
+                meta: { layout: 'UserLayout', requiresAuth: true }
+            },
+            {
+                path: 'manage-assets',
+                name: 'hod-assets-list',
+                component: AssetList,
+                meta: { layout: 'UserLayout', requiresAuth: true }
+            },
+            {
+                path: 'assets/:id',
+                name: 'user-asset-detail',
+                component: AssetDetail,
+                props: true
+            },
             { path: 'support', name: 'user-support', component: Support },
             { path: 'feedback', name: 'user-feedback', component: Feedback },
+            
+            // New Purchase Request & Management Routes
+            { 
+              path: 'new-asset-request', 
+              name: 'user.new-asset-request', 
+              component: () => import('../pages/NewAssetRequestForm.vue'),
+              meta: { layout: 'UserLayout', requiresAuth: true }
+            },
+            {
+              path: 'purchase-escalations',
+              name: 'management-purchase-requests',
+              component: ManagementPurchaseRequests,
+              meta: { layout: 'UserLayout', requiresAuth: true,requiresManagement: true }
+            },
         ]
     },
 
@@ -234,6 +299,10 @@ router.beforeEach((to, from, next) => {
             }
 
             if (to.meta.requiresAdmin && userRole !== 'admin') {
+                return next({ name: 'dashboard-user' });
+            }
+
+            if (to.meta.requiresManagement && userRole !== 'management') {
                 return next({ name: 'dashboard-user' });
             }
 

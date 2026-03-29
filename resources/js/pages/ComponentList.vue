@@ -27,7 +27,7 @@ const form = reactive({ name: '', category: '', serial_no: '', total_qty: 0, rem
 const showAssignForm = ref(false)
 const assignForm = reactive({ item: null, user_id: '', quantity: 1 })
 
-const categories = computed(() => [...new Set(rows.value.map(r => r.category).filter(Boolean))])
+const categories = computed(() => [...new Set((rows.value || []).map(r => r.category).filter(Boolean))])
 
 const isFocused = useWindowFocus()
 

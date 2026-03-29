@@ -22,7 +22,7 @@
 
         <div class="p-6">
           <!-- General Settings -->
-          <div v-if="currentTab === 'general'" class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div v-if="currentTab === 'general' && isAdmin" class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div>
               <label class="block text-sm font-bold text-gray-700 mb-2">System Name</label>
               <input v-model="settings.system_name" type="text" class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition duration-200 p-2.5 border text-sm" placeholder="e.g. Asset Tracker">
@@ -55,8 +55,18 @@
             </div>
           </div>
 
+          <!-- Categories -->
+          <div v-if="currentTab === 'categories' && (isAdmin || isHod)" class="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <CategorySettings />
+          </div>
+
+          <!-- Locations -->
+          <div v-if="currentTab === 'locations' && (isAdmin || isHod)" class="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <LocationSettings />
+          </div>
+
           <!-- Notifications -->
-          <div v-if="currentTab === 'notifications'" class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div v-if="currentTab === 'notifications' && isAdmin" class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div class="space-y-4">
               <div class="flex items-start">
                 <div class="flex items-center h-5">
@@ -81,14 +91,14 @@
           </div>
 
           <!-- Security -->
-          <div v-if="currentTab === 'security'" class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div v-if="currentTab === 'security' && isAdmin" class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
              <div>
               <label class="block text-sm font-bold text-gray-700 mb-2">Session Timeout (Minutes)</label>
               <input v-model="settings.session_timeout" type="number" class="w-full md:w-1/3 rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition duration-200 p-2.5 border text-sm">
             </div>
           </div>
 
-          <div class="mt-8 pt-6 border-t border-gray-100 flex justify-end">
+          <div class="mt-8 pt-6 border-t border-gray-100 flex justify-end" v-if="currentTab !== 'categories' && currentTab !== 'locations' && isAdmin">
             <button 
               @click="saveSettings" 
               :disabled="saving"
@@ -105,16 +115,31 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
+import CategorySettings from './CategorySettings.vue';
+import LocationSettings from './LocationSettings.vue';
 
-const tabs = [
+const user = JSON.parse(localStorage.getItem('user_data') || '{}');
+const role = (user.role || '').toLowerCase();
+const isAdmin = role === 'admin';
+const isHod = role === 'head_of_department' || role === 'hod';
+
+const allTabs = [
   { id: 'general', label: 'General', icon: 'fa-cog' },
+  { id: 'categories', label: 'Categories', icon: 'fa-tags' },
+  { id: 'locations', label: 'Locations', icon: 'fa-map-marker' },
   { id: 'notifications', label: 'Notifications', icon: 'fa-bell' },
   { id: 'security', label: 'Security', icon: 'fa-lock' }
 ];
 
-const currentTab = ref('general');
+const tabs = computed(() => {
+  if (isAdmin) return allTabs;
+  if (isHod) return allTabs.filter(t => ['categories', 'locations'].includes(t.id));
+  return [];
+});
+
+const currentTab = ref(isAdmin ? 'general' : 'categories');
 const saving = ref(false);
 const settings = ref({
   system_name: '',
@@ -127,6 +152,7 @@ const settings = ref({
 });
 
 const fetchSettings = async () => {
+  if (!isAdmin) return; // Prevent HOD from fetching system-wide settings
   try {
     // the public endpoint returns the same data; there is no need for an
     // additional /admin prefix here.  the composable also uses /api/settings.

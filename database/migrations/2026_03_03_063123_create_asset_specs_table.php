@@ -1,42 +1,30 @@
 <?php
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+namespace App\Models;
 
-return new class extends Migration
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphOne; // Update this import
+
+class AssetSpec extends Model
 {
-    
-    public function up(): void
-    {
-        Schema::create('asset_specs', function (Blueprint $table) {
-            $table->id();
-            
-            
-            $table->unsignedBigInteger('asset_id')->unique(); 
-            
-            
-            $table->string('processor')->nullable();
-            $table->string('memory')->nullable(); // e.g., 16GB
-            $table->string('storage_type')->nullable(); // e.g., SSD/HDD
-            $table->string('storage_capacity')->nullable(); // e.g., 512GB
-            $table->string('operating_system')->nullable();
-            $table->string('mac_address')->nullable();
-            $table->string('ip_address')->nullable();
-            
-            $table->timestamps();
+    protected $fillable = [
+        // 'asset_id', <-- You can actually remove this from fillable now, 
+        // as the linking happens in the polymorphic pivot table, not here anymore!
+        'processor',
+        'memory',
+        'storage_type',
+        'storage_capacity',
+        'operating_system',
+        'mac_address',
+        'ip_address'
+    ];
 
-            
-            $table->foreign('asset_id')
-                ->references('id')
-                ->on('assets')
-                ->onDelete('cascade');
-        });
-    }
-
-    
-    public function down(): void
+    /**
+     * Replaces the old asset() belongsTo relationship.
+     * This links your existing IT specs to the new dynamic central table.
+     */
+    public function assetSpecification(): MorphOne
     {
-        Schema::dropIfExists('asset_specs');
+        return $this->morphOne(AssetSpecification::class, 'specificationable');
     }
-};
+}

@@ -27,7 +27,8 @@ class UserController extends Controller
     {
         // Eager load department so we can show the name in the table
         $query = \App\Models\User::query()
-            ->with('department:id,name');
+            ->withTrashed()
+            ->with(['department:id,name', 'status']);
 
         if ($search = $request->string('search')->toString()) {
             $query->where(function ($q) use ($search) {
@@ -160,5 +161,24 @@ class UserController extends Controller
         }
 
         return response()->json(['message' => 'Password updated successfully']);
+    }
+
+    /**
+     * Consolidated endpoint for components, accessories, licenses, and consumables assigned to the current user.
+     */
+    public function getMyAssignedItems(): JsonResponse
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $user->load(['components', 'accessories', 'licenses']);
+
+        return response()->json([
+            'components' => $user->components,
+            'accessories' => $user->accessories,
+            'licenses' => $user->licenses,
+        ]);
     }
 }

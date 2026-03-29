@@ -124,24 +124,38 @@ class SslCertificateService
     public function scanCertificate(int $id): SslCertificate
     {
         $cert = SslCertificate::findOrFail($id);
-        $host = $cert->common_name;
+        
+        // Prefer IP address if available, as common_name might be a wildcard (e.g. *.domain.com)
+        $host = $cert->ip_address ?: $cert->common_name;
+        
+        // If it's still a wildcard, we can't connect. Cry for help or try to strip the *.
+        if (str_starts_with($host, '*.')) {
+            $host = substr($host, 2);
+        }
+
         $port = $cert->port ?: 443;
 
-        $scanned = $this->fetchRemoteCert($host, $port);
+        try {
+            $scanned = $this->fetchRemoteCert($host, $port);
 
-        $updates = array_merge($scanned, [
-            'last_scanned_at' => now(),
-            'scan_source'     => 'manual',
-        ]);
-        $updates['status'] = (new SslCertificate(['expiry_date' => $updates['expiry_date'] ?? $cert->expiry_date]))->computeStatus();
+            $updates = array_merge($scanned, [
+                'last_scanned_at' => now(),
+                'scan_source'     => 'manual',
+            ]);
+            $updates['status'] = (new SslCertificate(['expiry_date' => $updates['expiry_date'] ?? $cert->expiry_date]))->computeStatus();
 
-        $cert->update($updates);
+            $cert->update($updates);
 
-        $this->logChange($cert, 'scanned', [
-            'new_expiry_date'   => $cert->fresh()->expiry_date,
-            'new_serial_number' => $cert->fresh()->serial_number,
-            'notes'             => "Auto-scanned from {$host}:{$port}",
-        ]);
+            $this->logChange($cert, 'scanned', [
+                'new_expiry_date'   => $cert->fresh()->expiry_date,
+                'new_serial_number' => $cert->fresh()->serial_number,
+                'notes'             => "Auto-scanned from {$host}:{$port}",
+            ]);
+        } catch (\Exception $e) {
+            // Log the error but re-throw with a user-friendly message
+            Log::error("SSL Scan failed for ID {$id}: " . $e.getMessage());
+            throw new \Exception("Live scan failed: " . $e->getMessage());
+        }
 
         return $cert->fresh('assignedOwner:id,name,email');
     }

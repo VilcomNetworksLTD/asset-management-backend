@@ -22,6 +22,9 @@ class Maintenance extends Model
     public const WORKFLOW_ON_HOLD = 'On Hold';
     public const WORKFLOW_COMPLETED = 'Completed';
     public const WORKFLOW_CANCELLED = 'Cancelled';
+    public const WORKFLOW_OUT_FOR_REPAIR = 'Out for Repair';
+    public const WORKFLOW_UNDER_REPAIR = 'Under Repair';
+    public const WORKFLOW_ARCHIVED = 'Archived';
 
     protected $fillable = [
         'Asset_ID',         
@@ -56,13 +59,21 @@ class Maintenance extends Model
         static::creating(function ($maintenance) {
             // Set initial workflow status if it's not already set
             if (empty($maintenance->Workflow_Status)) {
-                $maintenance->Workflow_Status = self::WORKFLOW_SCHEDULED;
+                $maintenance->Workflow_Status = self::WORKFLOW_UNDER_REPAIR;
             }
 
             // Find and set the corresponding Status_ID from the statuses table
             $statusModel = Status::where('Status_Name', $maintenance->Workflow_Status)->first();
             if ($statusModel) {
                 $maintenance->Status_ID = $statusModel->id;
+            }
+
+            // Automate Asset Status update to "Under Repair"
+            if ($maintenance->Asset_ID) {
+                $repairStatus = Status::where('Status_Name', self::WORKFLOW_UNDER_REPAIR)->first();
+                if ($repairStatus) {
+                    Asset::where('id', $maintenance->Asset_ID)->update(['Status_ID' => $repairStatus->id]);
+                }
             }
         });
     }
@@ -83,6 +94,25 @@ class Maintenance extends Model
         $statusModel = Status::where('Status_Name', $newStatus)->first();
         if ($statusModel) {
             $this->Status_ID = $statusModel->id;
+        }
+
+        // Automate Asset Status updates based on Maintenance transition
+        if ($this->Asset_ID) {
+            $assetStatusName = null;
+            if ($newStatus === self::WORKFLOW_COMPLETED) {
+                $assetStatusName = 'Ready to Deploy';
+            } elseif ($newStatus === self::WORKFLOW_CANCELLED) {
+                $assetStatusName = 'Available';
+            } elseif ($newStatus === self::WORKFLOW_ARCHIVED) {
+                $assetStatusName = 'Archived';
+            }
+
+            if ($assetStatusName) {
+                $assetStatus = Status::where('Status_Name', $assetStatusName)->first();
+                if ($assetStatus) {
+                    Asset::where('id', $this->Asset_ID)->update(['Status_ID' => $assetStatus->id]);
+                }
+            }
         }
 
         // Update action fields

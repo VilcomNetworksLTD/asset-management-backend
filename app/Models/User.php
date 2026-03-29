@@ -9,6 +9,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Status;
 
 class User extends Authenticatable
 {
@@ -26,6 +27,7 @@ class User extends Authenticatable
         'otp_expires_at',
         'reset_otp',
         'reset_otp_expires_at',
+        'Status_ID',
     ];
 
     
@@ -71,6 +73,11 @@ class User extends Authenticatable
     }
 
    
+    protected static function boot()
+    {
+        parent::boot();
+    }
+
     public function feedback(): HasMany
     {
         return $this->hasMany(Feedback::class, 'Employee_ID', 'id');
@@ -99,5 +106,10 @@ class User extends Authenticatable
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(Status::class, 'Status_ID');
     }
 }

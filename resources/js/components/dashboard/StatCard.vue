@@ -1,36 +1,41 @@
 <template>
-  <div :class="['relative rounded-sm shadow-md text-white min-h-[120px] overflow-hidden transition-transform hover:scale-[1.02]', bgColor]">
-    
-    <div class="p-4 relative z-10">
-      <h3 class="text-4xl font-bold leading-tight mb-1">{{ value }}</h3>
-      <p class="text-lg font-medium opacity-90">{{ title }}</p>
-    </div>
+  <router-link 
+    :to="link"
+    :class="[
+      'relative group p-6 rounded-3xl border border-gray-100 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 overflow-hidden',
+      bgColor
+    ]"
+  >
+    <!-- Background Decor -->
+    <div class="absolute -right-6 -top-6 size-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500"></div>
 
-    <div class="absolute top-2 right-2 text-7xl opacity-20 pointer-events-none z-0">
-      <i :class="['fa', icon]"></i>
-    </div>
+    <div class="relative z-10 flex flex-col h-full justify-between">
+      <div class="flex items-start justify-between mb-4">
+        <div class="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
+          <i :class="['fa text-2xl text-white', icon]"></i>
+        </div>
+        <div class="text-white/40 group-hover:text-white transition-colors">
+          <i class="fa fa-external-link-alt text-xs"></i>
+        </div>
+      </div>
 
-    <router-link 
-      :to="link" 
-      class="block bg-black/10 hover:bg-black/20 text-center py-1 text-xs uppercase tracking-wider no-underline text-white/80 hover:text-white transition-colors"
-    >
-      View All <i class="fa fa-arrow-circle-right ml-1"></i>
-    </router-link>
-  </div>
+      <div>
+        <h3 class="text-3xl font-black text-white leading-none mb-1 tracking-tight">{{ value }}</h3>
+        <p class="text-sm font-bold text-white/80 uppercase tracking-widest">{{ title }}</p>
+      </div>
+    </div>
+  </router-link>
 </template>
 
 <script setup>
-// Props definition with defaults for a robust component architecture
 defineProps({
   title: {
     type: String,
     required: true,
-    default: 'Total Assets'
   },
   value: {
     type: [String, Number],
     required: true,
-    default: 0
   },
   icon: {
     type: String,
@@ -38,11 +43,11 @@ defineProps({
   },
   bgColor: {
     type: String,
-    default: 'bg-[#00c0ef]' // Default to the Aqua blue seen in Snipe-IT
+    default: 'bg-vilcom-blue'
   },
   link: {
     type: String,
-    default: '/'
+    default: '#'
   }
 });
 </script>

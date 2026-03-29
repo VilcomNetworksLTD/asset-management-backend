@@ -2,23 +2,6 @@
   <div class="p-6">
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-semibold text-gray-800">{{ headingText }}</h1>
-      
-      <div v-if="isReturnMode" class="flex border rounded-lg overflow-hidden bg-white shadow-sm">
-        <button
-          @click="setViewMode('pending')"
-          :class="viewMode === 'pending' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-gray-500 hover:bg-gray-50'"
-          class="px-4 py-2 text-sm transition-colors"
-        >
-          Pending Requests
-        </button>
-        <button
-          @click="setViewMode('history')"
-          :class="viewMode === 'history' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-gray-500 hover:bg-gray-50'"
-          class="px-4 py-2 text-sm border-l transition-colors"
-        >
-          History (Closed)
-        </button>
-      </div>
     </div>
 
     <div class="bg-white rounded shadow-sm overflow-hidden border">
@@ -84,7 +67,10 @@
                   </div>
                 </div>
               </div>
-              <div class="text-xs text-gray-500 italic" v-if="item.issue_notes || item.notes">
+              <div class="text-xs text-gray-500 italic" v-if="item.reason">
+                <strong>Reason:</strong> {{ item.reason }}
+              </div>
+              <div class="text-xs text-gray-400 italic" v-if="item.issue_notes || item.notes">
                 {{ item.issue_notes || item.notes }}
               </div>
             </td>
@@ -133,7 +119,7 @@
       </table>
       
       <div v-if="filteredTransfers.length === 0" class="p-10 text-center text-gray-400">
-        No {{ viewMode === 'pending' ? 'pending' : 'historical' }} movement requests found.
+        No movement requests found.
       </div>
     </div>
 
@@ -233,8 +219,6 @@ const transfers = ref([]);
 const loading = ref(false);
 const showModal = ref(false);
 const selectedItem = ref({});
-// NEW: View mode state ('pending' or 'history')
-const viewMode = ref('pending');
 
 const inspectionForm = ref({
   condition: 'Good',
@@ -259,25 +243,21 @@ const filteredTransfers = computed(() => {
   if (props.mode === 'transfer') {
     return transfers.value.filter((item) => normalizeType(item.type) !== 'return');
   }
+  if (props.mode === 'return') {
+    return transfers.value.filter((item) => normalizeType(item.type) === 'return');
+  }
   return transfers.value;
 });
-
-// NEW: Function to handle toggle switching
-const setViewMode = (mode) => {
-  viewMode.value = mode;
-  fetchTransfers(1);
-};
 
 const fetchTransfers = async (page = 1) => {
   loading.value = true;
   try {
     let endpoint = '/api/transfers';
     
-    // UPDATED: Use the viewMode state to determine if we send ?pending=1
     if (props.mode === 'return') {
-      endpoint = viewMode.value === 'pending' ? '/api/return-requests?pending=1' : '/api/return-requests';
+      endpoint = '/api/return-requests';
     }
-    
+
     if (page > 1) endpoint += (endpoint.includes('?') ? '&' : '?') + `page=${page}`;
     
     const res = await axios.get(endpoint);
@@ -361,12 +341,7 @@ const updateStatus = async (id, status) => {
     if (updated) {
       const idx = transfers.value.findIndex(t => t.id === id);
       if (idx !== -1) {
-        // UPDATED: Only remove the item from the screen if we are looking at the 'Pending' list!
-        if (props.mode === 'return' && ['closed', 'rejected'].includes(updated.status) && viewMode.value === 'pending') {
-          transfers.value.splice(idx, 1);
-        } else {
-          transfers.value.splice(idx, 1, updated);
-        }
+        transfers.value.splice(idx, 1, updated);
       }
       eventBus.emit('transfer-changed', updated);
     }
