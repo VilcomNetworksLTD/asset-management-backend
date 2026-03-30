@@ -19,6 +19,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \Illuminate\Support\Facades\Log::info('Incoming request: ' . \Illuminate\Support\Facades\Request::url());
         // register model observers
         \App\Models\ActivityLog::observe(\App\Observers\ActivityLogObserver::class);
         \App\Models\Asset::observe(\App\Observers\AssetObserver::class);

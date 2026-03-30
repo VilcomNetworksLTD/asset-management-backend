@@ -4,83 +4,92 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class AuthandAccessController extends Controller
 {
     /**
-     * PROXY LOGIN (Password Grant Flow)
-     * Takes credentials from Vue, validates them against the Safetika Hub, 
-     * creates a local shadow user, and issues a Sanctum token.
+     * AUTH 2 LOGIN (Direct Database Flow)
+     * Validates credentials against the Safetika database,
+     * syncs a local shadow user, and issues a Sanctum token.
      */
     public function login(Request $request)
     {
+        \Illuminate\Support\Facades\Log::info('Login attempt', [
+            'email' => $request->email,
+            'has_password' => $request->has('password')
+        ]);
+
         $request->validate([
             'email' => 'required|email',
             'password' => 'required'
         ]);
 
-        // 1. Ask the Hub if the password is correct
-        $response = Http::withHeaders(['Accept' => 'application/json'])
-            ->asForm()
-            ->post(rtrim(env('AUTH_HUB_URL'), '/') . '/api/oauth/token', [
-                'grant_type' => 'password',
-                'client_id' => env('AUTH_HUB_PASSWORD_CLIENT_ID'),
-                'client_secret' => env('AUTH_HUB_PASSWORD_CLIENT_SECRET'),
-                'username' => $request->email,
-                'password' => $request->password,
-                'scope' => '',
-            ]);
+        // 1. Find user in Safetika database (match by email or username)
+        $hubUser = DB::connection('safetika')
+            ->table('users')
+            ->where('email', $request->email)
+            ->orWhere('username', $request->email)
+            ->first();
 
-        if ($response->failed()) {
-            // This forces the Asset App to pass the Hub's exact error straight to your Vue screen!
-            return response()->json([
-                'message' => 'HUB ERROR: ' . json_encode($response->json()) . ' | Status: ' . $response->status()
-            ], 401);
+
+        if (!$hubUser) {
+            \Illuminate\Support\Facades\Log::warning('User not found in Safetika', ['email' => $request->email]);
+            return response()->json(['message' => 'Invalid credentials.'], 401);
         }
 
-        $accessToken = $response->json()['access_token'];
+        \Illuminate\Support\Facades\Log::info('User found in Safetika', ['id' => $hubUser->id]);
 
-        // 2. Fetch the user's profile from the Hub
-        $userResponse = Http::withHeaders(['Accept' => 'application/json'])
-            ->withToken($accessToken)
-            ->get(rtrim(env('AUTH_HUB_URL'), '/') . '/api/asset/me');
-
-        if ($userResponse->failed()) {
-            \Illuminate\Support\Facades\Log::error('Failed to fetch profile from Hub.', [
-                'status' => $userResponse->status(),
-                'body' => $userResponse->body(),
-                'hub_url' => env('AUTH_HUB_URL')
-            ]);
-            return response()->json(['message' => 'Failed to fetch profile from Hub. Status: ' . $userResponse->status()], 500);
+        // 2. Verify password
+        if (!Hash::check($request->password, $hubUser->password)) {
+            \Illuminate\Support\Facades\Log::warning('Password mismatch for user', ['email' => $request->email]);
+            return response()->json(['message' => 'Invalid credentials.'], 401);
         }
 
-        $responseData = $userResponse->json();
-        $hubUser = $responseData['user'] ?? $responseData;
 
-        // 3. Extract data and apply the Role Translation Fix
-        $fullName = trim(($hubUser['first_name'] ?? '') . ' ' . ($hubUser['last_name'] ?? ''));
-        $hubRole = strtolower($hubUser['roles'][0]['name'] ?? $hubUser['role'] ?? 'employee');
-        
+        // 3. Fetch roles from Safetika (using Spatie model_has_roles)
+        $hubRoles = DB::connection('safetika')
+            ->table('roles')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $hubUser->id)
+            ->where('model_has_roles.model_type', 'App\Models\User')
+            ->pluck('roles.name')
+            ->toArray();
+
+
+        $hubRole = strtolower($hubRoles[0] ?? 'employee');
+
         // Define the strict roles your local Asset App database allows
         $allowedLocalRoles = ['admin', 'manager', 'employee']; 
         
-        // If Hub says 'technician', it defaults to 'employee' so MySQL doesn't crash
-        $localRole = in_array($hubRole, $allowedLocalRoles) ? $hubRole : 'employee';
+        // Map roles: if Hub role is 'superadmin' or 'admin', use 'admin'
+        if (in_array($hubRole, ['superadmin', 'admin'])) {
+            $localRole = 'admin';
+        } elseif (in_array($hubRole, $allowedLocalRoles)) {
+            $localRole = $hubRole;
+        } else {
+            $localRole = 'employee';
+        }
 
-        // 4. Sync the local Shadow User
+
+        // 4. Extract data (Safetika uses first_name and last_name)
+        $fullName = trim(($hubUser->first_name ?? '') . ' ' . ($hubUser->last_name ?? ''));
+
+        // 5. Sync the local Shadow User
         $localUser = User::updateOrCreate(
-            ['email' => $hubUser['email']],
+            ['email' => $hubUser->email],
             [
-                'name' => $fullName ?: ($hubUser['name'] ?? 'Hub User'),
+                'name' => $fullName ?: ($hubUser->username ?? 'Hub User'),
                 'password' => bcrypt(Str::random(24)), // Secure dummy password
                 'role' => $localRole,
-                'is_active' => $hubUser['is_active'] ?? 1,
+                'is_verified' => $hubUser->email_verified_at ? 1 : 0,
             ]
         );
 
-        // 5. Issue a local Sanctum Token for the Vue app
+        // 6. Issue a local Sanctum Token for the Vue app
         $token = $localUser->createToken('ams_auth_token')->plainTextToken;
 
         return response()->json([
@@ -118,15 +127,24 @@ class AuthandAccessController extends Controller
     {
         $request->validate(['email' => 'required|email']);
 
-        // Proxy this request to the Safetika Hub's forgot-password API endpoint
-        $response = Http::post(rtrim(env('AUTH_HUB_URL'), '/') . '/api/forgot-password', [
-            'email' => $request->email,
-        ]);
+        // Check if user exists in Safetika directly
+        $exists = DB::connection('safetika')->table('users')->where('email', $request->email)->exists();
+        if (!$exists) {
+            return response()->json(['message' => 'User not found in Safetika database.'], 404);
+        }
 
-        return response()->json(
-            $response->json(), 
-            $response->status()
-        );
+// ... existing code ...
+        try {
+            // Attempt to proxy to Hub for actual email delivery
+            $response = Http::timeout(30)->post(rtrim(env('AUTH_HUB_URL'), '/') . '/api/forgot-password', [
+                'email' => $request->email,
+            ]);
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'The Safetika Hub service is currently unavailable. Please contact your administrator to reset your password.'
+            ], 503);
+        }
     }
 
     public function resetPassword(Request $request)
@@ -137,12 +155,14 @@ class AuthandAccessController extends Controller
             'password' => 'required|confirmed|min:8',
         ]);
 
-        // Proxy this request to the Safetika Hub's reset-password API endpoint
-        $response = Http::post(rtrim(env('AUTH_HUB_URL'), '/') . '/api/reset-password', $request->all());
-
-        return response()->json(
-            $response->json(), 
-            $response->status()
-        );
+        try {
+            // Proxy this request to the Safetika Hub's reset-password API endpoint
+            $response = Http::timeout(30)->post(rtrim(env('AUTH_HUB_URL'), '/') . '/api/reset-password', $request->all());
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'The Safetika Hub service is currently unavailable. Please try again later.'
+            ], 503);
+        }
     }
 }
