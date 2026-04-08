@@ -12,10 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('purchase_requests', function (Blueprint $table) {
-            $table->foreignId('ticket_id')->nullable()->after('user_id')->constrained('tickets')->onDelete('cascade');
-            $table->foreignId('maintenance_id')->nullable()->after('ticket_id')->constrained('maintenance')->onDelete('cascade');
-            $table->text('notes')->nullable()->after('rejection_reason');
-            $table->timestamp('approved_at')->nullable()->after('notes');
+            if (!Schema::hasColumn('purchase_requests', 'ticket_id')) {
+                $table->foreignId('ticket_id')->nullable()->after('user_id')->constrained('tickets')->onDelete('cascade');
+            }
+            if (!Schema::hasColumn('purchase_requests', 'maintenance_id')) {
+                $table->foreignId('maintenance_id')->nullable()->after('ticket_id')->constrained('maintenances')->onDelete('cascade');
+            }
+            if (!Schema::hasColumn('purchase_requests', 'notes')) {
+                $table->text('notes')->nullable()->after('rejection_reason');
+            }
+            if (!Schema::hasColumn('purchase_requests', 'approved_at')) {
+                $table->timestamp('approved_at')->nullable()->after('notes');
+            }
         });
     }
 

@@ -1,30 +1,30 @@
 <?php
 
-namespace App\Models;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphOne; // Update this import
-
-class AssetSpec extends Model
+return new class extends Migration
 {
-    protected $fillable = [
-        // 'asset_id', <-- You can actually remove this from fillable now, 
-        // as the linking happens in the polymorphic pivot table, not here anymore!
-        'processor',
-        'memory',
-        'storage_type',
-        'storage_capacity',
-        'operating_system',
-        'mac_address',
-        'ip_address'
-    ];
-
-    /**
-     * Replaces the old asset() belongsTo relationship.
-     * This links your existing IT specs to the new dynamic central table.
-     */
-    public function assetSpecification(): MorphOne
+    public function up(): void
     {
-        return $this->morphOne(AssetSpecification::class, 'specificationable');
+        Schema::create('asset_specs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('asset_id')->constrained()->onDelete('cascade');
+            $table->string('processor')->nullable();
+            $table->string('memory')->nullable();
+            $table->string('storage_type')->nullable();
+            $table->string('storage_capacity')->nullable();
+            $table->string('operating_system')->nullable();
+            $table->string('mac_address')->nullable();
+            $table->string('ip_address')->nullable();
+            $table->timestamps();
+        });
     }
-}
+
+    public function down(): void
+    {
+        Schema::dropIfExists('asset_specs');
+    }
+};
+

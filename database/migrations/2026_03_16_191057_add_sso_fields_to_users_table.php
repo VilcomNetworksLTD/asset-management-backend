@@ -12,10 +12,15 @@ return new class extends Migration
    public function up(): void
 {
     Schema::table('users', function (Blueprint $table) {
-        $table->string('role')->default('employee');
-        $table->boolean('is_active')->default(true);
-        // Add this only if you have a departments table in the Asset App!
-        $table->foreignId('department_id')->nullable()->constrained(); 
+        if (!Schema::hasColumn('users', 'role')) {
+            $table->string('role')->default('employee');
+        }
+        if (!Schema::hasColumn('users', 'is_active')) {
+            $table->boolean('is_active')->default(true);
+        }
+        if (!Schema::hasColumn('users', 'department_id')) {
+            $table->foreignId('department_id')->nullable()->constrained(); 
+        }
     });
 }
 

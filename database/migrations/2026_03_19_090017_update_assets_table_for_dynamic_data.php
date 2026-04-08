@@ -12,13 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('assets', function (Blueprint $table) {
-
-            // Add foreign keys to new tables
-            $table->foreignId('category_id')->nullable()->constrained()->onDelete('set null');
-            $table->foreignId('location_id')->nullable()->constrained()->onDelete('set null');
+            if (!Schema::hasColumn('assets', 'category_id')) {
+                // Add foreign keys to new tables
+                $table->foreignId('category_id')->nullable()->constrained()->onDelete('set null');
+            }
+            if (!Schema::hasColumn('assets', 'location_id')) {
+                $table->foreignId('location_id')->nullable()->constrained()->onDelete('set null');
+            }
 
             // Add the new barcode column
-            $table->string('barcode')->unique()->nullable(); // unique is key!
+            if (!Schema::hasColumn('assets', 'barcode')) {
+                $table->string('barcode')->unique()->nullable(); // unique is key!
+            }
         });
     }
 

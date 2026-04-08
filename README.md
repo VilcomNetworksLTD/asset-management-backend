@@ -37,6 +37,8 @@ A comprehensive **Asset Management System Backend API** built with Laravel. Trac
 
 ## 🚀 Quick Start (Development)
 
+**Note**: Some migrations have timestamp ordering issues (e.g., add_columns before create_table). If `migrate:fresh` fails, use `php artisan migrate` or rename migration files to correct order (assets create before add_columns).
+
 1. **Clone the repo**:
    ```
    git clone <your-repo-url>
@@ -48,7 +50,7 @@ A comprehensive **Asset Management System Backend API** built with Laravel. Trac
    cp .env.example .env
    ```
 
-3. **Configure `.env`**:
+3. **Configure `.env`** (create DB `asset_management` first):
    ```
    APP_NAME="Asset Management"
    APP_URL=http://localhost:8000
@@ -88,8 +90,14 @@ A comprehensive **Asset Management System Backend API** built with Laravel. Trac
 
 7. **Run migrations & seed** (create DB first):
    ```
-   php artisan migrate --seed
+   php artisan migrate
+   php artisan db:seed
    ```
+   
+   **Troubleshooting**:
+   - If error "Table 'assets' doesn't exist": Rename `database/migrations/2024_05_22_000002_add_dynamic_columns_to_assets_table.php` to `2026_02_10_000004_add_dynamic_columns_to_assets_table.php` (after assets create), then retry.
+   - Preview: `php artisan migrate --pretend`
+   
 
 8. **Start the development server**:
    ```
