@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'safetika_hub' => [
+        'url' => env('AUTH_HUB_URL'),
+        'client_id' => env('AUTH_HUB_PASSWORD_CLIENT_ID'),
+        'client_secret' => env('AUTH_HUB_PASSWORD_CLIENT_SECRET'),
+    ],
+
 ];

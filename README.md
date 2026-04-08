@@ -135,24 +135,29 @@ php artisan test
 
 ## 🚀 Deployment
 
-- **Laravel Forge/Vapor**: Standard Laravel deploy.
-- **Docker**: Create Dockerfile/docker-compose.yml.
-- **Heroku**: `heroku create`, set env vars, run migrations.
+**cPanel 403 Fix**:
+- Ensure **public_html** points to `/public` dir (domain document root = public folder).
+- Permissions: 755 dirs, 644 files; `storage/` & `bootstrap/cache/` 775.
+- `.htaccess` in **public/** (standard Laravel one, your custom had syntax issues - FilesMatch uses Apache 2.4+ 'Require').
+- Mod_rewrite enabled, AllowOverride All in Apache.
+- Run `php artisan config:cache`, `php artisan route:cache`.
 
-1. Optimize for production:
+- **Laravel Forge/Vapor**: Standard.
+- **Docker/Heroku**: As before.
+
+1. Optimize:
    ```
    php artisan config:cache
    php artisan route:cache
    php artisan view:cache
-   composer install --optimize-autoloader --no-dev
+   composer install --no-dev --optimize-autoloader
    npm ci && npm run build
    ```
 
-2. Set production `.env` (APP_ENV=production, DB creds, queue worker).
+2. `.env` production, `php artisan migrate --force`.
 
-3. Run migrations: `php artisan migrate --force`
+3. Queues: Supervisor `php artisan queue:work`.
 
-4. Supervisor for queues: `php artisan queue:work`
 
 ## 📚 Additional Notes
 

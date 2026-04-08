@@ -18,24 +18,28 @@ class AuthandAccessController extends Controller
     public function login(Request $request)
     {
         try {
+            // 1. Validate request
             $request->validate([
                 'email' => 'required|email',
                 'password' => 'required',
             ]);
-            // 1. Request token from HUB
+
+            Log::info('Login attempt started', [
+                'email' => $request->email,
+                'hub_url' => config('services.safetika_hub.url'),
+            ]);
+
+            // 2. Request token from HUB
             $response = Http::withHeaders(['Accept' => 'application/json'])
                 ->asForm()
-                ->post(rtrim(env('AUTH_HUB_URL'), '/').'/api/oauth/token', [
+                ->post(rtrim(config('services.safetika_hub.url'), '/').'/api/oauth/token', [
                     'grant_type' => 'password',
-                    'client_id' => env('AUTH_HUB_PASSWORD_CLIENT_ID'),
-                    'client_secret' => env('AUTH_HUB_PASSWORD_CLIENT_SECRET'),
+                    'client_id' => config('services.safetika_hub.client_id'),
+                    'client_secret' => config('services.safetika_hub.client_secret'),
                     'username' => $request->email,
                     'password' => $request->password,
                     'scope' => '',
                 ]);
-
-
-           
 
             if ($response->failed()) {
                 Log::error('HUB token request failed', [
@@ -53,16 +57,19 @@ class AuthandAccessController extends Controller
             $accessToken = $response->json()['access_token'] ?? null;
 
             if (! $accessToken) {
-              
+                Log::error('No access token returned from HUB', [
+                    'response' => $response->json(),
+                ]);
+
                 return response()->json([
                     'message' => 'Invalid token response from auth server',
                 ], 500);
             }
 
-            // 2. Fetch user profile
+            // 3. Fetch user profile
             $userResponse = Http::withHeaders(['Accept' => 'application/json'])
                 ->withToken($accessToken)
-                ->get(rtrim(env('AUTH_HUB_URL'), '/').'/api/asset/me');
+                ->get(rtrim(config('services.safetika_hub.url'), '/').'/api/asset/me');
 
             if ($userResponse->failed()) {
                 Log::error('Failed to fetch profile from HUB', [
@@ -76,6 +83,11 @@ class AuthandAccessController extends Controller
             }
 
             $responseData = $userResponse->json();
+
+            Log::info('Response user data', [
+                'body' => $responseData,
+            ]);
+
             $hubUser = $responseData['user'] ?? $responseData;
 
             if (! $hubUser || ! isset($hubUser['email'])) {
@@ -88,28 +100,48 @@ class AuthandAccessController extends Controller
                 ], 500);
             }
 
-            // 3. Process user data
+            // 4. Process user data
             $fullName = trim(($hubUser['first_name'] ?? '').' '.($hubUser['last_name'] ?? ''));
-            $hubRole = strtolower($hubUser['roles'][0]['name'] ?? $hubUser['role'] ?? 'employee');
 
-            $allowedLocalRoles = ['admin', 'manager', 'employee'];
+            // ✅ FIXED ROLE HANDLING
+            $hubRole = 'employee';
+
+            if (! empty($hubUser['roles'])) {
+                $firstRole = $hubUser['roles'][0];
+
+                if (is_array($firstRole) && isset($firstRole['name'])) {
+                    // Case: [{ name: "admin" }]
+                    $hubRole = strtolower($firstRole['name']);
+                } elseif (is_string($firstRole)) {
+                    // Case: ["admin"]
+                    $hubRole = strtolower($firstRole);
+                }
+            } elseif (! empty($hubUser['role'])) {
+                $hubRole = strtolower($hubUser['role']);
+            }
+
+            Log::info('Resolved role', [
+                'hub_roles_raw' => $hubUser['roles'] ?? null,
+                'final_role' => $hubRole,
+            ]);
+
+            // Map to allowed roles
+            $allowedLocalRoles = ['admin', 'manager', 'employee','management'];
             $localRole = in_array($hubRole, $allowedLocalRoles) ? $hubRole : 'employee';
 
-            // 4. Sync user
+            // 5. Sync user locally
             $localUser = User::updateOrCreate(
                 ['email' => $hubUser['email']],
                 [
                     'name' => $fullName ?: ($hubUser['name'] ?? 'Hub User'),
-                    'password' => bcrypt(Str::random(24)),
+                    'password' => bcrypt(Str::random(24)), // dummy password
                     'role' => $localRole,
                     'is_active' => $hubUser['is_active'] ?? 1,
                 ]
             );
 
-            // 5. Create token
+            // 6. Create Sanctum token
             $token = $localUser->createToken('ams_auth_token')->plainTextToken;
-
-        
 
             return response()->json([
                 'message' => 'Login successful',
@@ -162,7 +194,7 @@ class AuthandAccessController extends Controller
         $request->validate(['email' => 'required|email']);
 
         // Proxy this request to the Safetika Hub's forgot-password API endpoint
-        $response = Http::post(rtrim(env('AUTH_HUB_URL'), '/').'/api/forgot-password', [
+        $response = Http::post(rtrim(config('services.safetika_hub.url'), '/').'/api/forgot-password', [
             'email' => $request->email,
         ]);
 
@@ -181,7 +213,7 @@ class AuthandAccessController extends Controller
         ]);
 
         // Proxy this request to the Safetika Hub's reset-password API endpoint
-        $response = Http::post(rtrim(env('AUTH_HUB_URL'), '/').'/api/reset-password', $request->all());
+        $response = Http::post(rtrim(config('services.safetika_hub.url'), '/').'/api/reset-password', $request->all());
 
         return response()->json(
             $response->json(),
