@@ -56,13 +56,13 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
+import logoUrl from '@/assets/new_logo.webp';
 
 defineEmits(['toggle-sidebar']);
 
 const router = useRouter();
 const user = ref(null);
 const loading = ref(false);
-const logoUrl = '/Vlogo.jpeg';
 
 onMounted(() => {
   const savedUser = localStorage.getItem('user_data');

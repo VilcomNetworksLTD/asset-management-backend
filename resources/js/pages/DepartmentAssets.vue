@@ -28,11 +28,11 @@ const fetchDepartmentAssets = async (page = 1) => {
     const { data } = await axios.get('/api/hod/department-assets', {
       params: { page, per_page: pagination.per_page }
     })
-    rows.value = data.data?.assets || []
-    departmentName.value = data.data?.department_name || 'Department'
-    pagination.current_page = data.current_page
-    pagination.last_page = data.last_page
-    pagination.total = data.total
+    rows.value = data.data?.assets || data.assets || []
+    departmentName.value = data.data?.department_name || data.department_name || 'Department'
+    pagination.current_page = data.current_page || data.data?.current_page || 1
+    pagination.last_page = data.last_page || data.data?.last_page || 1
+    pagination.total = data.total || data.data?.total || 0
   } catch (error) {
     console.error("Fetch failed:", error);
   } finally {
@@ -73,7 +73,7 @@ const components = { Loader }
               <span class="font-black text-slate-800 tracking-tight">{{ asset.Asset_Name }}</span>
             </td>
             <td class="px-6 py-5">
-              <span class="text-xs font-bold text-slate-500 uppercase">{{ asset.Asset_Category || asset.category?.name || '-' }}</span>
+              <span class="text-xs font-bold text-slate-500 uppercase">{{ asset.category?.name || asset.Asset_Category || '-' }}</span>
             </td>
             <td class="px-6 py-5">
               <div class="flex items-center gap-2">

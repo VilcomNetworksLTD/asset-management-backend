@@ -1,30 +1,33 @@
 <template>
   <div class="min-h-screen bg-[#f8fafc] flex flex-col font-inter">
-    <!-- TOP NAVIGATION HUB (New Architecture) -->
+    <!-- TOP NAVIGATION -->
     <TopNav />
 
-    <!-- MAIN APP SURFACE -->
-    <main class="flex-1 flex flex-col min-w-0">
-      <div class="p-8 max-w-[1700px] mx-auto w-full relative">
-        <router-view v-slot="{ Component }">
-          <transition 
-            name="fade-slide" 
-            mode="out-in"
-          >
-            <component :is="Component" />
-          </transition>
-        </router-view>
-      </div>
-    </main>
+    <!-- MAIN CONTENT AREA -->
+    <div class="flex flex-1 pt-16 relative">
+      <!-- SIDEBAR NAVIGATION -->
+      <UserSidebar />
 
-    <!-- FOOTER -->
-    <footer class="py-6 px-12 border-t border-gray-100 flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] bg-white">
-       <div>© 2026 Vilcom Networks LTD | Personal Workspace v2.0</div>
-       <div class="flex gap-6">
-         <span class="hover:text-vilcom-orange cursor-pointer">Staff Portal</span>
-         <span class="hover:text-vilcom-orange cursor-pointer">Helpdesk</span>
-       </div>
-    </footer>
+      <!-- MAIN CONTENT -->
+      <div class="flex-1 ml-64">
+        <main class="p-8 max-w-[1700px] mx-auto w-full">
+          <router-view v-slot="{ Component }">
+            <transition name="fade-slide" mode="out-in">
+              <component :is="Component" />
+            </transition>
+          </router-view>
+        </main>
+
+        <!-- FOOTER -->
+        <footer class="py-6 px-12 border-t border-gray-100 flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] bg-white">
+           <div>© 2026 Vilcom Networks LTD | Personal Workspace v2.0</div>
+           <div class="flex gap-6">
+             <span class="hover:text-vilcom-orange cursor-pointer">Staff Portal</span>
+             <span class="hover:text-vilcom-orange cursor-pointer">Helpdesk</span>
+           </div>
+        </footer>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -32,26 +35,13 @@
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import TopNav from './TopNav.vue'
+import UserSidebar from './UserSidebar.vue'
 
 const router = useRouter()
 
 onMounted(() => {
-  const storedUser = localStorage.getItem('user_data')
-  if (!storedUser) {
-    router.push({ name: 'login' })
-    return
-  }
-
-  try {
-    const user = JSON.parse(storedUser)
-    // Basic role check if needed, though router usually handles this
-    if (user.role?.toLowerCase() === 'admin') {
-       // Admins can stay in UserLayout if they are viewing user pages, 
-       // but usually we redirect them to AdminDashboard if they hit the root
-    }
-  } catch (err) {
-    console.error('Session corruption detected', err)
-    localStorage.clear()
+  const userData = localStorage.getItem('user_data')
+  if (!userData) {
     router.push({ name: 'login' })
   }
 })

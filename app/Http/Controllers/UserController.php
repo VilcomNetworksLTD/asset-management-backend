@@ -123,7 +123,9 @@ class UserController extends Controller
      */
     public function show(): JsonResponse
     {
-        return response()->json(Auth::user());
+        $user = Auth::user();
+        $user->load('department:id,name');
+        return response()->json($user);
     }
 
     /**
@@ -164,6 +166,21 @@ class UserController extends Controller
     }
 
     /**
+     * Logout from all devices except current
+     */
+    public function logoutAllDevices(): JsonResponse
+    {
+        $user = Auth::user();
+        
+        $tokens = $user->tokens()->where('id', '!=', $user->currentAccessToken()->id)->get();
+        $tokens->each(function ($token) {
+            $token->delete();
+        });
+
+        return response()->json(['message' => 'Logged out from all other devices successfully']);
+    }
+
+    /**
      * Consolidated endpoint for components, accessories, licenses, and consumables assigned to the current user.
      */
     public function getMyAssignedItems(): JsonResponse
@@ -179,6 +196,38 @@ class UserController extends Controller
             'components' => $user->components,
             'accessories' => $user->accessories,
             'licenses' => $user->licenses,
+        ]);
+    }
+
+    /**
+     * Sync department for the current user from available departments.
+     */
+    public function syncDepartment(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $departmentId = $request->input('department_id');
+        
+        if ($departmentId) {
+            $department = \App\Models\Department::find($departmentId);
+            if (!$department) {
+                return response()->json(['message' => 'Department not found'], 404);
+            }
+            $user->department_id = $department->id;
+            $user->save();
+            return response()->json([
+                'message' => 'Department assigned successfully',
+                'department' => $department
+            ]);
+        }
+
+        $departments = \App\Models\Department::orderBy('name')->get();
+        return response()->json([
+            'message' => 'Please select a department',
+            'departments' => $departments
         ]);
     }
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="p-8 max-w-7xl mx-auto space-y-10">
+  <div class="max-w-7xl mx-auto space-y-10">
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
       <div>
@@ -211,10 +211,10 @@
               <td class="p-8">
                  <div class="space-y-1.5 max-w-xl">
                     <div class="font-black text-slate-800 text-base tracking-tight group-hover:text-vilcom-blue transition-colors">
-                       {{ currentTab === 'asset' ? (ticket.issue?.asset?.Asset_Name || 'Inventory Acquisition') : extractSubject(ticket.Description) }}
+                       {{ currentTab === 'asset' ? (ticket.issue?.asset?.Asset_Name || extractRequestedCategory(ticket) || 'Inventory Request') : extractSubject(ticket.Description) }}
                     </div>
-                    <div class="text-[11px] font-bold text-gray-400 leading-relaxed line-clamp-2 italic">
-                       {{ ticket.Description }}
+                    <div class="text-[11px] font-bold text-gray-400 leading-relaxed italic whitespace-pre-wrap">
+                       {{ cleanDescription(ticket.Description) }}
                     </div>
                  </div>
               </td>
@@ -236,15 +236,15 @@
                 <div class="flex justify-end gap-3 opacity-40 group-hover:opacity-100 transition-opacity">
                    <!-- ACTION TRANSITIONS -->
                    <template v-if="!isResolved(ticket)">
-                      <button @click="openUpdate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-blue hover:border-vilcom-blue hover:shadow-lg transition-all" title="Sync Logs">
+                      <button @click="openUpdate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-blue hover:border-vilcom-blue hover:shadow-lg transition-all" title="Edit Ticket & Add Note">
                         <Edit3 class="size-4" />
                       </button>
 
-                      <button v-if="role === 'admin' && currentTab === 'general'" @click="resolveTicket(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Resolve Protocol">
+                      <button v-if="role === 'admin' && currentTab === 'general'" @click="resolveTicket(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Mark as Resolved">
                         <CheckCircle class="size-4" />
                       </button>
 
-                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset" @click="openAssign(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-orange hover:border-vilcom-orange hover:shadow-lg transition-all" title="Fulfill Hardware">
+                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset" @click="openAssign(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-orange hover:border-vilcom-orange hover:shadow-lg transition-all" title="Assign Asset to User">
                         <Package class="size-4" />
                       </button>
 
@@ -259,7 +259,7 @@
                       </div>
                    </template>
 
-                   <button v-if="role === 'admin'" @click="removeRow(ticket.id)" class="p-3 bg-white border border-gray-100 text-slate-400 rounded-xl hover:text-red-500 hover:border-red-500 hover:shadow-lg transition-all" title="Purge Record">
+                   <button v-if="role === 'admin'" @click="removeRow(ticket.id)" class="p-3 bg-white border border-gray-100 text-slate-400 rounded-xl hover:text-red-500 hover:border-red-500 hover:shadow-lg transition-all" title="Delete Ticket">
                      <Trash2 class="size-4" />
                    </button>
                 </div>
@@ -387,9 +387,20 @@ const rows = computed(() => {
 const extractSubject = (desc) => {
   if (!desc) return 'General Request';
   const lines = desc.split('\n');
-  const subjectLine = lines.find(l => l.startsWith('Subject:'));
+  const subjectLine = lines.find(l => l.toLowerCase().startsWith('subject:'));
   if (subjectLine) return subjectLine.split(':')[1].trim();
   return 'IT Support Query';
+};
+
+const cleanDescription = (desc) => {
+  if (!desc) return '';
+  // Remove Subject:, Request Category:, Details:, and Request Details: lines
+  return desc
+    .replace(/Subject:.*\n?/i, '')
+    .replace(/Request Category:.*\n?/i, '')
+    .replace(/Details:.*\n?/i, '')
+    .replace(/Request Details:.*\n?/i, '')
+    .trim();
 };
 
 const tabClass = (tabName) => [

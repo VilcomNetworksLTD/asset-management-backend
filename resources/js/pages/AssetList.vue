@@ -61,6 +61,17 @@ const openAddModal = () => {
   showAddModal.value = true;
 };
 
+const handleFieldFileUpload = (key, event) => {
+  const file = event.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      form.custom_attributes[key] = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
 const printBarcode = async (asset) => {
   if (!asset || !asset.id) return;
   
@@ -250,7 +261,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="p-8 space-y-10">
+  <div class="space-y-10">
     <PageHeader title="Asset" highlight="Inventory" @button-click="openAddModal" button-text="Add Asset" />
     
     <div class="mt-4">
@@ -302,14 +313,99 @@ onMounted(async () => {
               {{ field.label }}
               <span v-if="field.type" class="text-[10px] text-gray-400 font-normal ml-1 lowercase">({{ field.type }})</span>
             </label>
+            
+            <!-- Text Input -->
             <input 
+              v-if="!field.type || ['text', 'email', 'ip_address', 'mac_address'].includes(field.type)"
               v-model="form.custom_attributes[field.key]" 
-              :type="field.type === 'ip' || field.type === 'ip_address' ? 'text' : (field.type || 'text')" 
-              :pattern="field.type === 'ip' || field.type === 'ip_address' ? '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$' : undefined"
+              type="text"
               class="mt-1 block w-full border rounded p-2" 
-              :placeholder="field.type === 'ip' || field.type === 'ip_address' ? 'e.g. 192.168.1.1' : 'Enter ' + field.label"
+              :placeholder="field.type === 'ip_address' ? 'e.g. 192.168.1.1' : (field.type === 'mac_address' ? 'e.g. AA:BB:CC:DD:EE:FF' : 'Enter ' + field.label)"
               :required="field.required" 
             />
+            
+            <!-- Number Input -->
+            <input 
+              v-else-if="field.type === 'number'"
+              v-model="form.custom_attributes[field.key]" 
+              type="number"
+              class="mt-1 block w-full border rounded p-2" 
+              :placeholder="'Enter ' + field.label"
+              :required="field.required" 
+            />
+            
+            <!-- Date Input -->
+            <input 
+              v-else-if="field.type === 'date'"
+              v-model="form.custom_attributes[field.key]" 
+              type="date"
+              class="mt-1 block w-full border rounded p-2" 
+              :required="field.required" 
+            />
+            
+            <!-- Textarea -->
+            <textarea 
+              v-else-if="field.type === 'textarea'"
+              v-model="form.custom_attributes[field.key]" 
+              rows="3"
+              class="mt-1 block w-full border rounded p-2" 
+              :placeholder="'Enter ' + field.label"
+              :required="field.required" 
+            ></textarea>
+            
+            <!-- Checkbox -->
+            <div v-else-if="field.type === 'checkbox'" class="mt-1">
+              <label class="inline-flex items-center">
+                <input 
+                  v-model="form.custom_attributes[field.key]"
+                  type="checkbox"
+                  :value="1"
+                  class="rounded border-gray-300 text-blue-600"
+                  :required="field.required" 
+                />
+                <span class="ml-2 text-sm text-gray-500">Yes</span>
+              </label>
+            </div>
+            
+            <!-- Select Dropdown -->
+            <select 
+              v-else-if="field.type === 'select'"
+              v-model="form.custom_attributes[field.key]" 
+              class="mt-1 block w-full border rounded p-2"
+              :required="field.required"
+            >
+              <option value="" disabled>Select {{ field.label }}</option>
+              <option v-for="opt in (field.options || '').split(',').map(o => o.trim())" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+            
+            <!-- Image Upload -->
+            <div v-else-if="field.type === 'image'">
+              <input 
+                type="file"
+                accept="image/*"
+                @change="(e) => handleFieldFileUpload(field.key, e)"
+                class="mt-1 block w-full border rounded p-2"
+                :required="field.required" 
+              />
+              <input 
+                v-model="form.custom_attributes[field.key]"
+                type="hidden"
+              />
+            </div>
+            
+            <!-- File Upload -->
+            <div v-else-if="field.type === 'file'">
+              <input 
+                type="file"
+                @change="(e) => handleFieldFileUpload(field.key, e)"
+                class="mt-1 block w-full border rounded p-2"
+                :required="field.required" 
+              />
+              <input 
+                v-model="form.custom_attributes[field.key]"
+                type="hidden"
+              />
+            </div>
           </div>
         </div>
 

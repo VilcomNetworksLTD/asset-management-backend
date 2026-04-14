@@ -33,6 +33,7 @@ import MovementsHub from '../pages/MovementsHub.vue';
 import DirectoryHub from '../pages/DirectoryHub.vue';
 import OperationsHub from '../pages/OperationsHub.vue';
 import MyWorkspaceHub from '../pages/MyWorkspaceHub.vue';
+import DefinitionsHub from '../pages/DefinitionsHub.vue';
 import ManagementPurchaseRequests from '../pages/ManagementPurchaseRequests.vue';
 import AdminPurchaseRequests from '../pages/AdminPurchaseRequests.vue';
 
@@ -235,7 +236,7 @@ const routes = [{
             {
                 path: 'manage-definitions',
                 name: 'hod-definitions',
-                component: Settings,
+                component: DefinitionsHub,
                 meta: { layout: 'UserLayout', requiresAuth: true }
             },
             {

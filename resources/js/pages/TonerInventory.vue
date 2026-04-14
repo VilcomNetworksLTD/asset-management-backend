@@ -92,7 +92,7 @@ onMounted(fetchToners);
 </script>
 
 <template>
-  <div class="p-6">
+  <div>
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold text-gray-800">Toner Inventory Management</h1>
       <button 
@@ -156,7 +156,7 @@ onMounted(fetchToners);
                 Healthy
               </span>
             </td>
-            <td class="p-4 text-right flex justify-end gap-2 pt-6">
+            <td class="p-4 text-right flex justify-end gap-2">
               <button @click="openModal(toner)" class="text-blue-600 hover:text-blue-800 p-1">
                 <i class="fa fa-edit text-lg"></i>
               </button>

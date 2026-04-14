@@ -127,7 +127,7 @@ Here is the updated minimalist component with the asset images and assignment hi
                   </div>
                   
                   <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-50">
-                    <span class="text-xs font-medium text-gray-500">{{ asset.Asset_Category || 'Asset' }}</span>
+                    <span class="text-xs font-medium text-gray-500">{{ asset.category?.name || asset.Asset_Category || 'Asset' }}</span>
                     <span class="text-xs font-medium text-blue-600">{{ formatMoney(asset.current_value) }}</span>
                   </div>
                 </div>
@@ -299,14 +299,12 @@ const filteredStaff = computed(() => {
 const formatTotalValue = (assets) => {
   if (!assets || assets.length === 0) return '0';
   const total = assets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0);
-  const curr = settings.value?.currency || 'KES';
-  return `${curr} ${total.toLocaleString()}`;
+  return `KSH ${total.toLocaleString()}`;
 };
 
 function formatMoney(amount) {
   if (amount == null || amount === '') return '0';
-  const curr = settings.value?.currency || 'KES';
-  return `${curr} ${Number(amount).toLocaleString()}`;
+  return `KSH ${Number(amount).toLocaleString()}`;
 }
 
 const formatDate = (dateString) => {
@@ -319,10 +317,15 @@ const fetchDepartmentAssets = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const response = await axios.get('/api/hod/department-assets');
-    staffWithAssets.value = response.data;
+    const response = await axios.get('/api/hod/staff-assets');
+    staffWithAssets.value = response.data.staff || [];
+    
+    // Check if user has department assigned
+    if (staffWithAssets.value.length === 0) {
+      error.value = 'No staff found in your department. Make sure you have a department assigned.';
+    }
   } catch (err) {
-    error.value = err.response?.data?.message || 'Failed to load assets.';
+    error.value = err.response?.data?.message || err.response?.data?.error || 'Failed to load assets.';
   } finally {
     loading.value = false;
   }

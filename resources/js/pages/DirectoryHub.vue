@@ -1,5 +1,5 @@
 <template>
-  <div class="p-8 space-y-12">
+  <div class="space-y-12">
     <div class="mb-10">
       <h1 class="text-3xl font-black text-slate-800 tracking-tight">Directory <span class="text-vilcom-blue">& Vendors</span></h1>
       <p class="text-sm text-gray-400 font-bold mt-1 uppercase tracking-[0.2em] leading-relaxed">System architecture, personnel management, and enterprise supply chain control.</p>

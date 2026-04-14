@@ -41,6 +41,7 @@ class Asset extends Model
         'warranty_expiry',
         'warranty_image_path',
         'custom_attributes',
+        'created_by',
     ];
 
     /**

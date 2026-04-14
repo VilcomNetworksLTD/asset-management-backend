@@ -10,6 +10,9 @@
          <router-link to="/dashboard/user/report-issue" class="px-5 py-2.5 bg-vilcom-blue text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-blue-900/20 hover:scale-105 transition-transform">
            Report Issue
          </router-link>
+         <router-link to="/dashboard/user/request-transfer" class="px-5 py-2.5 bg-vilcom-orange text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-orange-900/20 hover:scale-105 transition-transform">
+           Transfer Request
+         </router-link>
       </div>
     </div>
 

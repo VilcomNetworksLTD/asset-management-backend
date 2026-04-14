@@ -1,5 +1,5 @@
 <template>
-  <div class="p-8 space-y-10">
+  <div class="space-y-10">
     <div class="mb-10">
       <h1 class="text-3xl font-black text-slate-800 tracking-tight">Movements <span class="text-vilcom-orange">Hub</span></h1>
       <p class="text-sm text-gray-500 font-medium mt-1 uppercase tracking-widest leading-relaxed text-wrap">Streamlined tracking of asset transfers and returns across the enterprise ecosystem.</p>
@@ -11,16 +11,25 @@
         v-for="item in hubItems" 
         :key="item.name"
         :to="{ name: item.routeName }"
-        class="group bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 flex items-center gap-10 overflow-hidden relative"
+        :class="[
+          'group relative p-12 rounded-[3.5rem] shadow-sm transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 overflow-hidden flex items-center gap-10 min-h-[240px]',
+          item.colorClass
+        ]"
       >
-        <div class="absolute -right-10 -bottom-10 size-40 bg-gray-50 rounded-full group-hover:scale-150 transition-transform duration-700 opacity-50"></div>
+        <!-- Decor -->
+        <div class="absolute -right-10 -bottom-10 size-60 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
 
-        <div :class="['relative z-10 p-6 rounded-3xl shadow-xl transition-all duration-500 group-hover:rotate-12 group-hover:scale-110', item.colorClass]">
+        <div class="relative z-10 p-6 rounded-3xl bg-white/20 shadow-xl backdrop-blur-md transition-all duration-500 group-hover:rotate-12 group-hover:scale-110">
           <component :is="item.icon" class="size-12 text-white" />
         </div>
         <div class="relative z-10">
-          <h3 class="text-2xl font-black text-slate-800 group-hover:text-vilcom-blue transition-colors">{{ item.name }}</h3>
-          <p class="text-xs font-bold text-gray-400 uppercase tracking-[0.15em] mt-2">{{ item.description }}</p>
+          <h3 class="text-3xl font-black text-white mb-2 uppercase tracking-tight">{{ item.name }}</h3>
+          <p class="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] leading-relaxed">{{ item.description }}</p>
+          
+          <div class="flex items-center gap-2 text-white/40 group-hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest mt-6">
+            <span>Authorize Module</span>
+            <ChevronRight class="size-4 group-hover:translate-x-1 transition-transform" />
+          </div>
         </div>
       </router-link>
     </div>

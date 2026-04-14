@@ -1,5 +1,5 @@
 <template>
-  <div class="p-8 space-y-10">
+  <div class="space-y-10">
     <!-- Header Section -->
     <div class="mb-10">
       <h2 class="text-3xl font-black text-slate-800 tracking-tight">Executive <span class="text-vilcom-blue">Overview</span></h2>

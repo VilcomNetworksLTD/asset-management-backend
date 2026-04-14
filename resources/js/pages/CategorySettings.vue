@@ -116,7 +116,21 @@ onMounted(fetchCategories);
                   <option value="number">Number</option>
                   <option value="date">Date</option>
                   <option value="textarea">Long Text</option>
+                  <option value="email">Email</option>
+                  <option value="mac_address">MAC Address</option>
+                  <option value="ip_address">IP Address</option>
+                  <option value="select">Dropdown</option>
+                  <option value="checkbox">Checkbox</option>
+                  <option value="image">Image</option>
+                  <option value="file">File</option>
                 </select>
+              </div>
+              <div v-if="field.type === 'select'" class="mt-1">
+                <input v-model="field.options" placeholder="Options (comma separated)" class="w-full text-xs border p-1 rounded" />
+              </div>
+              <div class="mt-1 flex items-center gap-2">
+                <input v-model="field.required" type="checkbox" id="req_{{ i }}" class="rounded" />
+                <label for="req_{{ i }}" class="text-xs text-gray-600">Required</label>
               </div>
             </div>
           </div>
