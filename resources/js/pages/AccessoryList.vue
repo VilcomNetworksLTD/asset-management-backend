@@ -13,8 +13,7 @@ const saving = ref(false)
 const { settings } = useSettings();
 function formatMoney(amount) {
   if (amount == null || amount === '') return '-';
-  const curr = settings.value?.currency || 'KES';
-  return `${curr} ${Number(amount).toLocaleString()}`;
+  return `KSH ${Number(amount).toLocaleString()}`;
 }
 
 const filters = reactive({ search: '', category: '', per_page: 10 })

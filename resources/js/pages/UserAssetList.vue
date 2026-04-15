@@ -76,7 +76,7 @@ const fetchAssets = async () => {
       asset_tag: a.asset_tag || a.barcode || a.Asset_Name || 'Asset',
       model: a.model || a.Asset_Name || '',
       serial: a.serial || a.Serial_No || '',
-      category: a.category || a.Asset_Category || '',
+      category: a.category?.name || a.category || a.Asset_Category || '',
       status: a.status || a.status_name || null,
     }))
   } catch (e) {

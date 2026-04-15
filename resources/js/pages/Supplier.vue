@@ -137,7 +137,7 @@ onMounted(() => fetchRows())
 </script>
 
 <template>
-  <div class="p-6">
+  <div>
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold text-gray-800">Suppliers</h1>
       <button @click="openCreate" class="bg-[#3c8dbc] hover:bg-[#367fa9] text-white px-4 py-2 rounded shadow flex items-center gap-2 text-sm font-medium transition-colors">

@@ -63,6 +63,10 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::get('/assets', 'index');
         Route::get('/assets/list', 'list');
         Route::get('/hod/department-assets', 'hodDepartmentAssets');
+        Route::get('/manager/department-assets', 'managerDepartmentAssets');
+        Route::get('/manager/staff-assets', 'managerStaffAssets');
+        Route::get('/hod/staff-assets', 'hodStaffAssets');
+        Route::get('/hod/my-created-assets', 'hodCreatedAssets');
         Route::post('/assets', 'store');
         Route::get('/assets/{id}', 'show');
         Route::put('/assets/{id}', 'update');
@@ -221,6 +225,7 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::get('/profile', 'show');               
         Route::post('/profile/update', 'update');     
         Route::post('/profile/password', 'changePassword'); 
+        Route::post('/profile/logout-all', 'logoutAllDevices'); 
         Route::get('/users-list', 'index');           
         Route::get('/my-assigned-items', 'getMyAssignedItems');
     });
@@ -231,6 +236,7 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
     Route::get('/suppliers', [SupplierController::class, 'index']);
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/departments', [DepartmentController::class, 'index']);
+    Route::post('/sync-my-department', [UserController::class, 'syncDepartment']);
 
     Route::controller(ReportController::class)->group(function () {
         Route::get('/reports-summary', 'index');

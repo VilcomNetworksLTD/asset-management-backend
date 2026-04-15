@@ -1,12 +1,17 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch, onUnmounted } from 'vue'
 import axios from 'axios'
+import { useWindowFocus } from '@vueuse/core'
 import { 
   Users, UserPlus, Search, Filter, 
   Trash2, Edit3, ChevronRight, X,
   Laptop, Save, HardDrive, Keyboard,
   ShieldCheck, ShieldAlert
 } from 'lucide-vue-next'
+
+const isFocused = useWindowFocus()
+const REFRESH_INTERVAL = 25000
+let intervalId = null
 
 const rows = ref([])
 const loading = ref(false)
@@ -121,9 +126,20 @@ const removeRow = async (id) => {
   fetchRows(pagination.current_page)
 }
 
+watch(isFocused, (focused) => {
+  if (focused) {
+    fetchRows(pagination.current_page)
+  }
+})
+
 onMounted(() => {
     fetchRows()
     fetchDepartments()
+    intervalId = setInterval(() => fetchRows(pagination.current_page), REFRESH_INTERVAL)
+})
+
+onUnmounted(() => {
+  if (intervalId) clearInterval(intervalId)
 })
 </script>
 

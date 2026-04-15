@@ -111,7 +111,7 @@ class TransferController extends Controller
              $query->where('Employee_ID', $user->id);
         }
 
-        $assets = $query->with(['status', 'category', 'location_model'])->get()
+        $assets = $query->with(['status', 'category', 'locationModel'])->get()
             ->map(fn ($a) => [
                 'id' => $a->id,
                 'model' => $a->Asset_Name,

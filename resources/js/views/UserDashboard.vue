@@ -10,6 +10,9 @@
          <router-link to="/dashboard/user/report-issue" class="px-5 py-2.5 bg-vilcom-blue text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-blue-900/20 hover:scale-105 transition-transform">
            Report Issue
          </router-link>
+         <router-link to="/dashboard/user/request-transfer" class="px-5 py-2.5 bg-vilcom-orange text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-orange-900/20 hover:scale-105 transition-transform">
+           Transfer Request
+         </router-link>
       </div>
     </div>
 
@@ -127,11 +130,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import axios from 'axios'
+import { useWindowFocus } from '@vueuse/core'
 import Loader from '@/components/Loader.vue'
 import StatCard from '../components/dashboard/StatCard.vue'
 
+const isFocused = useWindowFocus()
+const REFRESH_INTERVAL = 30000
+let intervalId = null
 
 const stats = ref({
   assets: 0,
@@ -158,7 +165,6 @@ const fetchDashboardData = async () => {
       axios.get('/api/user')
     ])
 
-    // Set user name
     userName.value = userResponse?.data?.name ?? 'User'
     userRole.value = userResponse?.data?.role ?? 'staff'
 
@@ -166,17 +172,12 @@ const fetchDashboardData = async () => {
     console.info("this is the page")
     console.log('Dashboard API Data:', data)
 
-
-
-    // Stats
     stats.value.assets = data.my_assets_count ?? 0
     stats.value.tickets = data.open_tickets_count ?? 0
     stats.value.licenses = data.my_licenses_count ?? 0
     stats.value.accessories = data.my_accessories_count ?? 0
     stats.value.components = data.my_components_count ?? 0
 
-
-    // Assets (handle nested data if paginated)
     let assetsArray = []
 
     if (Array.isArray(data.recent_assets)) {
@@ -205,5 +206,18 @@ const fetchDashboardData = async () => {
   }
 }
 
-onMounted(fetchDashboardData) 
+watch(isFocused, (focused) => {
+  if (focused) {
+    fetchDashboardData()
+  }
+})
+
+onMounted(() => {
+  fetchDashboardData()
+  intervalId = setInterval(fetchDashboardData, REFRESH_INTERVAL)
+})
+
+onUnmounted(() => {
+  if (intervalId) clearInterval(intervalId)
+})
 </script>
