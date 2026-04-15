@@ -1,7 +1,8 @@
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
+import { useWindowFocus } from '@vueuse/core';
 import { 
   ArrowLeft, Barcode, Tag, Edit3, UserPlus, 
   Check, X, Camera, Printer, Trash2, 
@@ -22,6 +23,21 @@ const loading = ref(false);
 const isEditing = ref(false);
 const saving = ref(false);
 const uploadingEvidence = ref(false);
+
+const isFocused = useWindowFocus();
+const REFRESH_INTERVAL = 15000;
+
+watch(isFocused, (focused) => {
+  if (focused && asset.value) {
+    fetchAsset();
+  }
+});
+
+setInterval(() => {
+  if (asset.value) {
+    fetchAsset();
+  }
+}, REFRESH_INTERVAL);
 
 /**
  * Enhanced Access Control logic:
@@ -125,7 +141,10 @@ const handleFieldFileUpload = (key, event) => {
   if (file) {
     const reader = new FileReader();
     reader.onload = (e) => {
-      form.custom_attributes[key] = e.target.result;
+      form.custom_attributes[key] = {
+        name: file.name,
+        data: e.target.result
+      };
     };
     reader.readAsDataURL(file);
   }
@@ -403,16 +422,22 @@ onMounted(() => {
                    <span v-if="isAdmin && field.type" class="ml-2 text-vilcom-blue/30 lowercase">({{ field.type }})</span>
                  </label>
                  
-                 <!-- Display Mode -->
-                 <div v-if="!isEditing" :class="['font-black text-slate-700 bg-slate-50/50 p-4 rounded-xl', (field.type === 'ip' || field.type === 'ip_address') ? 'font-mono' : '']">
-                   <img v-if="field.type === 'image' && asset.custom_attributes?.[field.key]" :src="asset.custom_attributes[field.key]" class="max-w-full h-auto rounded" />
-                   <div v-else-if="field.type === 'checkbox'">
-                     <span :class="asset.custom_attributes?.[field.key] ? 'text-green-600' : 'text-gray-400'">
-                       {{ asset.custom_attributes?.[field.key] ? 'Yes' : 'No' }}
-                     </span>
-                   </div>
-                   <span v-else>{{ asset.custom_attributes?.[field.key] || '-' }}</span>
-                 </div>
+<!-- Display Mode -->
+                  <div v-if="!isEditing" :class="['font-black text-slate-700 bg-slate-50/50 p-4 rounded-xl', (field.type === 'ip' || field.type === 'ip_address') ? 'font-mono' : '']">
+                    <img v-if="field.type === 'image' && asset.custom_attributes?.[field.key]" :src="asset.custom_attributes[field.key]" class="max-w-full h-auto rounded" />
+                    <a v-else-if="field.type === 'file' && asset.custom_attributes?.[field.key]" :href="asset.custom_attributes[field.key].data || asset.custom_attributes[field.key]" :download="asset.custom_attributes[field.key].name" class="flex flex-col items-center p-2 border rounded hover:bg-gray-50">
+                          <svg class="w-12 h-12 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                          </svg>
+                          <span class="mt-1 text-xs text-blue-600 truncate max-w-full">{{ asset.custom_attributes[field.key].name || 'File' }}</span>
+                        </a>
+                    <div v-else-if="field.type === 'checkbox'">
+                      <span :class="asset.custom_attributes?.[field.key] ? 'text-green-600' : 'text-gray-400'">
+                        {{ asset.custom_attributes?.[field.key] ? 'Yes' : 'No' }}
+                      </span>
+                    </div>
+                    <span v-else>{{ asset.custom_attributes?.[field.key] || '-' }}</span>
+                  </div>
                  
                  <!-- Edit Mode -->
                  <template v-else>
@@ -466,20 +491,23 @@ onMounted(() => {
                      <option value="" disabled>Select {{ field.label }}</option>
                      <option v-for="opt in (field.options || '').split(',').map(o => o.trim())" :key="opt" :value="opt">{{ opt }}</option>
                    </select>
-                   <!-- Image/File -->
-                   <div v-else-if="field.type === 'image' || field.type === 'file'">
-                     <input 
-                       type="file"
-                       :accept="field.type === 'image' ? 'image/*' : '*'"
-                       @change="(e) => handleFieldFileUpload(field.key, e)"
-                       class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue" 
-                     />
-                     <input 
-                       v-model="form.custom_attributes[field.key]"
-                       type="hidden"
-                     />
-                     <img v-if="form.custom_attributes[field.key]?.startsWith('data:image')" :src="form.custom_attributes[field.key]" class="mt-2 max-w-full h-32 object-cover rounded" />
-                   </div>
+<!-- Image/File -->
+                    <div v-else-if="field.type === 'image' || field.type === 'file'">
+                      <input 
+                        type="file"
+                        :accept="field.type === 'image' ? 'image/*' : '*'"
+                        @change="(e) => handleFieldFileUpload(field.key, e)"
+                        class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue" 
+                      />
+                      <input 
+                        v-model="form.custom_attributes[field.key]"
+                        type="hidden"
+                      />
+                      <div v-if="form.custom_attributes[field.key]">
+                        <img v-if="field.type === 'image' && (form.custom_attributes[field.key].data || form.custom_attributes[field.key].startsWith('data:image'))" :src="form.custom_attributes[field.key].data || form.custom_attributes[field.key]" class="mt-2 max-w-full h-32 object-cover rounded" />
+                        <p v-else class="mt-2 text-sm text-gray-500">{{ form.custom_attributes[field.key].name || 'File selected' }}</p>
+                      </div>
+                    </div>
                  </template>
                </div>
             </div>

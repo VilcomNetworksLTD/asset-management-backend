@@ -32,23 +32,30 @@ class AssetController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        \Illuminate\Support\Facades\Log::info('Asset store request', $request->all());
+        
         if ($request->input('location_id') === '') {
             $request->merge(['location_id' => null]);
         }
 
-        $data = $request->validate([
-            'Asset_Name' => 'required|string|max:255',
-            'category_id' => 'required|exists:categories,id',
-            'location_id' => 'nullable|exists:locations,id',
-            'Supplier_ID' => 'nullable|integer|exists:suppliers,id',
-            'Status_ID' => 'nullable|integer|exists:statuses,id',
-            'Employee_ID' => 'nullable|integer|exists:users,id',
-            'Price' => 'nullable|numeric|min:0',
-            'Purchase_Date' => 'nullable|date',
-            'warranty_expiry' => 'nullable|date',
-            'warranty_image' => 'nullable|image|max:10240',
-            'custom_attributes' => 'nullable|array'
-        ]);
+        try {
+            $data = $request->validate([
+                'Asset_Name' => 'required|string|max:255',
+                'category_id' => 'required|exists:categories,id',
+                'location_id' => 'nullable|exists:locations,id',
+                'Supplier_ID' => 'nullable|integer|exists:suppliers,id',
+                'Status_ID' => 'nullable|integer|exists:statuses,id',
+                'Employee_ID' => 'nullable|integer|exists:users,id',
+                'Price' => 'nullable|numeric|min:0',
+                'Purchase_Date' => 'nullable|date',
+                'warranty_expiry' => 'nullable|date',
+                'warranty_image' => 'nullable|image|max:10240',
+                'custom_attributes' => 'nullable|array'
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Illuminate\Support\Facades\Log::error('Validation failed', $e->errors());
+            return response()->json(['error' => 'Validation failed', 'details' => $e->errors()], 422);
+        }
 
         if (isset($data['category_id']) && isset($data['custom_attributes'])) {
             $this->validateCategoryFields($request, $data['category_id']);
@@ -183,6 +190,12 @@ class AssetController extends Controller
             return response()->json(['error' => 'You are not assigned to a department. Please contact your administrator.'], 403);
         }
 
+        \Illuminate\Support\Facades\Log::info('Manager staff assets request', [
+            'user_id' => $user->id,
+            'user_role' => $user->role,
+            'department_id' => $user->department_id
+        ]);
+
         $department = Department::find($user->department_id);
         $departmentName = $department ? $department->name : 'Department';
 
@@ -197,6 +210,11 @@ class AssetController extends Controller
                 $employee->assets = $assets;
                 return $employee;
             });
+
+        \Illuminate\Support\Facades\Log::info('Staff found', [
+            'count' => $staff->count(),
+            'department_id' => $user->department_id
+        ]);
 
         return response()->json([
             'department_name' => $departmentName,
@@ -504,7 +522,13 @@ class AssetController extends Controller
                     break;
                 case 'image':
                 case 'file':
-                    $fieldRules[] = 'file';
+                    // Accept either a file upload or a base64 string
+                    $fieldRules = [];
+                    if ($required) {
+                        $fieldRules[] = 'required';
+                    } else {
+                        $fieldRules[] = 'nullable';
+                    }
                     break;
                 case 'select':
                     if (!empty($field['options'])) {

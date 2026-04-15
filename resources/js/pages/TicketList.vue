@@ -298,14 +298,19 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, computed, watch } from 'vue'
+import { onMounted, reactive, ref, computed, watch, onUnmounted } from 'vue'
 import axios from 'axios';
+import { useWindowFocus } from '@vueuse/core';
 import { 
   Search, Edit3, UserPlus, CheckCircle, Package, 
   Trash2, ChevronLeft, ChevronRight, Inbox,
   ShieldCheck, Info, AlertCircle, ArrowUpRight
 } from 'lucide-vue-next';
 import Loader from '@/components/Loader.vue';
+
+const isFocused = useWindowFocus()
+const REFRESH_INTERVAL = 20000
+let intervalId = null
 
 const all_rows = ref([])
 const loading = ref(false);
@@ -569,10 +574,21 @@ const priorityClass = (p) => {
   return 'bg-blue-50 text-vilcom-blue border-blue-100';
 }
 
+watch(isFocused, (focused) => {
+  if (focused) {
+    fetchRows(pagination.current_page)
+  }
+})
+
 onMounted(() => {
   fetchRows()
   if (role === 'admin') {
     loadStatuses();
   }
+  intervalId = setInterval(() => fetchRows(pagination.current_page), REFRESH_INTERVAL)
+})
+
+onUnmounted(() => {
+  if (intervalId) clearInterval(intervalId)
 })
 </script>

@@ -1,41 +1,39 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import AdminLayout from '../components/layouts/AdminLayout.vue';
-import UserLayout from '../components/layouts/UserLayout.vue';
-import AdminDashboard from '../views/AdminDashboard.vue';
-import UserDashboard from '../views/UserDashboard.vue';
-import AssetList from '../pages/AssetList.vue';
-import AssetDetail from '../pages/AssetDetail.vue';
-import ConsumableList from '../pages/ConsumableList.vue';
-import PeopleList from '../pages/PeopleList.vue';
-import AccessoryList from '../pages/AccessoryList.vue';
-import LicenseList from '../pages/LicenseList.vue';
-import ComponentList from '../pages/ComponentList.vue';
-import MaintenanceList from '../pages/MaintenanceList.vue';
-import ActivityLogList from '../pages/ActivityLogList.vue';
-import ReportsList from '../pages/ReportsList.vue';
-import Settings from '../pages/Settings.vue';
 
-import TransferList from '../pages/TransferList.vue';
-import TicketList from '../pages/TicketList.vue';
-import UserAssetList from '../pages/UserAssetList.vue';
-import SslCertificateList from '../pages/SslCertificateList.vue';
-import Supplier from '../pages/Supplier.vue';
-import DepartmentAssets from '../pages/DepartmentAssets.vue';
-import HodDepartmentAssets from '../pages/HodDepartmentAssets.vue';
-import Support from '../pages/Support.vue';
-import Feedback from '../pages/Feedback.vue';
-import TonerInventory from '../pages/TonerInventory.vue';
-import Scanner from '../pages/Scanner.vue';
-
-// Hub Imports
-import InventoryHub from '../pages/InventoryHub.vue';
-import MovementsHub from '../pages/MovementsHub.vue';
-import DirectoryHub from '../pages/DirectoryHub.vue';
-import OperationsHub from '../pages/OperationsHub.vue';
-import MyWorkspaceHub from '../pages/MyWorkspaceHub.vue';
-import DefinitionsHub from '../pages/DefinitionsHub.vue';
-import ManagementPurchaseRequests from '../pages/ManagementPurchaseRequests.vue';
-import AdminPurchaseRequests from '../pages/AdminPurchaseRequests.vue';
+const AdminLayout = () => import('../components/layouts/AdminLayout.vue');
+const UserLayout = () => import('../components/layouts/UserLayout.vue');
+const AdminDashboard = () => import('../views/AdminDashboard.vue');
+const UserDashboard = () => import('../views/UserDashboard.vue');
+const AssetList = () => import('../pages/AssetList.vue');
+const AssetDetail = () => import('../pages/AssetDetail.vue');
+const ConsumableList = () => import('../pages/ConsumableList.vue');
+const PeopleList = () => import('../pages/PeopleList.vue');
+const AccessoryList = () => import('../pages/AccessoryList.vue');
+const LicenseList = () => import('../pages/LicenseList.vue');
+const ComponentList = () => import('../pages/ComponentList.vue');
+const MaintenanceList = () => import('../pages/MaintenanceList.vue');
+const ActivityLogList = () => import('../pages/ActivityLogList.vue');
+const ReportsList = () => import('../pages/ReportsList.vue');
+const Settings = () => import('../pages/Settings.vue');
+const TransferList = () => import('../pages/TransferList.vue');
+const TicketList = () => import('../pages/TicketList.vue');
+const UserAssetList = () => import('../pages/UserAssetList.vue');
+const SslCertificateList = () => import('../pages/SslCertificateList.vue');
+const Supplier = () => import('../pages/Supplier.vue');
+const DepartmentAssets = () => import('../pages/DepartmentAssets.vue');
+const HodDepartmentAssets = () => import('../pages/HodDepartmentAssets.vue');
+const Support = () => import('../pages/Support.vue');
+const Feedback = () => import('../pages/Feedback.vue');
+const TonerInventory = () => import('../pages/TonerInventory.vue');
+const Scanner = () => import('../pages/Scanner.vue');
+const InventoryHub = () => import('../pages/InventoryHub.vue');
+const MovementsHub = () => import('../pages/MovementsHub.vue');
+const DirectoryHub = () => import('../pages/DirectoryHub.vue');
+const OperationsHub = () => import('../pages/OperationsHub.vue');
+const MyWorkspaceHub = () => import('../pages/MyWorkspaceHub.vue');
+const DefinitionsHub = () => import('../pages/DefinitionsHub.vue');
+const ManagementPurchaseRequests = () => import('../pages/ManagementPurchaseRequests.vue');
+const AdminPurchaseRequests = () => import('../pages/AdminPurchaseRequests.vue');
 
 const routes = [{
         path: '/',
@@ -229,8 +227,8 @@ const routes = [{
             // REMOVED: MyHistory route was here
             {
                 path: 'department-assets',
-                name: 'HodDepartmentAssets',
-                component: HodDepartmentAssets,
+                name: 'department-assets',
+                component: DepartmentAssets,
                 meta: { layout: 'UserLayout', requiresAuth: true }
             },
             {

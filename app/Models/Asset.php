@@ -64,7 +64,7 @@ class Asset extends Model
         return $this->belongsTo(Category::class);
     }
 
-    public function locationModel(): BelongsTo
+    public function location_model(): BelongsTo
     {
         // Named 'locationModel' just in case you still have the old string 'location' 
         // column hanging around in your DB to prevent naming conflicts.

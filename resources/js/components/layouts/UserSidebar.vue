@@ -41,7 +41,7 @@
 <script setup>
 import { ref, onMounted, computed, onUnmounted } from 'vue';
 import { 
-  LayoutDashboard, Home, Box, ArrowLeftRight, Settings, Package, ListTodo, User, ShoppingCart
+  LayoutDashboard, Home, Box, ArrowLeftRight, Settings, Package, ListTodo, User, ShoppingCart, Tags
 } from 'lucide-vue-next';
 
 const userRole = ref('staff'); 
@@ -72,6 +72,7 @@ const menuItems = [
   { label: 'My Workspace', icon: Package, path: '/dashboard/user/workspace', roles: ['staff', 'employee', 'hod', 'manager', 'management'] },
   { label: 'Dept. Assets', icon: Box, path: '/dashboard/user/department-assets', roles: ['hod', 'manager'] },
   { label: 'Manage Assets', icon: ListTodo, path: '/dashboard/user/manage-assets', roles: ['hod', 'manager'] },
+  { label: 'Definitions Hub', icon: Tags, path: '/dashboard/user/manage-definitions', roles: ['hod', 'manager'] },
   { label: 'My Profile', icon: User, path: '/dashboard/user/profile', roles: ['staff', 'employee', 'hod', 'manager', 'management'] },
   { label: 'Purchase Escalations', icon: ShoppingCart, path: '/dashboard/user/purchase-escalations', roles: ['management'] },
   { label: 'Settings', icon: Settings, path: '/dashboard/user/settings', roles: ['staff', 'employee', 'hod', 'manager', 'management'] },
