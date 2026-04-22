@@ -23,11 +23,10 @@ class UserService
     public function getUserWithRelations(int $id)
     {
         return User::with([
-            'assets', // <--- Changed from 'assets.model'
+            'assets',
             'licenses',
-            'components',
             'consumables',
-            'accessories'
+            'accessories',
         ])->findOrFail($id);
     }
 
@@ -37,6 +36,7 @@ class UserService
     public function updateProfile(User $user, array $data)
     {
         $user->update($data);
+
         return $user;
     }
 
@@ -46,12 +46,12 @@ class UserService
     public function updatePassword(User $user, array $data)
     {
         // Verify current password before allowing change
-        if (!Hash::check($data['current_password'], $user->password)) {
+        if (! Hash::check($data['current_password'], $user->password)) {
             return false;
         }
 
         return $user->update([
-            'password' => Hash::make($data['new_password'])
+            'password' => Hash::make($data['new_password']),
         ]);
     }
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="p-8 space-y-12">
+  <div class="space-y-12">
     <div class="mb-10">
       <h1 class="text-3xl font-black text-slate-800 tracking-tight">My <span class="text-vilcom-blue">Workspace</span></h1>
       <p class="text-sm text-gray-400 font-bold mt-1 uppercase tracking-[0.2em] leading-relaxed">Your personal asset ledger, active support channels, and compliance verifications.</p>
@@ -62,20 +62,20 @@ const userRole = (user.role || '').toLowerCase();
 const categories = [
   { name: 'Equipment', label: 'My', routeName: 'user-assets', icon: Laptop, colorClass: 'text-blue-600' },
   { name: 'Licenses', label: 'My', routeName: 'user-licenses', icon: Save, colorClass: 'text-teal-600' },
-  { name: 'Components', label: 'My', routeName: 'user-components', icon: HardDrive, colorClass: 'text-indigo-600' },
+
   { name: 'Accessories', label: 'My', routeName: 'user-accessories', icon: Keyboard, colorClass: 'text-orange-600' },
 ];
 
 const allSecondSection = [
   { 
-    name: 'Asset Request', 
+    name: 'Asset Return Request', 
     icon: Laptop, 
     iconColor: 'text-indigo-600', 
     routeName: 'user.request-return', 
-    description: 'Initiate a request for a new asset or equipment.' 
+    description: 'Initiate a request for returning an asset or equipment.' 
   },
   { 
-    name: 'Transfer Request', 
+    name: 'Asset Transfer Request', 
     icon: ArrowLeftRight, 
     iconColor: 'text-teal-600', 
     routeName: 'user.request-transfer', 

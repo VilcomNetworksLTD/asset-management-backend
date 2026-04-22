@@ -7,7 +7,6 @@ use App\Http\Controllers\{
     AssetController,
     AccessoryController,
     ConsumableController,
-    ComponentController,
     FeedbackController,
     LicenseController,
     MaintenanceController,
@@ -63,6 +62,10 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::get('/assets', 'index');
         Route::get('/assets/list', 'list');
         Route::get('/hod/department-assets', 'hodDepartmentAssets');
+        Route::get('/manager/department-assets', 'managerDepartmentAssets');
+        Route::get('/manager/staff-assets', 'managerStaffAssets');
+        Route::get('/hod/staff-assets', 'hodStaffAssets');
+        Route::get('/hod/my-created-assets', 'hodCreatedAssets');
         Route::post('/assets', 'store');
         Route::get('/assets/{id}', 'show');
         Route::put('/assets/{id}', 'update');
@@ -152,17 +155,6 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::delete('/maintenances/{id}', 'destroy');
     });
     
-    // --- Components ---
-    Route::controller(ComponentController::class)->group(function () {
-        Route::get('/components', 'index');
-        Route::get('/components/list', 'list');
-        Route::post('/components', 'store');
-        Route::put('/components/{id}', 'update');
-        Route::delete('/components/{id}', 'destroy');
-        Route::post('/components/{id}/assign', 'assign');
-        Route::get('/my-components', 'myComponents');
-    });
-
     // --- Logistics & Transfers ---
     Route::controller(TransferController::class)->group(function () {
         Route::get('/transfers', 'index');             
@@ -202,6 +194,7 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::post('/tickets', 'store');            
         Route::post('/tickets/{id}/assign-asset', 'assignAsset'); 
         Route::post('/tickets/{id}/escalate', 'escalateToPurchase');
+        Route::post('/tickets/{id}/reject', 'reject');
         Route::post('/workflow/returns', 'createReturnRequest'); 
         Route::post('/workflow/returns/{id}/process', 'processReturn');
         Route::put('/tickets/{id}', 'update');
@@ -221,6 +214,7 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::get('/profile', 'show');               
         Route::post('/profile/update', 'update');     
         Route::post('/profile/password', 'changePassword'); 
+        Route::post('/profile/logout-all', 'logoutAllDevices'); 
         Route::get('/users-list', 'index');           
         Route::get('/my-assigned-items', 'getMyAssignedItems');
     });
@@ -231,6 +225,7 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
     Route::get('/suppliers', [SupplierController::class, 'index']);
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/departments', [DepartmentController::class, 'index']);
+    Route::post('/sync-my-department', [UserController::class, 'syncDepartment']);
 
     Route::controller(ReportController::class)->group(function () {
         Route::get('/reports-summary', 'index');

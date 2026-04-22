@@ -1,7 +1,8 @@
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
+import { useWindowFocus } from '@vueuse/core';
 import { 
   ArrowLeft, Barcode, Tag, Edit3, UserPlus, 
   Check, X, Camera, Printer, Trash2, 
@@ -23,24 +24,46 @@ const isEditing = ref(false);
 const saving = ref(false);
 const uploadingEvidence = ref(false);
 
+const isFocused = useWindowFocus();
+const REFRESH_INTERVAL = 15000;
+
+watch(isFocused, (focused) => {
+  if (focused && asset.value) {
+    fetchAsset();
+  }
+});
+
+setInterval(() => {
+  if (asset.value) {
+    fetchAsset();
+  }
+}, REFRESH_INTERVAL);
+
 /**
  * Enhanced Access Control logic:
  * 1. Full access if on the explicit Admin Route ('asset-detail').
-
- * 2. Full access if user is an HOD, created the category, AND is viewing via Management context.
+ * 2. Full access if user is an HOD/Manager, created the asset, AND is viewing via Management context.
  * 3. Restricted View-Only for Staff, Management, and HODs viewing assigned assets (My Assets / Dept Assets).
  */
 const isAdmin = computed(() => {
   const userData = JSON.parse(localStorage.getItem('user_data') || '{}');
   const isExplicitAdmin = route.name === 'asset-detail';
   
-  const isHOD = userData.role?.toLowerCase() === 'hod';
-  const isManagementContext = route.path.includes('/tasks') || route.path.includes('/manage') || route.path.includes('/inventory');
+  const isHOD = userData.role?.toLowerCase() === 'hod' || userData.role?.toLowerCase() === 'manager';
+  const isManagementContext = route.path.includes('/tasks') || route.path.includes('/manage') || route.path.includes('/inventory') || route.path.includes('/definitions') || route.path.includes('/hod');
+  
+  // Check if HOD/Manager created either the category OR the asset itself
   const createdCategory = asset.value?.category?.created_by === userData.id;
+  const createdAsset = asset.value?.created_by === userData.id;
   
-  const isHODManager = isHOD && createdCategory && isManagementContext;
+  // Full access if in management context (regardless of who created the asset)
+  const isManagerInContext = isHOD && isManagementContext;
   
-  return isExplicitAdmin || isHODManager;
+  // Or if created the asset/category
+  const isAssetCreator = isHOD && (createdCategory || createdAsset);
+  
+  // Superadmin or Management/HOD in their respective sections
+  return (userData.role?.toLowerCase() === 'admin' || userData.role?.toLowerCase() === 'management') || isExplicitAdmin || isManagerInContext || isAssetCreator;
 });
 
 // Assignment logic
@@ -118,21 +141,33 @@ const cancelEdit = () => {
   isEditing.value = false;
 };
 
+const handleFieldFileUpload = (key, event) => {
+  const file = event.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      form.custom_attributes[key] = {
+        name: file.name,
+        data: e.target.result
+      };
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
 const openAssignModal = async () => {
   assignmentForm.receiver_id = null;
-  assignmentForm.selected_components = [];
+  assignmentForm.receiver_id = null;
   assignmentForm.notes = '';
   showAssignModal.value = true;
 
   if (!isAdmin.value) return; // Extra safety
 
   try {
-    const [userRes, compRes] = await Promise.all([
-      axios.get('/api/users-list'),
-      axios.get('/api/components/list', { params: { per_page: 100 } })
+    const [userRes] = await Promise.all([
+      axios.get('/api/users-list')
     ]);
     usersForDropdown.value = userRes.data;
-    componentsForDropdown.value = (compRes.data.data || compRes.data || []).filter(c => c.remaining_qty > 0);
   } catch (error) {
     console.error("Failed to fetch dropdown data:", error);
   }
@@ -150,8 +185,7 @@ const submitAssignment = async () => {
       asset_id: asset.value.id,
       receiver_id: assignmentForm.receiver_id,
       notes: assignmentForm.notes,
-      direct: assignmentForm.direct,
-      items: assignmentForm.selected_components.map(id => ({ type: 'component', id }))
+      direct: assignmentForm.direct
     };
 
     await axios.post('/api/admin/assets/assign', payload);
@@ -269,7 +303,7 @@ const saveChanges = async () => {
 };
 
 const hasCategoryFields = computed(() => {
-  return asset.value?.category?.fields && asset.value.category.fields.length > 0;
+  return asset.value?.category?.fields?.length > 0;
 });
 
 onMounted(() => {
@@ -293,7 +327,7 @@ onMounted(() => {
             <Edit3 class="size-4 text-vilcom-blue" /> Edit Global Data
           </button>
           <button @click="openAssignModal" class="bg-vilcom-blue text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:shadow-xl hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-blue-900/10">
-            <UserPlus class="size-4" /> {{ asset.user ? 'Reassign custodial' : 'Assign to staff' }}
+            <UserPlus class="size-4" /> {{ asset.user ? 'Give to someone else' : 'Assign to member' }}
           </button>
         </template>
         <template v-else-if="isAdmin">
@@ -379,29 +413,106 @@ onMounted(() => {
               </div>
               <div>
                 <h2 class="text-xl font-black text-slate-800 tracking-tight">Technical Specifications</h2>
-                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dynamic attributes for {{ asset.category.name }}</p>
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dynamic attributes for {{ asset.category?.name || 'this category' }}</p>
               </div>
            </div>
 
-           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-              <div v-for="field in asset.category.fields" :key="field.key" class="space-y-2">
-                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  {{ field.label }}
-                  <span v-if="isAdmin && field.type" class="ml-2 text-vilcom-blue/30 lowercase">({{ field.type }})</span>
-                </label>
-                <div v-if="!isEditing" :class="['font-black text-slate-700 bg-slate-50/50 p-4 rounded-xl', (field.type === 'ip' || field.type === 'ip_address') ? 'font-mono' : '']">
-                  {{ asset.custom_attributes?.[field.key] || '-' }}
-                </div>
-                <input 
-                  v-else 
-                  v-model="form.custom_attributes[field.key]" 
-                  :type="field.type === 'ip' || field.type === 'ip_address' ? 'text' : (field.type || 'text')"
-                  :pattern="field.type === 'ip' || field.type === 'ip_address' ? '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$' : undefined"
-                  class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue" 
-                  :placeholder="field.type === 'ip' || field.type === 'ip_address' ? '0.0.0.0' : ''"
-                />
-              </div>
-           </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+               <div v-for="field in asset.category?.fields" :key="field.key" class="space-y-2">
+                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                   {{ field.label }}
+                   <span v-if="isAdmin && field.type" class="ml-2 text-vilcom-blue/30 lowercase">({{ field.type }})</span>
+                 </label>
+                 
+<!-- Display Mode -->
+                  <div v-if="!isEditing" :class="['font-black text-slate-700 bg-slate-50/50 p-4 rounded-xl', (field.type === 'ip' || field.type === 'ip_address') ? 'font-mono' : '']">
+                    <img v-if="field.type === 'image' && asset.custom_attributes?.[field.key]" :src="asset.custom_attributes[field.key]" class="max-w-full h-auto rounded" />
+                    <a v-else-if="field.type === 'file' && asset.custom_attributes?.[field.key]" :href="asset.custom_attributes[field.key].data || asset.custom_attributes[field.key]" :download="asset.custom_attributes[field.key].name" class="flex flex-col items-center p-2 border rounded hover:bg-gray-50">
+                          <svg class="w-12 h-12 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                          </svg>
+                          <span class="mt-1 text-xs text-blue-600 truncate max-w-full">{{ asset.custom_attributes[field.key].name || 'File' }}</span>
+                        </a>
+                    <div v-else-if="field.type === 'checkbox'">
+                      <span :class="asset.custom_attributes?.[field.key] ? 'text-green-600' : 'text-gray-400'">
+                        {{ asset.custom_attributes?.[field.key] ? 'Yes' : 'No' }}
+                      </span>
+                    </div>
+                    <span v-else>{{ asset.custom_attributes?.[field.key] || '-' }}</span>
+                  </div>
+                 
+                 <!-- Edit Mode -->
+                 <template v-else>
+                   <!-- Text, Email, IP, MAC -->
+                   <input 
+                     v-if="!field.type || ['text', 'email', 'ip_address', 'mac_address'].includes(field.type)"
+                     v-model="form.custom_attributes[field.key]" 
+                     type="text"
+                     class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue" 
+                     :placeholder="field.type === 'ip_address' ? '192.168.1.1' : (field.type === 'mac_address' ? 'AA:BB:CC:DD:EE:FF' : '')"
+                   />
+                   <!-- Number -->
+                   <input 
+                     v-else-if="field.type === 'number'"
+                     v-model="form.custom_attributes[field.key]" 
+                     type="number"
+                     class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue" 
+                   />
+                   <!-- Date -->
+                   <input 
+                     v-else-if="field.type === 'date'"
+                     v-model="form.custom_attributes[field.key]" 
+                     type="date"
+                     class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue" 
+                   />
+                   <!-- Textarea -->
+                   <textarea 
+                     v-else-if="field.type === 'textarea'"
+                     v-model="form.custom_attributes[field.key]" 
+                     rows="3"
+                     class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue" 
+                   ></textarea>
+                   <!-- Checkbox -->
+                   <div v-else-if="field.type === 'checkbox'" class="mt-1">
+                     <label class="inline-flex items-center">
+                       <input 
+                         v-model="form.custom_attributes[field.key]"
+                         type="checkbox"
+                         :value="1"
+                         class="rounded border-gray-300 text-blue-600"
+                       />
+                       <span class="ml-2 text-sm text-gray-500">Yes</span>
+                     </label>
+                   </div>
+                   <!-- Select -->
+                   <select 
+                     v-else-if="field.type === 'select'"
+                     v-model="form.custom_attributes[field.key]" 
+                     class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue"
+                   >
+                     <option value="" disabled>Select {{ field.label }}</option>
+                     <option v-for="opt in (field.options || '').split(',').map(o => o.trim())" :key="opt" :value="opt">{{ opt }}</option>
+                   </select>
+<!-- Image/File -->
+                    <div v-else-if="field.type === 'image' || field.type === 'file'">
+                      <input 
+                        type="file"
+                        :accept="field.type === 'image' ? 'image/*' : '*'"
+                        @change="(e) => handleFieldFileUpload(field.key, e)"
+                        class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue" 
+                      />
+                      <input 
+                        v-model="form.custom_attributes[field.key]"
+                        type="hidden"
+                      />
+                      <div v-if="form.custom_attributes[field.key]">
+                        <img v-if="field.type === 'image' && (form.custom_attributes[field.key].data || form.custom_attributes[field.key].startsWith('data:image'))" :src="form.custom_attributes[field.key].data || form.custom_attributes[field.key]" class="mt-2 max-w-full h-32 object-cover rounded" />
+                        <p v-else class="mt-2 text-sm text-gray-500">{{ form.custom_attributes[field.key].name || 'File selected' }}</p>
+                      </div>
+                    </div>
+                 </template>
+               </div>
+            </div>
         </div>
 
         <div v-if="isAdmin" class="bg-white rounded-[3rem] p-12 shadow-sm border border-gray-100 space-y-8">
@@ -487,10 +598,10 @@ onMounted(() => {
       </div>
     </div>
 
-    <Modal :show="showAssignModal" @close="showAssignModal = false" title="Asset Custody Handover">
+    <Modal :show="showAssignModal" @close="showAssignModal = false" title="Assign or Transfer Asset">
       <form @submit.prevent="submitAssignment" class="p-10 space-y-10">
         <div class="space-y-4">
-          <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Select Destination Official</label>
+          <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Select Receiver</label>
           <div class="relative group/field">
              <select 
               v-model="assignmentForm.receiver_id" 
@@ -507,27 +618,7 @@ onMounted(() => {
         </div>
 
         <div class="space-y-4">
-          <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex justify-between">
-            Bulk Bundle Components
-            <span class="text-vilcom-blue">{{ assignmentForm.selected_components.length }} selected</span>
-          </label>
-          <div class="bg-slate-50 rounded-[2rem] p-6 max-h-60 overflow-y-auto custom-scrollbar space-y-2 border border-slate-100">
-            <label v-for="comp in componentsForDropdown" :key="comp.id" class="flex items-center gap-4 bg-white p-4 rounded-xl hover:bg-blue-50/50 cursor-pointer transition-colors group/comp">
-              <input type="checkbox" :value="comp.id" v-model="assignmentForm.selected_components" class="size-5 rounded border-gray-200 text-vilcom-blue focus:ring-vilcom-blue" />
-              <div class="flex-1">
-                <div class="text-xs font-black text-slate-700">{{ comp.name }}</div>
-                <div class="text-[9px] font-bold text-gray-400 uppercase mt-0.5">Stock Residual: {{ comp.remaining_qty }} units</div>
-              </div>
-              <PackageCheck class="size-4 text-gray-200 group-hover/comp:text-vilcom-blue transition-colors" />
-            </label>
-            <div v-if="componentsForDropdown.length === 0" class="p-12 text-center text-[10px] font-black text-gray-300 uppercase tracking-widest italic">
-              No transferable components in stock
-            </div>
-          </div>
-        </div>
-
-        <div class="space-y-4">
-          <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Assignment Directives</label>
+          <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Notes or Instructions</label>
           <textarea 
             v-model="assignmentForm.notes" 
             class="w-full bg-slate-50 border-none rounded-2xl p-6 text-sm font-bold placeholder:text-gray-300 focus:ring-2 focus:ring-vilcom-blue transition-all" 
@@ -539,17 +630,17 @@ onMounted(() => {
         <div class="flex items-center gap-4 p-6 bg-slate-50 rounded-2xl border border-slate-100">
           <input type="checkbox" id="direct-assign" v-model="assignmentForm.direct" class="size-6 rounded border-gray-300 text-vilcom-blue focus:ring-vilcom-blue" />
           <div class="flex-1">
-            <label for="direct-assign" class="text-xs font-black text-slate-800 uppercase tracking-wider block">Bypass Verification</label>
-            <p class="text-[9px] font-bold text-gray-400 uppercase mt-0.5">Move custody immediately without staff confirmation</p>
+            <label for="direct-assign" class="text-xs font-black text-slate-800 uppercase tracking-wider block">Fast Track (Skip confirmation)</label>
+            <p class="text-[9px] font-bold text-gray-400 uppercase mt-0.5">Transfer instantly without waiting for approval</p>
           </div>
           <AlertCircle class="size-5 text-gray-300" />
         </div>
 
         <div class="flex gap-4">
-           <button @click="showAssignModal = false" type="button" class="flex-1 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-red-500 transition-colors py-6">Abort Process</button>
+           <button @click="showAssignModal = false" type="button" class="flex-1 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-red-500 transition-colors py-6">Cancel</button>
            <button type="submit" :disabled="saving" class="flex-[3] bg-vilcom-blue text-white py-6 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:shadow-2xl shadow-xl shadow-blue-900/10 transition-all flex items-center justify-center gap-3 active:scale-95">
              <Send class="size-4 rotate-[-45deg] mb-1" />
-             {{ saving ? 'INITIALIZING HANDOVER...' : 'FINALIZE ASSIGNMENT' }}
+             {{ saving ? 'UPDATING...' : 'Confirm Assignment' }}
            </button>
         </div>
       </form>

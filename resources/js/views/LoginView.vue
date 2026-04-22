@@ -87,6 +87,7 @@
 import { ref } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
+import logoUrl from '@/assets/new_logo.webp';
 
 const form = ref({ email: '', password: '' });
 const message = ref('');
@@ -94,7 +95,6 @@ const loading = ref(false);
 const isError = ref(false);
 const showPassword = ref(false); 
 const router = useRouter();
-const logoUrl = '/Vlogo.jpeg';
 
 const handleLogin = async () => {
   loading.value = true;
@@ -116,7 +116,7 @@ const handleLogin = async () => {
 
   } catch (error) {
     isError.value = true;
-    message.value = error.response?.data?.message || "Invalid credentials. Please check Safetika.";
+    message.value = error.response?.data?.error_description || error.response?.data?.message || "Invalid credentials. Please check Safetika.";
     
     if (error.response?.status === 403 && error.response?.data?.needs_verification) {
         setTimeout(() => {

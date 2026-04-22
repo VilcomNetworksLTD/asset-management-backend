@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6">
+  <div>
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-semibold text-gray-800">{{ headingText }}</h1>
     </div>
@@ -82,13 +82,13 @@
             <td class="p-4 text-right space-x-2">
               <template v-if="item.status === 'pending_inspection'">
                 <button @click="openInspectionModal(item)" :disabled="processing" class="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-blue-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                  INSPECT
+                  CHECK
                 </button>
               </template>
 
               <template v-else-if="item.status === 'inspected'">
                 <template v-if="item.receiver && item.type === 'transfer'">
-                  <span class="text-blue-600 italic text-xs">Awaiting recipient verification</span>
+                  <span class="text-blue-600 italic text-xs">Waiting for receiver to confirm</span>
                 </template>
                 <template v-else>
                   <button @click="updateStatus(item.id, 'accepted')" :disabled="processing" class="text-green-600 hover:text-green-800 font-bold disabled:opacity-50 disabled:cursor-not-allowed">Accept</button>
@@ -107,10 +107,10 @@
 
               <template v-else>
                 <template v-if="item.status === 'pending_verification'">
-                  <span class="text-blue-600 italic text-xs mr-2">Waiting for recipient</span>
+                  <span class="text-blue-600 italic text-xs mr-2">Waiting for receiver</span>
                 </template>
                 <template v-else>
-                  <span class="text-gray-400 italic text-xs mr-2">Closed</span>
+                  <span class="text-gray-400 italic text-xs mr-2">Done</span>
                 </template>
               </template>
             </td>
@@ -126,7 +126,7 @@
     <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
         <div class="bg-indigo-600 p-4 text-white flex justify-between items-center">
-          <h2 class="font-bold uppercase tracking-tight text-sm">Physical Asset Inspection</h2>
+          <h2 class="font-bold uppercase tracking-tight text-sm">Check Item Condition</h2>
           <button @click="showModal = false" class="text-white hover:text-gray-200">
             <i class="fa fa-times"></i>
           </button>
@@ -134,7 +134,7 @@
 
         <div class="p-6">
           <div class="mb-4 p-3 bg-gray-50 rounded border text-xs">
-            <p class="text-gray-500 font-bold uppercase">Asset Being Returned:</p>
+            <p class="text-gray-500 font-bold uppercase">Item being returned:</p>
             <p class="text-indigo-700 font-bold text-sm">{{ selectedItem.asset?.model }}</p>
             <p class="text-gray-400">Serial: {{ selectedItem.asset?.serial }} | Tag: {{ selectedItem.asset?.asset_tag }}</p>
             <p class="text-gray-400">User Report: <span class="italic">"{{ selectedItem.sender_condition || 'No notes' }}"</span></p>
@@ -184,12 +184,12 @@
             </div>
 
             <div>
-              <label class="block text-xs font-black uppercase text-gray-500 mb-1">Admin Notes / Findings</label>
+              <label class="block text-xs font-black uppercase text-gray-500 mb-1">Notes / Findings</label>
               <textarea v-model="inspectionForm.admin_notes" class="w-full border rounded p-2 text-sm" rows="3" placeholder="e.g Hinge broken, screen scratches, keyboard missing keys"></textarea>
             </div>
 
             <button @click="submitInspection" class="w-full bg-indigo-600 text-white py-2 rounded font-bold text-xs hover:bg-indigo-700">
-              SAVE INSPECTION
+              SAVE CHANGES
             </button>
             </div>
           </div>
@@ -305,7 +305,7 @@ const submitInspection = async () => {
     }
 
     showModal.value = false;
-    alert("Inspection recorded successfully.");
+    alert("Item check saved successfully.");
     eventBus.emit('transfer-changed', updated);
   } catch (err) {
     alert("Error saving inspection. Check backend logs.");

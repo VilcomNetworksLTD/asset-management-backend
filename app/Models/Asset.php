@@ -3,10 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
 class Asset extends Model
@@ -14,11 +14,11 @@ class Asset extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'Asset_Name', 
+        'Asset_Name',
         'system_name',
         'system_manufacturer',
         'evidence_image',
-        
+
         // --- NEW DYNAMIC FIELDS ---
         'category_id', // Replaces 'Asset_Category'
         'Asset_Category', // Kept for backward compatibility/DB constraints
@@ -26,10 +26,10 @@ class Asset extends Model
         'barcode',     // New Barcode field
         // --------------------------
 
-        'Serial_No', 
-        'Supplier_ID', 
-        'Employee_ID', 
-        'Status_ID', 
+        'Serial_No',
+        'Supplier_ID',
+        'Employee_ID',
+        'Status_ID',
         'Warranty_Details',
         'License_Info',
         'Price',
@@ -41,6 +41,7 @@ class Asset extends Model
         'warranty_expiry',
         'warranty_image_path',
         'custom_attributes',
+        'created_by',
     ];
 
     /**
@@ -65,8 +66,6 @@ class Asset extends Model
 
     public function locationModel(): BelongsTo
     {
-        // Named 'locationModel' just in case you still have the old string 'location' 
-        // column hanging around in your DB to prevent naming conflicts.
         return $this->belongsTo(Location::class, 'location_id');
     }
 
@@ -93,7 +92,7 @@ class Asset extends Model
         return $this->belongsTo(Supplier::class, 'Supplier_ID', 'id');
     }
 
-    public function status(): BelongsTo 
+    public function status(): BelongsTo
     {
         return $this->belongsTo(Status::class, 'Status_ID');
     }
@@ -107,7 +106,7 @@ class Asset extends Model
     {
         return $this->hasMany(Assignment::class, 'Asset_ID', 'id');
     }
-    
+
     public function issues(): HasMany
     {
         return $this->hasMany(Issue::class, 'Asset_ID', 'id');
@@ -117,7 +116,7 @@ class Asset extends Model
     {
         return $this->hasMany(Transfer::class, 'Asset_ID', 'id');
     }
-    
+
     public function feedback(): HasMany
     {
         return $this->hasMany(Feedback::class, 'Asset_ID', 'id');
@@ -145,7 +144,7 @@ class Asset extends Model
 
     public function tonerHistory()
     {
-        return $this->hasMany(\App\Models\AssetConsumable::class, 'asset_id');
+        return $this->hasMany(AssetConsumable::class, 'asset_id');
     }
 
     /* ==========================================
@@ -166,6 +165,7 @@ class Asset extends Model
         if ($this->warranty_image_path) {
             return Storage::disk('public')->url($this->warranty_image_path);
         }
+
         return null;
     }
 

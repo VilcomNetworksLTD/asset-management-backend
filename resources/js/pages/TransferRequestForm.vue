@@ -1,12 +1,12 @@
 <template>
   <div class="p-8 space-y-12">
-    <PageHeader title="Asset" highlight="Transfer Request" />
+    <PageHeader title="Send" highlight="Transfer Request" />
 
     <div class="max-w-3xl mx-auto bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden group hover:shadow-2xl transition-all duration-500">
       <div class="bg-vilcom-blue p-10 relative overflow-hidden">
         <div class="absolute -right-10 -bottom-10 size-40 bg-white/10 rounded-full group-hover:scale-150 transition-transform duration-700"></div>
-        <h2 class="text-2xl font-black text-white tracking-tight relative z-10">Colleague-to-Colleague Transfer</h2>
-        <p class="text-blue-100/70 text-xs font-bold uppercase tracking-[0.2em] mt-2 relative z-10">Handover ownership to another staff member</p>
+        <h2 class="text-2xl font-black text-white tracking-tight relative z-10">Give to Colleague</h2>
+        <p class="text-blue-100/70 text-[10px] font-black uppercase tracking-[0.2em] mt-2 relative z-10">Hand over this item to another person</p>
       </div>
 
       <div class="p-12 space-y-10">
@@ -30,50 +30,35 @@
         <!-- Extra Items Section -->
         <div class="bg-slate-50 rounded-[2rem] p-8 space-y-6">
           <div class="flex items-center justify-between">
-            <h3 class="text-sm font-black text-slate-800 tracking-tight">Additionally Involved Items</h3>
+            <h3 class="text-sm font-black text-slate-800 tracking-tight">Other items to include</h3>
             <div v-if="loadingExtras" class="flex items-center gap-2 text-[10px] font-bold text-vilcom-blue animate-pulse">
                <div class="size-2 bg-vilcom-blue rounded-full animate-bounce"></div>
-               SYNCHRONIZING...
-            </div>
-          </div>
+               LOADING...
+             </div>
+           </div>
 
-          <div v-if="!loadingExtras" class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <!-- Components -->
-            <div class="space-y-3">
-              <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <div class="size-1.5 bg-indigo-400 rounded-full"></div>
-                Components
-              </div>
-              <div v-if="components.length" class="space-y-2">
-                <label v-for="c in components" :key="c.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-indigo-100 hover:bg-indigo-50/50 transition-all cursor-pointer group/item">
-                  <input type="checkbox" :value="c.id" v-model="selectedComponents" class="size-5 rounded border-gray-300 text-vilcom-blue focus:ring-vilcom-blue">
-                  <span class="text-xs font-bold text-slate-700">{{ c.name }}</span>
-                </label>
-              </div>
-              <div v-else class="text-[10px] text-gray-400 italic">No assigned components found</div>
-            </div>
-
-            <!-- Accessories -->
-            <div class="space-y-3">
-              <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <div class="size-1.5 bg-orange-400 rounded-full"></div>
-                Accessories
-              </div>
-              <div v-if="accessories.length" class="space-y-2">
-                <label v-for="a in accessories" :key="a.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-orange-100 hover:bg-orange-50/50 transition-all cursor-pointer group/item">
-                  <input type="checkbox" :value="a.id" v-model="selectedAccessories" class="size-5 rounded border-gray-300 text-vilcom-orange focus:ring-vilcom-orange">
-                  <span class="text-xs font-bold text-slate-700">{{ a.name }}</span>
-                </label>
-              </div>
-              <div v-else class="text-[10px] text-gray-400 italic">No assigned accessories found</div>
-            </div>
-          </div>
-        </div>
+           <div v-if="!loadingExtras" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+             <!-- Accessories -->
+             <div class="space-y-3">
+               <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                 <div class="size-1.5 bg-orange-400 rounded-full"></div>
+                 Accessories
+               </div>
+               <div v-if="accessories.length" class="space-y-2">
+                 <label v-for="a in accessories" :key="a.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-orange-100 hover:bg-orange-50/50 transition-all cursor-pointer group/item">
+                   <input type="checkbox" :value="a.id" v-model="selectedAccessories" class="size-5 rounded border-gray-300 text-vilcom-orange focus:ring-vilcom-orange">
+                   <span class="text-xs font-bold text-slate-700">{{ a.name }}</span>
+                 </label>
+               </div>
+               <div v-else class="text-[10px] text-gray-400 italic">No assigned accessories found</div>
+             </div>
+           </div>
+         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
           <!-- Receiver Selection -->
           <div class="space-y-4">
-            <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Transfer To (Employee)</label>
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Give to (Colleague)</label>
             <div class="relative group/field">
               <select 
                 v-model="form.receiver_id" 
@@ -90,15 +75,15 @@
 
           <!-- Condition -->
           <div class="space-y-4">
-            <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Asset Condition</label>
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Item Condition</label>
             <div class="relative group/field">
               <select 
                 v-model="form.sender_condition" 
                 class="w-full bg-slate-50 border-none rounded-2xl p-5 text-slate-800 font-bold appearance-none transition-all group-hover/field:bg-slate-100 focus:ring-2 focus:ring-vilcom-blue"
               >
-                <option value="good">Pristine / Good</option>
-                <option value="damaged">Minor Operational Wear</option>
-                <option value="broken">Hardware Damage</option>
+                <option value="good">Working well / Good</option>
+                <option value="damaged">Some scratches / Wear</option>
+                <option value="broken">Damaged / Not working</option>
               </select>
               <ChevronDown class="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 size-5 pointer-events-none" />
             </div>
@@ -108,23 +93,23 @@
         <!-- Notes Section -->
         <div class="space-y-8">
             <div class="space-y-4">
-                <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Reason for Transfer</label>
+                <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Why are you moving this item?</label>
                 <textarea
                     v-model="form.reason"
                     class="w-full bg-slate-50 border-none rounded-2xl p-6 text-slate-800 font-bold placeholder:text-gray-300 transition-all hover:bg-slate-100 focus:ring-2 focus:ring-vilcom-blue"
                     rows="3"
-                    placeholder="Provide professional justification for this movement..."
+                    placeholder="Tell us why you are giving this item to someone else..."
                     required
                 ></textarea>
             </div>
 
             <div class="space-y-4">
-                <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Handover Details / Issues</label>
+                <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Extra Notes (Missing parts, etc.)</label>
                 <textarea
                     v-model="form.issue_notes"
                     class="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold text-slate-600 placeholder:text-gray-300 transition-all hover:bg-slate-100 focus:ring-2 focus:ring-vilcom-blue"
                     rows="2"
-                    placeholder="List any missing items (chargers, dongles) or specific issues the receiver should know..."
+                    placeholder="e.g. Missing charger, broken key, or special things to know..."
                 ></textarea>
             </div>
         </div>
@@ -136,11 +121,11 @@
         >
           <Loader v-if="submitting" class="size-5" />
           <Send v-else class="size-5 rotate-[-45deg] mb-1" />
-          {{ submitting ? 'PROCESSING TRANSACTION...' : 'INITIATE TRANSFER HANDOVER' }}
+          {{ submitting ? 'SENDING...' : 'SEND TRANSFER REQUEST' }}
         </button>
 
         <p class="text-[10px] text-center text-gray-400 font-bold uppercase tracking-widest px-10 leading-loose">
-          By submitting this request, you acknowledge the current state of assets and formalize the handover workflow.
+          By sending this request, you are confirming the item's state and starting the transfer process.
         </p>
       </div>
     </div>
@@ -162,7 +147,6 @@ const accessories = ref([])
 const licenses = ref([])
 // Consumables removed per system update
 
-const selectedComponents = ref([])
 const selectedAccessories = ref([])
 const selectedLicenses = ref([])
 
@@ -200,7 +184,6 @@ const loadExtras = async () => {
     try {
         const { data } = await axios.get('/api/my-assigned-items');
         
-        components.value = (data.components || []).map(c => ({ ...c, type: 'component', name: c.Component_Name || c.name }));
         accessories.value = (data.accessories || []).map(a => ({ ...a, type: 'accessory', name: a.Accessory_Name || a.name }));
         licenses.value = (data.licenses || []).map(l => ({ ...l, type: 'license', name: l.License_Name || l.name }));
         
@@ -215,7 +198,6 @@ const submitRequest = async () => {
   submitting.value = true
   const items = []
   
-  items.push(...selectedComponents.value.map(id => ({ type: 'component', id: Number(id) })))
   items.push(...selectedAccessories.value.map(id => ({ type: 'accessory', id: Number(id) })))
   items.push(...selectedLicenses.value.map(id => ({ type: 'license', id: Number(id) })))
 
@@ -236,22 +218,21 @@ const submitRequest = async () => {
 
   try {
     await axios.post('/api/request-transfer', payload)
-    alert("Handover request sent! The colleague will receive a notification to verify the items.")
+    alert("Transfer request sent! Your colleague will get a message to confirm.")
     
-    // reset form on success
-    form.value = {
-      asset_id: '',
-      type: 'transfer',
-      receiver_id: '',
-      sender_condition: 'good',
-      missing_items_text: '',
-      issue_notes: '',
-      notes: '',
-      reason: '',
-    }
-    selectedComponents.value = []
-    selectedAccessories.value = []
-    selectedLicenses.value = []
+     // reset form on success
+     form.value = {
+       asset_id: '',
+       type: 'transfer',
+       receiver_id: '',
+       sender_condition: 'good',
+       missing_items_text: '',
+       issue_notes: '',
+       notes: '',
+       reason: '',
+     }
+     selectedAccessories.value = []
+     selectedLicenses.value = []
 
   } catch (err) {
     console.error('transfer submit failed', err)

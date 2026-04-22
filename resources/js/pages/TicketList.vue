@@ -1,5 +1,5 @@
 <template>
-  <div class="p-8 max-w-7xl mx-auto space-y-10">
+  <div class="max-w-7xl mx-auto space-y-10">
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
       <div>
@@ -17,8 +17,8 @@
     </div>
 
     <div class="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
-      <!-- Admin Filters -->
-      <div v-if="role === 'admin'" class="p-8 border-b border-gray-50 flex flex-wrap gap-4 items-center bg-gray-50/30">
+      <!-- Search & Filters -->
+      <div class="p-8 border-b border-gray-50 flex flex-wrap gap-4 items-center bg-gray-50/30">
         <div class="relative group">
           <input 
             v-model="filters.search" 
@@ -177,16 +177,46 @@
         </div>
       </div>
 
+      <!-- Reject Panel -->
+      <div v-if="showReject" class="p-10 bg-red-50/20 border-b border-red-100 space-y-8">
+        <div class="flex items-center justify-between">
+           <div class="flex items-center gap-3">
+              <div class="p-2 bg-red-600 rounded-lg text-white">
+                <AlertCircle class="size-4" />
+              </div>
+              <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Decline Asset Request</h3>
+           </div>
+           <p class="text-[10px] font-bold text-red-600 uppercase tracking-widest bg-red-50 px-3 py-1 rounded-lg">Ticket #{{ rejectTicket?.id }}</p>
+        </div>
+
+        <div class="space-y-6">
+           <div class="space-y-4">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Reason for Rejection *</label>
+              <textarea 
+                v-model="rejectForm.reason" 
+                rows="4"
+                class="w-full bg-white border-none rounded-2xl p-5 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue" 
+                placeholder="Explain why this request is being declined..."
+              ></textarea>
+           </div>
+        </div>
+
+        <div class="flex gap-4">
+           <button @click="submitReject" class="bg-red-600 text-white px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-red-900/10 hover:opacity-90 transition-all active:scale-95">CONFIRM REJECTION</button>
+           <button @click="showReject = false" class="text-gray-400 font-black text-[10px] uppercase tracking-widest hover:text-red-500 transition-colors">Cancel</button>
+        </div>
+      </div>
+
       <!-- Table View -->
-      <div class="overflow-x-auto">
+      <div class="overflow-x-auto border border-slate-200 shadow-xl rounded-xl">
         <table class="w-full text-left border-collapse">
           <thead>
-            <tr class="bg-gray-50/50 border-b border-gray-50">
-              <th v-if="role === 'admin'" class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Originator</th>
-              <th class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Objective Details</th>
-              <th class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Priority</th>
-              <th class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40 text-center">Protocol Status</th>
-              <th class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32 text-right">Interactions</th>
+            <tr class="bg-slate-50 border-b-2 border-slate-200">
+              <th v-if="role === 'admin'" class="p-4 text-[11px] font-black text-slate-700 uppercase tracking-[0.2em] w-48 border-r border-slate-200">Staff Member</th>
+              <th class="p-4 text-[11px] font-black text-slate-700 uppercase tracking-[0.2em] w-auto border-r border-slate-200">Equipment & Requirement Details</th>
+              <th class="p-4 text-[11px] font-black text-slate-700 uppercase tracking-[0.2em] w-24 border-r border-slate-200 text-center">Priority</th>
+              <th class="p-4 text-[11px] font-black text-slate-700 uppercase tracking-[0.2em] w-36 text-center border-r border-slate-200">Protocol Status</th>
+              <th class="p-4 text-[11px] font-black text-slate-700 uppercase tracking-[0.2em] w-48 text-right">Interactions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-50">
@@ -195,71 +225,84 @@
                  <Loader />
               </td>
             </tr>
-            <tr v-for="ticket in rows" :key="ticket.id" class="group transition-all hover:bg-blue-50/30">
-              <td v-if="role === 'admin'" class="p-8">
+            <tr v-for="ticket in rows" :key="ticket.id" class="group transition-all hover:bg-slate-50 border-b border-slate-200">
+              <td v-if="role === 'admin'" class="p-4 border-r border-slate-200 bg-white group-hover:bg-slate-50 transition-colors">
                  <div class="flex items-center gap-3">
-                    <div class="size-10 bg-slate-100 rounded-full flex items-center justify-center font-black text-slate-400 text-xs uppercase">
+                    <div class="size-10 bg-slate-100 rounded-full flex items-center justify-center font-black text-slate-400 text-xs uppercase shadow-inner border border-slate-200">
                        {{ ticket.user?.name.charAt(0) }}
                     </div>
                     <div>
-                      <div class="font-black text-slate-700 text-sm tracking-tight">{{ ticket.user?.name }}</div>
-                      <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{{ ticket.user?.department?.name || 'Staff Member' }}</div>
+                      <div class="font-black text-slate-800 text-sm tracking-tight">{{ ticket.user?.name }}</div>
+                      <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{{ ticket.user?.department?.name || '' }}</div>
                     </div>
                  </div>
               </td>
 
-              <td class="p-8">
+              <td class="p-4 border-r border-slate-200 bg-white group-hover:bg-slate-50 transition-colors">
                  <div class="space-y-1.5 max-w-xl">
-                    <div class="font-black text-slate-800 text-base tracking-tight group-hover:text-vilcom-blue transition-colors">
-                       {{ currentTab === 'asset' ? (ticket.issue?.asset?.Asset_Name || 'Inventory Acquisition') : extractSubject(ticket.Description) }}
+                    <div class="font-black text-slate-900 text-base tracking-tight group-hover:text-vilcom-blue transition-colors">
+                       {{ currentTab === 'asset' ? (ticket.issue?.asset?.Asset_Name || extractRequestedCategory(ticket) || 'Inventory Request') : extractSubject(ticket.Description) }}
                     </div>
-                    <div class="text-[11px] font-bold text-gray-400 leading-relaxed line-clamp-2 italic">
-                       {{ ticket.Description }}
+                    <div class="text-[11px] font-bold text-slate-600 leading-relaxed italic whitespace-pre-wrap">
+                       {{ cleanDescription(ticket.Description) }}
+                    </div>
+                    
+                    <!-- Rejection Reason Display -->
+                    <div v-if="isRejected(ticket)" class="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-2xl flex gap-3 items-start animate-in fade-in slide-in-from-top-1">
+                       <AlertCircle class="size-4 text-red-600 shrink-0 mt-0.5" />
+                       <div>
+                          <p class="text-[10px] font-black text-red-700 uppercase tracking-widest">Rejection Reason</p>
+                          <p class="text-xs font-bold text-red-900 mt-1 leading-relaxed">{{ extractRejectionReason(ticket.Communication_log) }}</p>
+                       </div>
                     </div>
                  </div>
               </td>
 
-              <td class="p-8">
-                <span :class="priorityClass(ticket.Priority)" class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">
+              <td class="p-4 border-r border-slate-200 bg-white group-hover:bg-slate-50 transition-colors text-center">
+                <span :class="priorityClass(ticket.Priority)" class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-200">
                   {{ ticket.Priority }}
                 </span>
               </td>
 
-              <td class="p-8 text-center">
-                <div :class="statusContainerClass(ticket.status?.Status_Name)" class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all">
+              <td class="p-4 text-center border-r border-slate-200 bg-white group-hover:bg-slate-50 transition-colors">
+                <div :class="statusContainerClass(ticket.status?.Status_Name)" class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-slate-200 transition-all">
                    <div :class="statusDotClass(ticket.status?.Status_Name)" class="size-1.5 rounded-full animate-pulse"></div>
                    <span class="text-[10px] font-black uppercase tracking-widest">{{ ticket.status?.Status_Name || 'Processing' }}</span>
                 </div>
               </td>
 
-              <td class="p-8 text-right">
+              <td class="p-4 text-right bg-white group-hover:bg-slate-50 transition-colors">
                 <div class="flex justify-end gap-3 opacity-40 group-hover:opacity-100 transition-opacity">
                    <!-- ACTION TRANSITIONS -->
-                   <template v-if="!isResolved(ticket)">
-                      <button @click="openUpdate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-blue hover:border-vilcom-blue hover:shadow-lg transition-all" title="Sync Logs">
+                   <template v-if="!isRejected(ticket)">
+                      <button @click="openUpdate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-blue hover:border-vilcom-blue hover:shadow-lg transition-all" title="Edit Ticket & Add Note">
                         <Edit3 class="size-4" />
                       </button>
 
-                      <button v-if="role === 'admin' && currentTab === 'general'" @click="resolveTicket(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Resolve Protocol">
+                      <button v-if="role === 'admin' && currentTab === 'general' && !isResolved(ticket)" @click="resolveTicket(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Mark as Resolved">
                         <CheckCircle class="size-4" />
                       </button>
 
-                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset" @click="openAssign(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-orange hover:border-vilcom-orange hover:shadow-lg transition-all" title="Fulfill Hardware">
+                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset && !isResolved(ticket)" @click="openAssign(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Assign Asset to User">
                         <Package class="size-4" />
                       </button>
 
-                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset" @click="openEscalate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-purple-600 hover:border-purple-600 hover:shadow-lg transition-all" title="Escalate to Management">
+                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset && !isResolved(ticket)" @click="openReject(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-red-600 hover:border-red-600 hover:shadow-lg transition-all" title="Reject Request">
+                        <AlertCircle class="size-4" />
+                      </button>
+
+                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset && !isResolved(ticket)" @click="openEscalate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-purple-600 hover:border-purple-600 hover:shadow-lg transition-all" title="Escalate to Management">
                         <ArrowUpRight class="size-4" />
                       </button>
                    </template>
-                   <template v-else>
-                      <div class="p-3 bg-green-50 text-green-600 rounded-xl border border-green-100 flex items-center gap-2" title="Resolution Finalized">
-                        <ShieldCheck class="size-4" />
-                        <span class="text-[9px] font-black uppercase tracking-widest">Archived</span>
+                   <template v-else-if="isRejected(ticket)">
+                      <div class="p-3 bg-red-50 text-red-600 rounded-xl border border-red-100 flex items-center gap-2" title="Request Declined">
+                        <AlertCircle class="size-4" />
+                        <span class="text-[9px] font-black uppercase tracking-widest">Declined</span>
                       </div>
                    </template>
 
-                   <button v-if="role === 'admin'" @click="removeRow(ticket.id)" class="p-3 bg-white border border-gray-100 text-slate-400 rounded-xl hover:text-red-500 hover:border-red-500 hover:shadow-lg transition-all" title="Purge Record">
+                   <button v-if="role === 'admin'" @click="removeRow(ticket.id)" class="p-3 bg-white border border-gray-100 text-slate-400 rounded-xl hover:text-red-500 hover:border-red-500 hover:shadow-lg transition-all" title="Delete Ticket">
                      <Trash2 class="size-4" />
                    </button>
                 </div>
@@ -298,14 +341,19 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, computed, watch } from 'vue'
+import { onMounted, reactive, ref, computed, watch, onUnmounted } from 'vue'
 import axios from 'axios';
+import { useWindowFocus } from '@vueuse/core';
 import { 
   Search, Edit3, UserPlus, CheckCircle, Package, 
   Trash2, ChevronLeft, ChevronRight, Inbox,
   ShieldCheck, Info, AlertCircle, ArrowUpRight
 } from 'lucide-vue-next';
 import Loader from '@/components/Loader.vue';
+
+const isFocused = useWindowFocus()
+const REFRESH_INTERVAL = 20000
+let intervalId = null
 
 const all_rows = ref([])
 const loading = ref(false);
@@ -318,11 +366,17 @@ const pagination = reactive({ current_page: 1, last_page: 1, total: 0 })
 const showUpdate = ref(false)
 const editingId = ref(null)
 const updateForm = reactive({ description: '', priority: 'medium', communication: '' })
+
 const showAssign = ref(false)
 const assignTicket = ref(null)
 const assignForm = reactive({ asset_id: '', communication: '', accessory_allocations: [] })
 const assignOptions = ref([])
 const accessoryOptions = ref([])
+
+const showReject = ref(false)
+const rejectTicket = ref(null)
+const rejectForm = reactive({ reason: '' })
+
 const statuses = ref([])
 const assignSearch = ref('')
 
@@ -337,21 +391,21 @@ const role = (() => {
 const fetchRows = async (page = 1) => {
   loading.value = true
   try {
+    const params = {
+      search: filters.search || undefined,
+      priority: filters.priority || undefined,
+      per_page: filters.per_page,
+      page
+    };
+
     if (role === 'admin') {
-      const { data } = await axios.get('/api/tickets/list', {
-        params: {
-          search: filters.search || undefined,
-          priority: filters.priority || undefined,
-          per_page: filters.per_page,
-          page
-        }
-      })
+      const { data } = await axios.get('/api/tickets/list', { params })
       all_rows.value = data.data || []
       pagination.current_page = data.current_page || 1
       pagination.last_page = data.last_page || 1
       pagination.total = data.total || 0
     } else {
-      const { data } = await axios.get('/api/my-tickets')
+      const { data } = await axios.get('/api/my-tickets', { params })
       all_rows.value = data || []
       pagination.current_page = 1
       pagination.last_page = 1
@@ -387,9 +441,20 @@ const rows = computed(() => {
 const extractSubject = (desc) => {
   if (!desc) return 'General Request';
   const lines = desc.split('\n');
-  const subjectLine = lines.find(l => l.startsWith('Subject:'));
+  const subjectLine = lines.find(l => l.toLowerCase().startsWith('subject:'));
   if (subjectLine) return subjectLine.split(':')[1].trim();
   return 'IT Support Query';
+};
+
+const cleanDescription = (desc) => {
+  if (!desc) return '';
+  // Remove Subject:, Request Category:, Details:, and Request Details: lines
+  return desc
+    .replace(/Subject:.*\n?/i, '')
+    .replace(/Request Category:.*\n?/i, '')
+    .replace(/Details:.*\n?/i, '')
+    .replace(/Request Details:.*\n?/i, '')
+    .trim();
 };
 
 const tabClass = (tabName) => [
@@ -412,9 +477,15 @@ const isResolved = (ticket) => {
   return ['resolved', 'closed', 'completed'].includes(statusName);
 }
 
+const isRejected = (ticket) => {
+  const statusName = ticket.status?.Status_Name?.toLowerCase() || '';
+  return ['rejected', 'cancelled', 'declined'].includes(statusName);
+}
+
 const statusContainerClass = (status) => {
   const s = String(status || '').toLowerCase();
   if (['resolved', 'closed', 'completed'].includes(s)) return 'bg-green-50 text-green-600 border-green-100 shadow-sm shadow-green-900/5';
+  if (['rejected', 'cancelled', 'declined'].includes(s)) return 'bg-red-50 text-red-600 border-red-100 shadow-sm shadow-red-900/5';
   if (s === 'pending' || s === 'new' || s === 'open') return 'bg-orange-50 text-vilcom-orange border-orange-100 shadow-sm shadow-orange-900/5';
   if (s === 'in progress') return 'bg-blue-50 text-vilcom-blue border-blue-100 shadow-sm shadow-blue-900/5';
   return 'bg-gray-50 text-gray-500 border-gray-100';
@@ -423,6 +494,7 @@ const statusContainerClass = (status) => {
 const statusDotClass = (status) => {
   const s = String(status || '').toLowerCase();
   if (['resolved', 'closed', 'completed'].includes(s)) return 'bg-green-500';
+  if (['rejected', 'cancelled', 'declined'].includes(s)) return 'bg-red-500';
   if (s === 'pending' || s === 'new' || s === 'open') return 'bg-vilcom-orange';
   if (s === 'in progress') return 'bg-vilcom-blue';
   return 'bg-gray-400';
@@ -467,6 +539,14 @@ const extractRequestedCategory = (ticket) => {
   return line ? line.split(':').slice(1).join(':').trim() : ''
 }
 
+const extractRejectionReason = (log) => {
+  if (!log) return 'No reason provided.';
+  const lines = log.split('\n');
+  const rejectLine = lines.reverse().find(l => l.includes('REQUEST REJECTED. Reason:'));
+  if (rejectLine) return rejectLine.split('Reason:')[1].trim();
+  return 'Declined by administration.';
+}
+
 const openAssign = async (ticket) => {
   assignTicket.value = ticket
   assignForm.asset_id = ''
@@ -483,33 +563,29 @@ const openAssign = async (ticket) => {
   accessoryOptions.value = (data?.data || []).filter((a) => Number(a.remaining_qty) > 0)
 }
 
-const openEscalate = (ticket) => {
-  escalateTicket.value = ticket
-  escalateForm.item_name = ''
-  escalateForm.estimated_cost = ''
-  escalateForm.reason = ''
-  showEscalate.value = true
+const openReject = (ticket) => {
+  rejectTicket.value = ticket
+  rejectForm.reason = ''
+  showReject.value = true
 }
 
-const submitEscalation = async () => {
-  if (!escalateTicket.value) return
-  if (!escalateForm.item_name || !escalateForm.reason) {
-    alert('Please provide item name and reason for escalation.')
+const submitReject = async () => {
+  if (!rejectTicket.value) return
+  if (!rejectForm.reason) {
+    alert('Please provide a reason for rejection.')
     return
   }
   
   try {
-    await axios.post(`/api/tickets/${escalateTicket.value.id}/escalate`, {
-      item_name: escalateForm.item_name,
-      reason: escalateForm.reason,
-      estimated_cost: escalateForm.estimated_cost || null
+    await axios.post(`/api/tickets/${rejectTicket.value.id}/reject`, {
+      reason: rejectForm.reason
     })
-    showEscalate.value = false
-    alert('Ticket escalated to management for approval.')
+    showReject.value = false
+    alert('Request declined.')
     fetchRows(pagination.current_page)
   } catch (err) {
-    console.error('Escalation failed:', err)
-    alert('Failed to escalate ticket.')
+    console.error('Rejection failed:', err)
+    alert('Failed to reject request.')
   }
 }
 
@@ -558,10 +634,21 @@ const priorityClass = (p) => {
   return 'bg-blue-50 text-vilcom-blue border-blue-100';
 }
 
+watch(isFocused, (focused) => {
+  if (focused) {
+    fetchRows(pagination.current_page)
+  }
+})
+
 onMounted(() => {
   fetchRows()
   if (role === 'admin') {
     loadStatuses();
   }
+  intervalId = setInterval(() => fetchRows(pagination.current_page), REFRESH_INTERVAL)
+})
+
+onUnmounted(() => {
+  if (intervalId) clearInterval(intervalId)
 })
 </script>

@@ -1,26 +1,36 @@
 <template>
-  <div class="p-8 space-y-10">
+  <div class="space-y-10">
     <div class="mb-10">
       <h1 class="text-3xl font-black text-slate-800 tracking-tight">Inventory <span class="text-vilcom-blue">Hub</span></h1>
       <p class="text-sm text-gray-500 font-medium mt-1 uppercase tracking-widest leading-relaxed">Central nexus for all hardware, components, and enterprise software licenses.</p>
     </div>
 
     <!-- Hub Navigation Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
       <router-link 
         v-for="item in hubItems" 
         :key="item.name"
         :to="{ name: item.routeName }"
-        class="group relative bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 flex flex-col items-center text-center overflow-hidden"
+        :class="[
+          'group relative p-10 rounded-[2.5rem] shadow-sm transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 overflow-hidden flex flex-col justify-between min-h-[280px]',
+          item.colorClass
+        ]"
       >
         <!-- Decor -->
-        <div class="absolute -right-4 -top-4 size-20 bg-gray-50 rounded-full group-hover:scale-150 transition-transform duration-700"></div>
+        <div class="absolute -right-6 -top-6 size-32 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
 
-        <div :class="['relative z-10 p-5 rounded-2xl mb-6 shadow-lg group-hover:rotate-6 transition-all duration-300', item.colorClass]">
-          <component :is="item.icon" class="size-8 text-white" />
+        <div class="relative z-10">
+          <div class="p-4 bg-white/20 rounded-2xl w-fit backdrop-blur-md mb-6 shadow-lg group-hover:rotate-6 transition-all duration-500">
+            <component :is="item.icon" class="size-10 text-white" />
+          </div>
+          <h3 class="font-black text-white text-2xl tracking-tight mb-2 uppercase">{{ item.name }}</h3>
+          <p class="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] leading-relaxed">{{ item.description }}</p>
         </div>
-        <h3 class="relative z-10 font-black text-slate-800 text-lg group-hover:text-vilcom-blue transition-colors">{{ item.name }}</h3>
-        <p class="relative z-10 text-xs font-bold text-gray-400 uppercase tracking-widest mt-2 px-4">{{ item.description }}</p>
+
+        <div class="relative z-10 flex items-center gap-2 text-white/40 group-hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest mt-6">
+          <span>Launch Module</span>
+          <ChevronRight class="size-4 group-hover:translate-x-1 transition-transform" />
+        </div>
       </router-link>
     </div>
 
@@ -59,7 +69,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { Barcode, HardDrive, Save, Keyboard } from 'lucide-vue-next';
+import { Barcode, HardDrive, Save, Keyboard, ChevronRight } from 'lucide-vue-next';
 import axios from 'axios';
 
 const hubItems = [
@@ -70,13 +80,7 @@ const hubItems = [
     colorClass: 'bg-vilcom-blue',
     description: 'Hardware, laptops, and equipment'
   },
-  { 
-    name: 'Components', 
-    routeName: 'components-list', 
-    icon: HardDrive, 
-    colorClass: 'bg-indigo-500',
-    description: 'RAM, SSDs, and internal parts'
-  },
+
   { 
     name: 'Licenses', 
     routeName: 'licenses-list', 

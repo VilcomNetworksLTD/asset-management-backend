@@ -10,6 +10,9 @@
          <router-link to="/dashboard/user/report-issue" class="px-5 py-2.5 bg-vilcom-blue text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-blue-900/20 hover:scale-105 transition-transform">
            Report Issue
          </router-link>
+         <router-link to="/dashboard/user/request-transfer" class="px-5 py-2.5 bg-vilcom-orange text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-orange-900/20 hover:scale-105 transition-transform">
+           Transfer Request
+         </router-link>
       </div>
     </div>
 
@@ -17,7 +20,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
       <StatCard title="My Assets" :value="stats.assets" icon="fa-laptop" bgColor="bg-vilcom-blue" link="/dashboard/user/my-assets" />
       <StatCard title="Licenses" :value="stats.licenses" icon="fa-save" bgColor="bg-teal-500" link="/dashboard/user/my-licenses" />
-      <StatCard title="Components" :value="stats.components" icon="fa-hdd" bgColor="bg-indigo-600" link="/dashboard/user/my-components" />
+
       <StatCard title="Accessories" :value="stats.accessories" icon="fa-keyboard" bgColor="bg-vilcom-orange" link="/dashboard/user/my-accessories" />
       <StatCard title="Open Tickets" :value="stats.tickets" icon="fa-ticket-alt" bgColor="bg-red-500" link="/dashboard/user/my-tickets" />
     </div>
@@ -105,40 +108,28 @@
         </div>
       </div>
 
-      <!-- Recent Components -->
-      <div class="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-50 font-black text-[10px] text-gray-400 uppercase tracking-widest bg-slate-50/30">Components</div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-sm">
-            <tbody class="divide-y divide-gray-50">
-              <tr v-if="loading"><td colspan="2" class="p-8 text-center"><Loader /></td></tr>
-              <tr v-for="item in recentComponents" :key="item.id" class="hover:bg-indigo-50/30 transition-colors">
-                <td class="px-6 py-4 font-bold text-indigo-600 truncate max-w-[150px]">{{ item.name }}</td>
-                <td class="px-6 py-4 text-[10px] font-bold text-gray-400 text-right uppercase tracking-widest">{{ item.category }}</td>
-              </tr>
-              <tr v-if="!loading && recentComponents.length === 0"><td class="p-8 text-center text-gray-400 text-xs font-bold italic">None Reserved</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+
     </div>
 
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import axios from 'axios'
+import { useWindowFocus } from '@vueuse/core'
 import Loader from '@/components/Loader.vue'
 import StatCard from '../components/dashboard/StatCard.vue'
 
+const isFocused = useWindowFocus()
+const REFRESH_INTERVAL = 30000
+let intervalId = null
 
 const stats = ref({
   assets: 0,
   tickets: 0,
   licenses: 0,
-  accessories: 0,
-  components: 0
+  accessories: 0
 })
 
 const userName = ref('User')
@@ -146,7 +137,7 @@ const userRole = ref('')
 const recentAssets = ref([])
 const recentLicenses = ref([])
 const recentAccessories = ref([])
-const recentComponents = ref([])
+
 const loading = ref(true)
 
 const fetchDashboardData = async () => {
@@ -158,7 +149,6 @@ const fetchDashboardData = async () => {
       axios.get('/api/user')
     ])
 
-    // Set user name
     userName.value = userResponse?.data?.name ?? 'User'
     userRole.value = userResponse?.data?.role ?? 'staff'
 
@@ -166,17 +156,12 @@ const fetchDashboardData = async () => {
     console.info("this is the page")
     console.log('Dashboard API Data:', data)
 
-
-
-    // Stats
     stats.value.assets = data.my_assets_count ?? 0
     stats.value.tickets = data.open_tickets_count ?? 0
     stats.value.licenses = data.my_licenses_count ?? 0
     stats.value.accessories = data.my_accessories_count ?? 0
-    stats.value.components = data.my_components_count ?? 0
 
 
-    // Assets (handle nested data if paginated)
     let assetsArray = []
 
     if (Array.isArray(data.recent_assets)) {
@@ -188,7 +173,7 @@ const fetchDashboardData = async () => {
     recentAssets.value = assetsArray.slice(0, 5)
     recentLicenses.value = (data.recent_licenses || []).slice(0, 5)
     recentAccessories.value = (data.recent_accessories || []).slice(0, 5)
-    recentComponents.value = (data.recent_components || []).slice(0, 5)
+
 
   } catch (error) {
     console.error('User dashboard error:', error)
@@ -197,7 +182,7 @@ const fetchDashboardData = async () => {
     stats.value.tickets = 0
     stats.value.licenses = 0
     stats.value.accessories = 0
-    stats.value.components=0
+
     recentAssets.value = []
 
   } finally {
@@ -205,5 +190,18 @@ const fetchDashboardData = async () => {
   }
 }
 
-onMounted(fetchDashboardData) 
+watch(isFocused, (focused) => {
+  if (focused) {
+    fetchDashboardData()
+  }
+})
+
+onMounted(() => {
+  fetchDashboardData()
+  intervalId = setInterval(fetchDashboardData, REFRESH_INTERVAL)
+})
+
+onUnmounted(() => {
+  if (intervalId) clearInterval(intervalId)
+})
 </script>

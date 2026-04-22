@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Models\Accessory;
 use App\Models\ActivityLog;
 use App\Models\Asset;
-use App\Models\Component;
+
 use App\Models\Consumable;
 use App\Models\License;
 use App\Models\Maintenance;
@@ -66,10 +66,7 @@ class ReportService
                 'Accessories Report - ' . now()->format('Y-m-d H:i'),
                 $this->generateAccessoriesPayload(),
             ],
-            'components' => [
-                'Components Report - ' . now()->format('Y-m-d H:i'),
-                $this->generateComponentsPayload(),
-            ],
+
             'licenses', 'licences' => [
                 'Licenses Report - ' . now()->format('Y-m-d H:i'),
                 $this->generateLicensesPayload(),
@@ -188,18 +185,7 @@ class ReportService
         ];
     }
 
-    private function generateComponentsPayload(): array
-    {
-        return [
-            'generated_at' => Carbon::now()->toDateTimeString(),
-            'summary' => [
-                'total_components' => Component::count(),
-                'total_remaining_qty' => (int) Component::sum('remaining_qty'),
-                'total_value' => (float) Component::selectRaw('SUM(remaining_qty * price) as total')->value('total'),
-            ],
-            'items' => Component::query()->get(['id', 'name', 'category', 'serial_no', 'total_qty', 'remaining_qty', 'price']),
-        ];
-    }
+
 
     private function generateLicensesPayload(): array
     {
@@ -319,20 +305,7 @@ class ReportService
                     $item['price'] ?? '',
                 ];
             }
-        } elseif ($category === 'components') {
-            $headers = ['generated_at', 'component_id', 'name', 'category', 'serial_no', 'total_qty', 'remaining_qty', 'price'];
-            foreach (($payload['items'] ?? []) as $item) {
-                $rows[] = [
-                    $payload['generated_at'] ?? '',
-                    $item['id'] ?? '',
-                    $item['name'] ?? '',
-                    $item['category'] ?? '',
-                    $item['serial_no'] ?? '',
-                    $item['total_qty'] ?? '',
-                    $item['remaining_qty'] ?? '',
-                    $item['price'] ?? '',
-                ];
-            }
+
         } elseif ($category === 'licenses' || $category === 'licences') {
             $headers = ['generated_at', 'license_id', 'name', 'product_key', 'manufacturer', 'total_seats', 'remaining_seats', 'price'];
             foreach (($payload['items'] ?? []) as $item) {

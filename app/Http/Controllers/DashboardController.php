@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Models\Ticket;
 use App\Models\ActivityLog;
 use App\Models\Accessory;
-use App\Models\Component;
 use App\Models\Consumable;
 use App\Models\License;
 use Illuminate\Http\Request;
@@ -83,11 +82,8 @@ public function index(Request $request)
     // Fetch all other assigned items
     $myLicenses = $user->licenses()->wherePivotNull('returned_at')->get();
     $myAccessories = $user->accessories()->withPivot('quantity')->wherePivotNull('returned_at')->get();
-    $myComponents = $user->components()->withPivot('quantity')->wherePivotNull('returned_at')->get();
-
     // Calculate total quantities for items that have them
     $myAccessoriesCount = $myAccessories->sum(fn($i) => $i->pivot->quantity);
-    $myComponentsCount = $myComponents->sum(fn($i) => $i->pivot->quantity);
 
     $logs = ActivityLog::where('Employee_ID', $user->id)
         ->latest()
@@ -110,10 +106,8 @@ public function index(Request $request)
         'logs' => $logs,
         'my_licenses_count' => $myLicenses->count(),
         'my_accessories_count' => $myAccessoriesCount,
-        'my_components_count' => $myComponentsCount,
         'recent_licenses' => $myLicenses->take(5),
         'recent_accessories' => $myAccessories->take(5),
-        'recent_components' => $myComponents->take(5),
     ]);
 }
     private function getStatusColor($type)

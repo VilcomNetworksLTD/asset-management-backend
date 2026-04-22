@@ -5,6 +5,8 @@ namespace App\Mail;
 use App\Models\SslCertificate;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Content;
+use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Contracts\Queue\ShouldQueue;
 
@@ -12,36 +14,42 @@ class SslExpiryAlert extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public SslCertificate $certificate;
-    public int $daysRemaining;
-
-    public function __construct(SslCertificate $certificate, int $daysRemaining)
-    {
-        $this->certificate = $certificate;
-        $this->daysRemaining = $daysRemaining;
+    /**
+     * Create a new message instance.
+     */
+    public function __construct(
+        public SslCertificate $certificate,
+        public int $daysRemaining
+    ) {
     }
 
-    public function build()
+    /**
+     * Get the message envelope.
+     */
+    public function envelope(): Envelope
     {
-        $subject = "SSL Expiry Alert: {$this->certificate->common_name} expires in {$this->daysRemaining} days";
-        
-        // You can create a view at resources/views/emails/ssl_expiry.blade.php
-        // For now, we use raw text/html for simplicity
-        return $this->subject($subject)
-            ->html($this->generateHtmlContent());
+        return new Envelope(
+            subject: "CRITICAL: SSL Expiry Alert - {$this->certificate->common_name}",
+        );
     }
 
-    private function generateHtmlContent(): string
+    /**
+     * Get the message content definition.
+     */
+    public function content(): Content
     {
-        return "
-            <h1>SSL Certificate Expiry Warning</h1>
-            <p>The certificate for <strong>{$this->certificate->common_name}</strong> is expiring soon.</p>
-            <ul>
-                <li><strong>Days Remaining:</strong> {$this->daysRemaining}</li>
-                <li><strong>Expiry Date:</strong> {$this->certificate->expiry_date->format('Y-m-d')}</li>
-                <li><strong>Installed On:</strong> {$this->certificate->installed_on} ({$this->certificate->installed_on_type})</li>
-            </ul>
-            <p>Please log in to the Asset Management System to acknowledge or renew this certificate.</p>
-        ";
+        return new Content(
+            view: 'emails.v2.ssl_expiry',
+        );
+    }
+
+    /**
+     * Get the attachments for the message.
+     *
+     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+     */
+    public function attachments(): array
+    {
+        return [];
     }
 }
