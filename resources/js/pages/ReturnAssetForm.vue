@@ -39,37 +39,22 @@
             </div>
           </div>
 
-          <div v-if="!loadingExtras" class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <!-- Components -->
-            <div class="space-y-4">
-              <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                <LayoutGrid class="size-3" />
-                Components
-              </div>
-              <div v-if="components.length" class="space-y-2">
-                <label v-for="c in (components || []).filter(item => item)" :key="c.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer group/item shadow-sm">
-                  <input type="checkbox" :value="c.id" v-model="selectedComponents" class="size-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
-                  <span class="text-xs font-bold text-slate-700">{{ c.name }}</span>
-                </label>
-              </div>
-              <div v-else class="text-[10px] text-gray-400 italic">No assigned components</div>
-            </div>
-
-            <!-- Accessories -->
-            <div class="space-y-4">
-              <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                <Keyboard class="size-3" />
-                Accessories
-              </div>
-              <div v-if="accessories.length" class="space-y-2">
-                <label v-for="a in (accessories || []).filter(item => item)" :key="a.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer group/item shadow-sm">
-                  <input type="checkbox" :value="a.id" v-model="selectedAccessories" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
-                  <span class="text-xs font-bold text-slate-700">{{ a.name }}</span>
-                </label>
-              </div>
-              <div v-else class="text-[10px] text-gray-400 italic">No assigned accessories</div>
-            </div>
-          </div>
+           <div v-if="!loadingExtras" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+             <!-- Accessories -->
+             <div class="space-y-4">
+               <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                 <Keyboard class="size-3" />
+                 Accessories
+               </div>
+               <div v-if="accessories.length" class="space-y-2">
+                 <label v-for="a in (accessories || []).filter(item => item)" :key="a.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer group/item shadow-sm">
+                   <input type="checkbox" :value="a.id" v-model="selectedAccessories" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
+                   <span class="text-xs font-bold text-slate-700">{{ a.name }}</span>
+                 </label>
+               </div>
+               <div v-else class="text-[10px] text-gray-400 italic">No assigned accessories</div>
+             </div>
+           </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -143,7 +128,6 @@ import PageHeader from '@/components/PageHeader.vue'
 const router = useRouter()
 
 const myAssets = ref([])
-const components = ref([])
 const accessories = ref([])
 const licenses = ref([])
 // Consumables removed per system update
@@ -151,7 +135,6 @@ const licenses = ref([])
 const loadingExtras = ref(false)
 const loading = ref(false)
 
-const selectedComponents = ref([])
 const selectedAccessories = ref([])
 const selectedLicenses = ref([])
 
@@ -164,7 +147,6 @@ const form = ref({
 
 const isSubmittable = computed(() => {
   return !!form.value.asset_id ||
-    selectedComponents.value.length > 0 ||
     selectedAccessories.value.length > 0 ||
     selectedLicenses.value.length > 0;
 });
@@ -185,8 +167,6 @@ const loadExtras = async () => {
     try {
         const { data } = await axios.get('/api/my-assigned-items');
         
-        
-        components.value = (data.components || []).filter(Boolean).map(c => ({ ...c, name: c.Component_Name || c.name }));
         accessories.value = (data.accessories || []).filter(Boolean).map(a => ({ ...a, name: a.Accessory_Name || a.name }));
         licenses.value = (data.licenses || []).filter(Boolean).map(l => ({ ...l, name: l.License_Name || l.name }));
         
@@ -202,7 +182,6 @@ const submitReturn = async () => {
   loading.value = true
   try {
     const extras = []
-    extras.push(...selectedComponents.value.map(id => ({ type: 'component', id })))
     extras.push(...selectedAccessories.value.map(id => ({ type: 'accessory', id })))
     extras.push(...selectedLicenses.value.map(id => ({ type: 'license', id })))
 
@@ -221,7 +200,6 @@ const submitReturn = async () => {
     alert(msg)
   } finally {
     loading.value = false
-    selectedComponents.value = []
     selectedAccessories.value = []
     selectedLicenses.value = []
   }

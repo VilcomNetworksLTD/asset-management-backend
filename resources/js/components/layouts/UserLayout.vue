@@ -6,11 +6,24 @@
     <!-- MAIN CONTENT AREA -->
     <div class="flex flex-1 pt-16 relative">
       <!-- SIDEBAR NAVIGATION -->
-      <UserSidebar />
+      <UserSidebar :is-open="sidebarOpen" :is-compact="compactSidebar" @close="sidebarOpen = false" />
+
+      <!-- MOBILE OVERLAY -->
+      <div 
+        v-if="sidebarOpen" 
+        @click="sidebarOpen = false"
+        class="fixed inset-0 bg-black/50 z-[9998] lg:hidden backdrop-blur-sm transition-opacity"
+      ></div>
 
       <!-- MAIN CONTENT -->
-      <div class="flex-1 ml-64">
-        <main class="p-8 max-w-[1700px] mx-auto w-full">
+      <div 
+        class="flex-1 transition-all duration-300 min-w-0"
+        :class="[
+          compactSidebar ? 'lg:ml-20' : 'lg:ml-64',
+          'ml-0'
+        ]"
+      >
+        <main class="p-4 md:p-8 max-w-[1700px] mx-auto w-full">
           <router-view v-slot="{ Component }">
             <transition name="fade-slide" mode="out-in">
               <component :is="Component" />
@@ -19,7 +32,7 @@
         </main>
 
         <!-- FOOTER -->
-        <footer class="py-6 px-12 border-t border-gray-100 flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] bg-white">
+        <footer class="py-4 md:py-6 px-4 md:px-12 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] bg-white text-center md:text-left">
            <div>© 2026 Vilcom Networks LTD | Personal Workspace v2.0</div>
            <div class="flex gap-6">
              <span class="hover:text-vilcom-orange cursor-pointer">Staff Portal</span>
@@ -32,18 +45,34 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+import eventBus from '../../eventBus'
 import TopNav from './TopNav.vue'
 import UserSidebar from './UserSidebar.vue'
 
 const router = useRouter()
+const sidebarOpen = ref(false)
+const compactSidebar = ref(localStorage.getItem('compactSidebar') === 'true')
 
 onMounted(() => {
   const userData = localStorage.getItem('user_data')
   if (!userData) {
     router.push({ name: 'login' })
   }
+
+  eventBus.on('toggle-sidebar', () => {
+    sidebarOpen.value = !sidebarOpen.value
+  })
+
+  eventBus.on('toggle-compact-sidebar', (val) => {
+    compactSidebar.value = val
+  })
+})
+
+onBeforeUnmount(() => {
+  eventBus.off('toggle-sidebar')
+  eventBus.off('toggle-compact-sidebar')
 })
 </script>
 

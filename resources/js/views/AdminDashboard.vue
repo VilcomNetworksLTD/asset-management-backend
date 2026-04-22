@@ -60,7 +60,7 @@ export default {
       { title: 'Assets', value: 0, icon: 'fa-barcode', bgColor: 'bg-vilcom-blue', link: '/dashboard/admin/assets' },
       { title: 'Licenses', value: 0, icon: 'fa-save', bgColor: 'bg-indigo-600', link: '/dashboard/admin/licenses' },
       { title: 'Accessories', value: 0, icon: 'fa-keyboard', bgColor: 'bg-vilcom-orange', link: '/dashboard/admin/accessories' },
-      { title: 'Parts', value: 0, icon: 'fa-hdd', bgColor: 'bg-teal-600', link: '/dashboard/admin/components' },
+
       { title: 'Tickets', value: 0, icon: 'fa-ticket-alt', bgColor: 'bg-purple-600', link: '/dashboard/admin/tickets' },
       { title: 'Users', value: 0, icon: 'fa-users', bgColor: 'bg-slate-700', link: '/dashboard/admin/people' },
       { title: 'Security', value: 0, icon: 'fa-lock', bgColor: 'bg-red-600', link: '/dashboard/admin/ssl-certificates' }
@@ -84,7 +84,7 @@ export default {
         stats.value[0].value = data.assets || 0
         stats.value[1].value = data.licenses || 0
         stats.value[2].value = data.accessories || 0
-        stats.value[3].value = data.components || 0
+
         stats.value[4].value = data.tickets || 0
         stats.value[5].value = data.people || 0
         stats.value[6].value = data.ssl_certificates || 0

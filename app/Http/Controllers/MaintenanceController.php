@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use App\Mail\MaintenanceAlert;
 
 class MaintenanceController extends Controller
 {
@@ -102,10 +103,10 @@ class MaintenanceController extends Controller
             "Description: {$maintenance->Description}\n" .
             "Request Date: {$maintenance->Request_Date}";
         foreach ($admins as $admin) {
-            Mail::to($admin->email)->send(new \App\Mail\SimpleNotification($subject, $details));
+            Mail::to($admin->email)->send(new MaintenanceAlert($maintenance, $admin));
         }
         if ($assetOwner && $assetOwner->email) {
-            Mail::to($assetOwner->email)->send(new \App\Mail\SimpleNotification($subject, $details));
+            Mail::to($assetOwner->email)->send(new MaintenanceAlert($maintenance, $assetOwner));
         }
 
         return response()->json($maintenance, 201);

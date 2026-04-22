@@ -168,6 +168,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
+import eventBus from '../eventBus';
 import { 
   User, Mail, Save, Loader2, Monitor, LayoutPanelLeft, Bell, 
   Shield, CheckCircle, History, LogOut, X, Laptop
@@ -176,6 +177,7 @@ import {
 const loading = ref({ profile: false, logout: false });
 const showLoginHistory = ref(false);
 const notifications = ref(true);
+const compactSidebar = ref(false);
 
 const profileForm = ref({
   name: '',
@@ -200,7 +202,7 @@ onMounted(() => {
 const toggleCompactSidebar = () => {
   compactSidebar.value = !compactSidebar.value;
   localStorage.setItem('compactSidebar', compactSidebar.value);
-  window.dispatchEvent(new CustomEvent('toggle-compact-sidebar', { detail: compactSidebar.value }));
+  eventBus.emit('toggle-compact-sidebar', compactSidebar.value);
 };
 
 const toggleNotifications = () => {

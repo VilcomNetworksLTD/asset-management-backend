@@ -60,6 +60,10 @@ class AuthandAccessController extends Controller
                     'password' => $request->password,
                     'scope' => '',
                 ]);
+                Log::info('HUB token response', [
+    'status' => $response->status(),
+    'body' => $response->json()
+]);
 
             if ($response->failed()) {
                 $hubError = $response->json();
@@ -153,33 +157,37 @@ class AuthandAccessController extends Controller
             $localRole = in_array($hubRole, $allowedLocalRoles) ? $hubRole : 'employee';
 
             // 5. Sync user locally
-            $localUser = User::updateOrCreate(
+            $localUser = User::withTrashed()->updateOrCreate(
                 ['email' => $hubUser['email']],
                 [
                     'name' => $fullName ?: ($hubUser['name'] ?? 'Hub User'),
                     'password' => bcrypt(Str::random(24)), // dummy password
                     'role' => $localRole,
                     'is_active' => $hubUser['is_active'] ?? 1,
+                    'is_verified' => 1,
+                    'deleted_at' => null, // Ensure restored if soft-deleted
                 ]
             );
 
-            // Fetch departments from hub and sync
-            $this->safetikaService->syncDepartments();
+           // Fetch departments from hub and sync (non-blocking)
+try {
+    $this->safetikaService->syncDepartments($accessToken);
+} catch (\Exception $e) {
+    Log::error('Department sync failed (non-blocking)', [
+        'error' => $e->getMessage()
+    ]);
+}
 
-// Try various ways Safetika might return department info
+            // Initialize variables to avoid undefined variable errors if the hub data is missing
+            $firstDept = null;
             $deptId = null;
             $deptName = null;
+            $departments = $hubUser['departments'] ?? [];
 
-            // Check for departments array: { departments: [{ id: 1, name: "CSS" }] }
-            if (isset($hubUser['departments']) && is_array($hubUser['departments']) && !empty($hubUser['departments'])) {
-                $firstDept = $hubUser['departments'][0];
+            if (!empty($departments)) {
+                $firstDept = $departments[0];
                 $deptId = $firstDept['id'] ?? null;
-                $deptName = $firstDept['name'] ?? $firstDept['title'] ?? null;
-            }
-            // Check for nested department object: { department: { id: 1, name: "IT" } }
-            elseif (isset($hubUser['department']) && is_array($hubUser['department'])) {
-                $deptId = $hubUser['department']['id'] ?? null;
-                $deptName = $hubUser['department']['name'] ?? $hubUser['department']['title'] ?? null;
+                $deptName = $firstDept['name'] ?? null;
             }
             // Check for department_name string
             elseif (isset($hubUser['department_name']) && is_string($hubUser['department_name'])) {
@@ -210,47 +218,59 @@ class AuthandAccessController extends Controller
                 $deptName = $hubUser['team'];
             }
 
-            Log::info('Looking for department', [
-                'deptId' => $deptId,
-                'deptName' => $deptName,
-                'hubUser_fields' => array_keys($hubUser)
+          Log::info('Department extraction', [
+    'raw_departments' => $departments,
+    'selected_dept' => $firstDept,
+    'deptId' => $deptId,
+    'deptName' => $deptName,
             ]);
 
-            // Find and assign department
-            if ($deptId) {
-                $dept = Department::find($deptId);
-                if ($dept) {
-                    Log::info('Department by ID lookup', ['deptId' => $deptId, 'found_dept' => $dept->name]);
-                    $localUser->department_id = $dept->id;
-                    $localUser->save();
-                } elseif ($deptName) {
-                    // Fall back to name if ID not found locally
-                    $dept = Department::firstOrCreate(
-                        ['name' => $deptName],
-                        ['description' => 'Synced from Safetika Hub']
-                    );
-                    Log::info('Department created from name (ID not found)', ['deptName' => $deptName, 'deptId' => $dept->id]);
-                    $localUser->department_id = $dept->id;
-                    $localUser->save();
-                } else {
-                    Log::warning('Department ID not found and no name fallback', ['deptId' => $deptId]);
-                }
-            } elseif ($deptName) {
-                $dept = Department::firstOrCreate(
-                    ['name' => $deptName],
-                    ['description' => 'Synced from Safetika Hub']
-                );
-                Log::info('Department by name lookup', ['deptName' => $deptName, 'deptId' => $dept->id]);
-                $localUser->department_id = $dept->id;
-                $localUser->save();
-            }
+            // Find and assign department (FIXED)
+$dept = null;
 
-            Log::info('User department assigned', [
-                'user_id' => $localUser->id,
-                'department_id' => $localUser->department_id,
-                'deptId_from_hub' => $deptId,
-                'deptName_from_hub' => $deptName
-            ]);
+// Try by ID first
+if ($deptId) {
+    $dept = Department::withTrashed()->find($deptId);
+    if ($dept && $dept->trashed()) {
+        $dept->restore();
+    }
+}
+
+// If NOT found by ID, fallback to name
+if (!$dept && $deptName) {
+    $dept = Department::withTrashed()->where('name', $deptName)->first();
+    
+    if ($dept) {
+        $dept->restore();
+        $dept->update(['description' => 'Synced from Safetika Hub']);
+    } else {
+        $dept = Department::create([
+            'name' => $deptName,
+            'description' => 'Synced from Safetika Hub'
+        ]);
+    }
+}
+
+// FINAL fallback (optional but VERY useful)
+if (!$dept && $deptId) {
+    $dept = Department::create([
+        'name' => 'Department '.$deptId,
+        'description' => 'Auto-created (ID fallback)'
+    ]);
+}
+
+// Assign if we found or created something
+if ($dept) {
+    $localUser->department_id = $dept->id;
+    $localUser->save();
+}
+
+// 🔍 Debug log (keep this while testing)
+Log::info('Final department assignment', [
+    'deptId_from_hub' => $deptId,
+    'deptName_from_hub' => $deptName,
+    'assigned_department' => $dept
+]);
 
             // 6. Create Sanctum token
             $token = $localUser->createToken('ams_auth_token')->plainTextToken;

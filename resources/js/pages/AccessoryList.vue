@@ -21,7 +21,7 @@ const pagination = reactive({ current_page: 1, last_page: 1, total: 0 })
 
 const showForm = ref(false)
 const editingId = ref(null)
-const form = reactive({ name: '', category: '', model_number: '', total_qty: 0, remaining_qty: 0, price: '' })
+const form = reactive({ name: '', category: '', model_number: '', serial_no: '', total_qty: 0, remaining_qty: 0, price: '' })
 
 const showAssignForm = ref(false)
 const assignForm = reactive({ item: null, user_id: '', quantity: 1 })
@@ -64,7 +64,7 @@ const fetchRows = async (page = 1) => {
 
 const openCreate = () => {
   editingId.value = null
-  Object.assign(form, { name: '', category: '', model_number: '', total_qty: 0, remaining_qty: 0, price: '' })
+  Object.assign(form, { name: '', category: '', model_number: '', serial_no: '', total_qty: 0, remaining_qty: 0, price: '' })
   showForm.value = true
 }
 
@@ -149,6 +149,15 @@ onMounted(() => {
         <option value="Charger">Charger</option>
         <option value="Cables">Cables</option>
         <option value="Adapters">Adapters</option>
+        <option value="Motherboard">Motherboard</option>
+        <option value="CPU">CPU</option>
+        <option value="RAM">RAM</option>
+        <option value="GPU">GPU</option>
+        <option value="Hard Drive">Hard Drive</option>
+        <option value="Power Supply">Power Supply</option>
+        <option value="Keyboard">Keyboard</option>
+        <option value="Mouse">Mouse</option>
+        <option value="Network Card">Network Card</option>
       </select>
       
       <select v-model.number="filters.per_page" class="border px-3 py-2 rounded text-sm">
@@ -172,9 +181,19 @@ onMounted(() => {
         <option value="Charger">Charger</option>
         <option value="Cables">Cables</option>
         <option value="Adapters">Adapters</option>
+        <option value="Motherboard">Motherboard</option>
+        <option value="CPU">CPU</option>
+        <option value="RAM">RAM</option>
+        <option value="GPU">GPU</option>
+        <option value="Hard Drive">Hard Drive</option>
+        <option value="Power Supply">Power Supply</option>
+        <option value="Keyboard">Keyboard</option>
+        <option value="Mouse">Mouse</option>
+        <option value="Network Card">Network Card</option>
       </select>
 
       <input v-model="form.model_number" class="border p-2 rounded" placeholder="Model Number" />
+      <input v-model="form.serial_no" class="border p-2 rounded" placeholder="Serial Number" />
       <input v-model="form.total_qty" type="number" class="border p-2 rounded" placeholder="Total Qty" />
       <input v-model="form.remaining_qty" type="number" class="border p-2 rounded" placeholder="Remaining Qty" />
       <input v-model="form.price" type="number" class="border p-2 rounded" placeholder="Price" />
@@ -227,17 +246,19 @@ onMounted(() => {
             <th class="p-4">Name</th>
             <th class="p-4">Category</th>
             <th class="p-4">Model No.</th>
+            <th class="p-4">Serial No.</th>
             <th class="p-4 text-center">Availability</th>
             <th class="p-4 text-right">Price</th>
             <th class="p-4 text-center">Actions</th>
           </tr>
         </thead>
         <tbody class="text-[13px] divide-y">
-          <tr v-if="loading"><td colspan="6" class="p-8 text-center text-gray-500 italic">Loading accessories...</td></tr>
+          <tr v-if="loading"><td colspan="7" class="p-8 text-center text-gray-500 italic">Loading accessories...</td></tr>
           <tr v-for="item in rows" :key="item.id" class="hover:bg-gray-50 transition-colors">
             <td class="p-4 font-bold text-[#3c8dbc]">{{ item.name }}</td>
             <td class="p-4">{{ item.category }}</td>
             <td class="p-4 font-mono text-[11px] text-gray-500">{{ item.model_number || 'N/A' }}</td>
+            <td class="p-4 font-mono text-[11px] text-gray-500">{{ item.serial_no || 'N/A' }}</td>
             <td class="p-4 text-center">
               <span class="px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-bold" :class="item.remaining_qty < 1 ? 'text-red-600' : 'text-gray-700'">
                 {{ item.remaining_qty }} / {{ item.total_qty }}

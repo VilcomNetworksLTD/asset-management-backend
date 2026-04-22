@@ -4,7 +4,7 @@ namespace App\Services;
 
 
 
-use App\Models\{Asset, Transfer, User, License, Accessory, Consumable, Component, SslCertificate, Ticket};
+use App\Models\{Asset, Transfer, User, License, Accessory, Consumable, SslCertificate, Ticket};
 use Illuminate\Support\Facades\DB;
 
 class DashboardService
@@ -23,7 +23,7 @@ class DashboardService
         $licenses = License::count();
         $accessories = Accessory::count();
         $consumables = Consumable::count();
-        $components = Component::count();
+
         $users = User::count();
         $ssl_certificates = SslCertificate::count();
         $tickets = Ticket::count();
@@ -33,7 +33,7 @@ class DashboardService
             'total_assets'      => $assets,
             'total_licenses'    => $licenses,
             'total_accessories' => $accessories,
-            'total_components'  => $components,
+
             'total_users'       => $users,
             'total_ssl_certificates' => $ssl_certificates,
 
@@ -41,7 +41,7 @@ class DashboardService
             'assets'            => $assets,
             'licenses'          => $licenses,
             'accessories'       => $accessories,
-            'components'        => $components,
+
             'tickets'           => $tickets,
             'ssl_certificates'  => $ssl_certificates,
             'people'            => $users,

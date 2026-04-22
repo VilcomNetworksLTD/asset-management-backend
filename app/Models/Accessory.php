@@ -17,6 +17,7 @@ class Accessory extends Model
         'name',
         'category',
         'model_number',
+        'serial_no',
         'total_qty',
         'remaining_qty',
         'price', 

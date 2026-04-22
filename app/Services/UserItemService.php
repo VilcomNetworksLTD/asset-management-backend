@@ -14,11 +14,7 @@ class UserItemService
         return $user->accessories()->wherePivotNull('returned_at')->get();
     }
 
-    public function getMyComponents()
-    {
-        $user = Auth::user();
-        return $user->components()->wherePivotNull('returned_at')->get();
-    }
+
 
     public function getMyConsumables()
     {
@@ -48,13 +44,13 @@ class UserItemService
             'my_licenses_count' => $user->licenses()->wherePivotNull('returned_at')->count(),
             'my_accessories_count' => (int) DB::table('accessory_user')->where('user_id', $user->id)->whereNull('returned_at')->sum('quantity'),
             'my_consumables_count' => (int) DB::table('consumable_user')->where('user_id', $user->id)->whereNull('returned_at')->sum('quantity'),
-            'my_components_count' => (int) DB::table('component_user')->where('user_id', $user->id)->whereNull('returned_at')->sum('quantity'),
+
 
             'recent_assets' => $user->assets()->latest()->take(5)->get(),
             'recent_licenses' => $user->licenses()->wherePivotNull('returned_at')->latest('license_user.created_at')->take(5)->get(),
             'recent_accessories' => $user->accessories()->wherePivotNull('returned_at')->latest('accessory_user.created_at')->take(5)->get(),
             'recent_consumables' => $user->consumables()->wherePivotNull('returned_at')->latest('consumable_user.created_at')->take(5)->get(),
-            'recent_components' => $user->components()->wherePivotNull('returned_at')->latest('component_user.created_at')->take(5)->get(),
+
         ];
     }
 }

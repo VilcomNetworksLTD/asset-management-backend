@@ -7,7 +7,6 @@ use App\Http\Controllers\{
     AssetController,
     AccessoryController,
     ConsumableController,
-    ComponentController,
     FeedbackController,
     LicenseController,
     MaintenanceController,
@@ -156,17 +155,6 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::delete('/maintenances/{id}', 'destroy');
     });
     
-    // --- Components ---
-    Route::controller(ComponentController::class)->group(function () {
-        Route::get('/components', 'index');
-        Route::get('/components/list', 'list');
-        Route::post('/components', 'store');
-        Route::put('/components/{id}', 'update');
-        Route::delete('/components/{id}', 'destroy');
-        Route::post('/components/{id}/assign', 'assign');
-        Route::get('/my-components', 'myComponents');
-    });
-
     // --- Logistics & Transfers ---
     Route::controller(TransferController::class)->group(function () {
         Route::get('/transfers', 'index');             
@@ -206,6 +194,7 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::post('/tickets', 'store');            
         Route::post('/tickets/{id}/assign-asset', 'assignAsset'); 
         Route::post('/tickets/{id}/escalate', 'escalateToPurchase');
+        Route::post('/tickets/{id}/reject', 'reject');
         Route::post('/workflow/returns', 'createReturnRequest'); 
         Route::post('/workflow/returns/{id}/process', 'processReturn');
         Route::put('/tickets/{id}', 'update');

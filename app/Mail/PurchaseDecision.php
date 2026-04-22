@@ -2,15 +2,16 @@
 
 namespace App\Mail;
 
-use App\Models\SslCertificate;
+use App\Models\PurchaseRequest;
+use App\Models\User;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Contracts\Queue\ShouldQueue;
 
-class SslExpiryAlert extends Mailable implements ShouldQueue
+class PurchaseDecision extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -18,8 +19,9 @@ class SslExpiryAlert extends Mailable implements ShouldQueue
      * Create a new message instance.
      */
     public function __construct(
-        public SslCertificate $certificate,
-        public int $daysRemaining
+        public PurchaseRequest $purchase,
+        public User $recipient,
+        public string $status // 'approved' or 'rejected'
     ) {
     }
 
@@ -28,8 +30,9 @@ class SslExpiryAlert extends Mailable implements ShouldQueue
      */
     public function envelope(): Envelope
     {
+        $statusLabel = strtoupper($this->status);
         return new Envelope(
-            subject: "CRITICAL: SSL Expiry Alert - {$this->certificate->common_name}",
+            subject: "Purchase Request {$statusLabel}: {$this->purchase->item_name}",
         );
     }
 
@@ -39,7 +42,7 @@ class SslExpiryAlert extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            view: 'emails.v2.ssl_expiry',
+            view: 'emails.v2.purchase_decision',
         );
     }
 

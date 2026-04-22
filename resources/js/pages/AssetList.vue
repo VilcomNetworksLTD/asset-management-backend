@@ -11,6 +11,8 @@ const categories = ref([]);
 const locations = ref([]);
 const suppliers = ref([]);
 const showAddModal = ref(false);
+const showBarcodePreviewModal = ref(false);
+const assetForPreview = ref(null);
 const loading = ref(true);
 
 const isFocused = useWindowFocus();

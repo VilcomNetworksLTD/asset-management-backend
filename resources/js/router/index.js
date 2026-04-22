@@ -10,7 +10,6 @@ const ConsumableList = () => import('../pages/ConsumableList.vue');
 const PeopleList = () => import('../pages/PeopleList.vue');
 const AccessoryList = () => import('../pages/AccessoryList.vue');
 const LicenseList = () => import('../pages/LicenseList.vue');
-const ComponentList = () => import('../pages/ComponentList.vue');
 const MaintenanceList = () => import('../pages/MaintenanceList.vue');
 const ActivityLogList = () => import('../pages/ActivityLogList.vue');
 const ReportsList = () => import('../pages/ReportsList.vue');
@@ -101,7 +100,7 @@ const routes = [{
             { path: 'suppliers', name: 'suppliers-list', component: Supplier },
             { path: 'accessories', name: 'accessories-list', component: AccessoryList },
             { path: 'licenses', name: 'licenses-list', component: LicenseList },
-            { path: 'components', name: 'components-list', component: ComponentList },
+
             { path: 'maintenances', name: 'maintenances-list', component: MaintenanceList },
             { path: 'logs', name: 'activitylogs-list', component: ActivityLogList },
             { path: 'reports', name: 'reports-list', component: ReportsList },
@@ -166,13 +165,7 @@ const routes = [{
                     import ('../pages/UserLicenseList.vue'),
                 meta: { layout: 'UserLayout', requiresAuth: true }
             },
-            {
-                path: 'my-components',
-                name: 'user-components',
-                component: () =>
-                    import ('../pages/UserComponentList.vue'),
-                meta: { layout: 'UserLayout', requiresAuth: true }
-            },
+
             {
                 path: 'my-accessories',
                 name: 'user-accessories',

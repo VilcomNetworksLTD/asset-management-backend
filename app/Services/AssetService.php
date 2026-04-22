@@ -2,14 +2,13 @@
 
 namespace App\Services;
 
-use App\Models\Asset;
 use App\Models\ActivityLog;
-use App\Models\User;
-use App\Models\Status;
+use App\Models\Asset;
 use App\Models\Category;
-use Illuminate\Support\Facades\Storage;
+use App\Models\Status;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class AssetService
 {
@@ -32,7 +31,7 @@ class AssetService
     {
         return DB::transaction(function () use ($data) {
             $purchaseDate = $data['Purchase_Date'] ?? now()->toDateString();
-            
+
             // 1. Default Status Logic
             $availableStatusId = Status::query()
                 ->whereIn('Status_Name', ['Available', 'Ready to Deploy'])
@@ -41,7 +40,7 @@ class AssetService
             $data['Status_ID'] = $data['Status_ID'] ?? $availableStatusId ?? 1;
 
             // 2. Pricing Logic
-            if (!empty($data['Price'])) {
+            if (! empty($data['Price'])) {
                 $data['depreciation_value'] = $data['Price'] * 0.10;
                 $data['current_value'] = $data['Price'] - $data['depreciation_value'];
             } else {
@@ -50,12 +49,14 @@ class AssetService
             }
 
             // 3. Backward Compatibility
-            if (!isset($data['Asset_Category']) && isset($data['category_id'])) {
+            if (! isset($data['Asset_Category']) && isset($data['category_id'])) {
                 $cat = Category::find($data['category_id']);
-                if ($cat) $data['Asset_Category'] = $cat->name;
+                if ($cat) {
+                    $data['Asset_Category'] = $cat->name;
+                }
             }
 
-            // 4. Create Core Asset 
+            // 4. Create Core Asset
             // Ensure 'custom_attributes' is part of the $data array passed here
             $asset = Asset::create($data);
 
@@ -65,13 +66,13 @@ class AssetService
 
             // 6. Activity Logging
             ActivityLog::create([
-                'asset_id'    => $asset->id,
+                'asset_id' => $asset->id,
                 'Employee_ID' => Auth::id(),
-                'user_name'   => Auth::user()->name ?? 'System',
-                'action'      => 'Created',
+                'user_name' => Auth::user()->name ?? 'System',
+                'action' => 'Created',
                 'target_type' => 'Asset',
                 'target_name' => $asset->Asset_Name,
-                'details'     => "Purchased: $purchaseDate | Barcode: {$asset->barcode}",
+                'details' => "Purchased: $purchaseDate | Barcode: {$asset->barcode}",
             ]);
 
             return $asset->load(['status', 'supplier', 'user', 'category', 'locationModel']);
@@ -105,10 +106,10 @@ class AssetService
             $asset->update($data);
 
             ActivityLog::create([
-                'asset_id'    => $asset->id,
+                'asset_id' => $asset->id,
                 'Employee_ID' => Auth::id(),
-                'user_name'   => Auth::user()->name ?? 'System',
-                'action'      => 'Updated',
+                'user_name' => Auth::user()->name ?? 'System',
+                'action' => 'Updated',
                 'target_type' => 'Asset',
                 'target_name' => $asset->Asset_Name,
             ]);
@@ -116,6 +117,6 @@ class AssetService
             return $asset->fresh()->load(['status', 'supplier', 'user', 'category', 'locationModel']);
         });
     }
-    
+
     // ... rest of your methods (delete, assign, etc.) remain the same
 }

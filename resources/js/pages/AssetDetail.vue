@@ -50,15 +50,20 @@ const isAdmin = computed(() => {
   const isExplicitAdmin = route.name === 'asset-detail';
   
   const isHOD = userData.role?.toLowerCase() === 'hod' || userData.role?.toLowerCase() === 'manager';
-  const isManagementContext = route.path.includes('/tasks') || route.path.includes('/manage') || route.path.includes('/inventory') || route.path.includes('/definitions');
+  const isManagementContext = route.path.includes('/tasks') || route.path.includes('/manage') || route.path.includes('/inventory') || route.path.includes('/definitions') || route.path.includes('/hod');
   
-  // Check if HOD created either the category OR the asset itself
+  // Check if HOD/Manager created either the category OR the asset itself
   const createdCategory = asset.value?.category?.created_by === userData.id;
   const createdAsset = asset.value?.created_by === userData.id;
   
-  const isHODManager = isHOD && (createdCategory || createdAsset) && isManagementContext;
+  // Full access if in management context (regardless of who created the asset)
+  const isManagerInContext = isHOD && isManagementContext;
   
-  return isExplicitAdmin || isHODManager;
+  // Or if created the asset/category
+  const isAssetCreator = isHOD && (createdCategory || createdAsset);
+  
+  // Superadmin or Management/HOD in their respective sections
+  return (userData.role?.toLowerCase() === 'admin' || userData.role?.toLowerCase() === 'management') || isExplicitAdmin || isManagerInContext || isAssetCreator;
 });
 
 // Assignment logic
@@ -152,19 +157,17 @@ const handleFieldFileUpload = (key, event) => {
 
 const openAssignModal = async () => {
   assignmentForm.receiver_id = null;
-  assignmentForm.selected_components = [];
+  assignmentForm.receiver_id = null;
   assignmentForm.notes = '';
   showAssignModal.value = true;
 
   if (!isAdmin.value) return; // Extra safety
 
   try {
-    const [userRes, compRes] = await Promise.all([
-      axios.get('/api/users-list'),
-      axios.get('/api/components/list', { params: { per_page: 100 } })
+    const [userRes] = await Promise.all([
+      axios.get('/api/users-list')
     ]);
     usersForDropdown.value = userRes.data;
-    componentsForDropdown.value = (compRes.data.data || compRes.data || []).filter(c => c.remaining_qty > 0);
   } catch (error) {
     console.error("Failed to fetch dropdown data:", error);
   }
@@ -182,8 +185,7 @@ const submitAssignment = async () => {
       asset_id: asset.value.id,
       receiver_id: assignmentForm.receiver_id,
       notes: assignmentForm.notes,
-      direct: assignmentForm.direct,
-      items: assignmentForm.selected_components.map(id => ({ type: 'component', id }))
+      direct: assignmentForm.direct
     };
 
     await axios.post('/api/admin/assets/assign', payload);
@@ -301,7 +303,7 @@ const saveChanges = async () => {
 };
 
 const hasCategoryFields = computed(() => {
-  return asset.value?.category?.fields && asset.value.category.fields.length > 0;
+  return asset.value?.category?.fields?.length > 0;
 });
 
 onMounted(() => {
@@ -411,12 +413,12 @@ onMounted(() => {
               </div>
               <div>
                 <h2 class="text-xl font-black text-slate-800 tracking-tight">Technical Specifications</h2>
-                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dynamic attributes for {{ asset.category.name }}</p>
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dynamic attributes for {{ asset.category?.name || 'this category' }}</p>
               </div>
            </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-               <div v-for="field in asset.category.fields" :key="field.key" class="space-y-2">
+               <div v-for="field in asset.category?.fields" :key="field.key" class="space-y-2">
                  <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                    {{ field.label }}
                    <span v-if="isAdmin && field.type" class="ml-2 text-vilcom-blue/30 lowercase">({{ field.type }})</span>
@@ -612,26 +614,6 @@ onMounted(() => {
               </option>
             </select>
             <ChevronDown class="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 size-5 pointer-events-none" />
-          </div>
-        </div>
-
-        <div class="space-y-4">
-          <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex justify-between">
-            Include Extra Parts
-            <span class="text-vilcom-blue">{{ assignmentForm.selected_components.length }} selected</span>
-          </label>
-          <div class="bg-slate-50 rounded-[2rem] p-6 max-h-60 overflow-y-auto custom-scrollbar space-y-2 border border-slate-100">
-            <label v-for="comp in componentsForDropdown" :key="comp.id" class="flex items-center gap-4 bg-white p-4 rounded-xl hover:bg-blue-50/50 cursor-pointer transition-colors group/comp">
-              <input type="checkbox" :value="comp.id" v-model="assignmentForm.selected_components" class="size-5 rounded border-gray-200 text-vilcom-blue focus:ring-vilcom-blue" />
-              <div class="flex-1">
-                <div class="text-xs font-black text-slate-700">{{ comp.name }}</div>
-                <div class="text-[9px] font-bold text-gray-400 uppercase mt-0.5">Remaining in stock: {{ comp.remaining_qty }} units</div>
-              </div>
-              <PackageCheck class="size-4 text-gray-200 group-hover/comp:text-vilcom-blue transition-colors" />
-            </label>
-            <div v-if="componentsForDropdown.length === 0" class="p-12 text-center text-[10px] font-black text-gray-300 uppercase tracking-widest italic">
-              No transferable components in stock
-            </div>
           </div>
         </div>
 

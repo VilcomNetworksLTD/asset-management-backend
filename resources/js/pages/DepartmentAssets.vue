@@ -123,6 +123,12 @@ const showAssetDetails = async (asset, staff) => {
   }
 }
 
+const getFieldLabel = (key) => {
+  if (!selectedAsset.value?.category?.fields) return key;
+  const field = selectedAsset.value.category.fields.find(f => f.key === key);
+  return field ? field.label : key;
+};
+
 const components = { Loader }
 </script>
 
@@ -276,7 +282,7 @@ const components = { Loader }
                       <h3 class="text-sm font-bold text-slate-800 group-hover:text-vilcom-orange transition-colors line-clamp-2">
                         {{ asset.Asset_Name }}
                       </h3>
-                      <p class="text-xs text-slate-400 font-mono mt-2">{{ asset.Serial_No || 'No SN' }}</p>
+                      <p v-if="asset.Serial_No" class="text-xs text-slate-400 font-mono mt-2">{{ asset.Serial_No }}</p>
                     </div>
                     <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-vilcom-blue/10 to-vilcom-orange/10 flex items-center justify-center shrink-0 ml-3">
                       <Package class="text-vilcom-blue size-5" />
@@ -372,7 +378,7 @@ const components = { Loader }
               <h4 class="text-sm font-black text-slate-800 mb-4">Specifications</h4>
               <div class="grid grid-cols-2 gap-3">
                 <div v-for="(value, key) in selectedAsset.custom_attributes" :key="key" class="bg-slate-50 rounded-lg p-3">
-                  <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ key }}</label>
+                  <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ getFieldLabel(key) }}</label>
                   <p class="text-sm font-bold text-slate-700 mt-1">{{ value }}</p>
                 </div>
               </div>

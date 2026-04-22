@@ -80,13 +80,7 @@ const hubItems = [
     colorClass: 'bg-vilcom-blue',
     description: 'Hardware, laptops, and equipment'
   },
-  { 
-    name: 'Components', 
-    routeName: 'components-list', 
-    icon: HardDrive, 
-    colorClass: 'bg-indigo-500',
-    description: 'RAM, SSDs, and internal parts'
-  },
+
   { 
     name: 'Licenses', 
     routeName: 'licenses-list', 
