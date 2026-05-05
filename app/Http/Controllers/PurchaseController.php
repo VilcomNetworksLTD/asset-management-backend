@@ -120,6 +120,7 @@ class PurchaseController extends Controller
         $data = $request->validate([
             'status' => 'required|string|in:approved,rejected',
             'rejection_reason' => 'nullable|string',
+            'notes' => 'nullable|string',
             'estimated_cost' => 'nullable|numeric',
         ]);
 
@@ -128,6 +129,7 @@ class PurchaseController extends Controller
             'rejection_reason' => $data['rejection_reason'] ?? null,
             'management_id' => $user->id,
             'estimated_cost' => $data['estimated_cost'] ?? $pRequest->estimated_cost,
+            'notes' => $data['notes'] ?? $pRequest->notes,
         ]);
 
         // Send email notification to requester and admin
@@ -140,6 +142,7 @@ class PurchaseController extends Controller
         
         $message = $data['status'] === 'approved'
             ? "Your purchase request for '{$pRequest->item_name}' has been APPROVED by Management.\n\n" .
+              "Notes: " . ($data['notes'] ?? 'None') . "\n\n" .
               "Approved Budget: " . ($data['estimated_cost'] ?? $pRequest->estimated_cost ?? 'Not specified') . "\n\n" .
               "Procurement can now proceed."
             : "Your purchase request for '{$pRequest->item_name}' has been REJECTED by Management.\n\n" .
@@ -246,10 +249,15 @@ class PurchaseController extends Controller
 
         $purchase = PurchaseRequest::with(['requester'])->findOrFail($id);
         
+        $data = $request->validate([
+            'notes' => 'nullable|string'
+        ]);
+
         $purchase->update([
             'status' => 'approved',
             'management_id' => $user->id,
-            'approved_at' => now()
+            'approved_at' => now(),
+            'notes' => $data['notes'] ?? $purchase->notes
         ]);
 
         ActivityLog::create([
@@ -258,7 +266,7 @@ class PurchaseController extends Controller
             'action' => 'Purchase Approved',
             'target_type' => 'PurchaseRequest',
             'target_name' => $purchase->item_name,
-            'details' => "Management approved purchase for: {$purchase->item_name}"
+            'details' => "Management approved purchase for: {$purchase->item_name}. Notes: " . ($data['notes'] ?? 'None')
         ]);
 
         // Notify Staff and Admin
@@ -296,7 +304,7 @@ class PurchaseController extends Controller
             'action' => 'Purchase Rejected',
             'target_type' => 'PurchaseRequest',
             'target_name' => $purchase->item_name,
-            'details' => "Management rejected purchase: {$data['rejection_reason']}"
+            'details' => "Management rejected purchase: {$purchase->item_name}. Reason: {$data['rejection_reason']}"
         ]);
 
         // Notify Staff and Admin

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\License;
+use App\Mail\GeneralOperationalMail;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -114,8 +115,25 @@ class LicenseController extends Controller
         'action'      => 'Assigned',
         'target_type' => 'License',
         'target_name' => $license->name,
-        'details'     => "Assigned a seat to user: {$user->name} (ID: {$request->user_id})",
+        'details'     => "Assigned a seat to user: {$user->name}",
     ]);
+
+    // Notify User
+    if ($user->email) {
+        \Illuminate\Support\Facades\Mail::to($user->email)->send(new GeneralOperationalMail(
+            $user,
+            "License Assigned: {$license->name}",
+            'Software Assignment',
+            "A seat for {$license->name} has been assigned to you.",
+            [
+                ['label' => 'Software', 'value' => $license->name],
+                ['label' => 'Manufacturer', 'value' => $license->manufacturer ?? 'N/A'],
+                ['label' => 'Expiry', 'value' => $license->expiry_date ?? 'Perpetual'],
+            ],
+            'View Workspace',
+            config('app.url') . '/dashboard/user/workspace'
+        ));
+    }
 
     return response()->json(['message' => 'License seat assigned successfully']);
 }

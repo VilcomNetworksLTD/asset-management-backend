@@ -63,7 +63,7 @@ export default {
 
       { title: 'Tickets', value: 0, icon: 'fa-ticket-alt', bgColor: 'bg-purple-600', link: '/dashboard/admin/tickets' },
       { title: 'Users', value: 0, icon: 'fa-users', bgColor: 'bg-slate-700', link: '/dashboard/admin/people' },
-      { title: 'Security', value: 0, icon: 'fa-lock', bgColor: 'bg-red-600', link: '/dashboard/admin/ssl-certificates' }
+      { title: 'SSL Certificates', value: 0, icon: 'fa-lock', bgColor: 'bg-red-600', link: '/dashboard/admin/ssl-certificates' }
     ])
     const activities = ref([])
     const statusDistribution = ref({
@@ -85,9 +85,9 @@ export default {
         stats.value[1].value = data.licenses || 0
         stats.value[2].value = data.accessories || 0
 
-        stats.value[4].value = data.tickets || 0
-        stats.value[5].value = data.people || 0
-        stats.value[6].value = data.ssl_certificates || 0
+        stats.value[3].value = data.tickets || 0
+        stats.value[4].value = data.people || 0
+        stats.value[5].value = data.ssl_certificates || 0
 
         statusDistribution.value = data.status_distribution || statusDistribution.value
         activities.value = activityResponse.data || []

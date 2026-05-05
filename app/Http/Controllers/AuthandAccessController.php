@@ -41,13 +41,24 @@ class AuthandAccessController extends Controller
 
             if (empty($hubConfig['url']) || empty($hubConfig['client_id']) || empty($hubConfig['client_secret'])) {
                 Log::error('Safetika hub authentication config is missing or incomplete', [
-                    'hub_config' => $hubConfig,
+                    'hub_config' => [
+                        'url' => $hubConfig['url'] ?? null,
+                        'client_id' => $hubConfig['client_id'] ?? null,
+                        'client_secret' => isset($hubConfig['client_secret']) ? '********' : null,
+                    ],
                 ]);
 
                 return response()->json([
                     'message' => 'Authentication server is not configured. Please contact the administrator.',
                 ], 500);
             }
+
+            // TEMP DEBUG: Verify exactly what is being sent (Remove after fixing)
+            Log::debug('OAuth Request Details', [
+                'target_url' => rtrim($hubConfig['url'], '/').'/api/oauth/token',
+                'client_id' => $hubConfig['client_id'],
+                'secret_length' => strlen($hubConfig['client_secret'] ?? ''),
+            ]);
 
             // 2. Request token from HUB
             $response = Http::withHeaders(['Accept' => 'application/json'])
@@ -278,11 +289,10 @@ Log::info('Final department assignment', [
             // Load department for response
             $localUser->load('department:id,name');
 
-            return response()->json([
-                'message' => 'Login successful',
+            return $this->successResponse([
                 'token' => $token,
                 'user' => $localUser,
-            ]);
+            ], 'Login successful');
 
         } catch (\Exception $e) {
             Log::error('Login process crashed', [

@@ -44,51 +44,53 @@ class ReportService
     public function generateReport(string $category): Report
     {
         $normalized = strtolower(trim($category));
+        // Requirement 10: Correcting the time using App Timezone
+        $timestamp = Carbon::now(config('app.timezone', 'UTC'))->format('Y-m-d H:i');
 
         [$title, $payload] = match ($normalized) {
             'inventory', 'asset inventory' => [
-                'Asset Inventory Report - ' . now()->format('Y-m-d H:i'),
+                'Asset Inventory Report - ' . $timestamp,
                 $this->generateInventoryPayload(),
             ],
             'maintenance', 'maintenance summary' => [
-                'Maintenance Summary Report - ' . now()->format('Y-m-d H:i'),
+                'Maintenance Summary Report - ' . $timestamp,
                 $this->generateMaintenancePayload(),
             ],
             'assignments', 'user assignments' => [
-                'User Assignments Report - ' . now()->format('Y-m-d H:i'),
+                'User Assignments Report - ' . $timestamp,
                 $this->generateAssignmentPayload(),
             ],
             'consumables' => [
-                'Consumables Report - ' . now()->format('Y-m-d H:i'),
+                'Consumables Report - ' . $timestamp,
                 $this->generateConsumablesPayload(),
             ],
             'accessories' => [
-                'Accessories Report - ' . now()->format('Y-m-d H:i'),
+                'Accessories Report - ' . $timestamp,
                 $this->generateAccessoriesPayload(),
             ],
 
             'licenses', 'licences' => [
-                'Licenses Report - ' . now()->format('Y-m-d H:i'),
+                'Licenses Report - ' . $timestamp,
                 $this->generateLicensesPayload(),
             ],
             'people', 'users' => [
-                'People Report - ' . now()->format('Y-m-d H:i'),
+                'People Report - ' . $timestamp,
                 $this->generatePeoplePayload(),
             ],
             'activity logs', 'activity_logs', 'logs', 'audit logs' => [
-                'Activity Logs Report - ' . now()->format('Y-m-d H:i'),
+                'Activity Logs Report - ' . $timestamp,
                 $this->generateActivityLogsPayload(),
             ],
             default => [
-                'System Snapshot Report - ' . now()->format('Y-m-d H:i'),
+                'System Snapshot Report - ' . $timestamp,
                 [
-                    'generated_at' => Carbon::now()->toDateTimeString(),
+                    'generated_at' => $timestamp,
                     'summary' => $this->getInventorySummary(),
                 ],
             ],
         };
 
-        $filename = 'reports/' . now()->format('Ymd_His') . '_' . str_replace(' ', '_', strtolower($normalized)) . '.csv';
+        $filename = 'reports/' . Carbon::now(config('app.timezone', 'UTC'))->format('Ymd_His') . '_' . str_replace(' ', '_', strtolower($normalized)) . '.csv';
         Storage::disk('local')->put($filename, $this->payloadToCsv($normalized, $payload));
 
         $report = Report::create([
@@ -117,7 +119,7 @@ class ReportService
     private function generateInventoryPayload(): array
     {
         return [
-            'generated_at' => Carbon::now()->toDateTimeString(),
+            'generated_at' => Carbon::now(config('app.timezone', 'UTC'))->toDateTimeString(),
             'summary' => [
                 'total_assets' => Asset::count(),
                 'by_status' => Asset::query()
@@ -126,14 +128,14 @@ class ReportService
                     ->get(),
             ],
             'items' => Asset::with(['status', 'user'])
-                ->get(['id', 'Asset_Name', 'Asset_Category', 'Serial_No', 'Employee_ID', 'Status_ID', 'Price']),
+                ->get(['id', 'Asset_Name', 'Asset_Category', 'Serial_No', 'Employee_ID', 'Status_ID', 'Price', 'Purchase_Date']),
         ];
     }
 
     private function generateMaintenancePayload(): array
     {
         return [
-            'generated_at' => Carbon::now()->toDateTimeString(),
+            'generated_at' => now()->toDateTimeString(),
             'summary' => [
                 'pending_maintenance' => Maintenance::whereNull('Completion_Date')->count(),
                 'completed_maintenance' => Maintenance::whereNotNull('Completion_Date')->count(),
@@ -235,130 +237,85 @@ class ReportService
 
     private function payloadToCsv(string $category, array $payload): string
     {
+        return match ($category) {
+            'inventory' => $this->formatInventoryCsv($payload),
+            'maintenance' => $this->formatMaintenanceCsv($payload),
+            'assignments' => $this->formatAssignmentsCsv($payload),
+            'consumables' => $this->formatConsumablesCsv($payload),
+            'accessories' => $this->formatAccessoriesCsv($payload),
+            'licenses', 'licences' => $this->formatLicensesCsv($payload),
+            'people', 'users' => $this->formatPeopleCsv($payload),
+            'activity logs', 'activity_logs', 'logs', 'audit logs' => $this->formatLogsCsv($payload),
+            default => $this->formatDefaultCsv($payload),
+        };
+    }
+
+    private function formatInventoryCsv(array $payload): string
+    {
+        $headers = ['generated_at', 'asset_id', 'asset_name', 'category', 'serial_no', 'employee_id', 'status_id', 'price'];
+        $rows = array_map(fn($item) => [
+            $payload['generated_at'] ?? '',
+            $item['id'] ?? '',
+            $item['Asset_Name'] ?? '',
+            $item['Asset_Category'] ?? '',
+            $item['Serial_No'] ?? '',
+            $item['Employee_ID'] ?? '',
+            $item['Status_ID'] ?? '',
+            $item['Price'] ?? '',
+        ], $payload['items'] ?? []);
+
+        return $this->generateCsvContent($headers, $rows);
+    }
+
+    private function formatMaintenanceCsv(array $payload): string
+    {
+        $headers = ['generated_at', 'maintenance_id', 'asset_id', 'type', 'request_date', 'completion_date', 'cost', 'status_id'];
+        $rows = array_map(fn($item) => [
+            $payload['generated_at'] ?? '',
+            $item['id'] ?? '',
+            $item['Asset_ID'] ?? '',
+            $item['Maintenance_Type'] ?? '',
+            $item['Request_Date'] ?? '',
+            $item['Completion_Date'] ?? '',
+            $item['Cost'] ?? '',
+            $item['Status_ID'] ?? '',
+        ], $payload['items'] ?? []);
+
+        return $this->generateCsvContent($headers, $rows);
+    }
+
+    private function formatConsumablesCsv(array $payload): string
+    {
+        $headers = ['generated_at', 'consumable_id', 'item_name', 'category', 'in_stock', 'price', 'min_amt'];
+        $rows = array_map(fn($item) => [
+            $payload['generated_at'] ?? '',
+            $item['id'] ?? '',
+            $item['item_name'] ?? '',
+            $item['category'] ?? '',
+            $item['in_stock'] ?? '',
+            $item['price'] ?? '',
+            $item['min_amt'] ?? '',
+        ], $payload['items'] ?? []);
+
+        return $this->generateCsvContent($headers, $rows);
+    }
+
+    private function formatDefaultCsv(array $payload): string
+    {
+        $headers = ['generated_at', 'metric', 'value'];
         $rows = [];
-        $headers = [];
-
-        if ($category === 'inventory') {
-            $headers = ['generated_at', 'asset_id', 'asset_name', 'category', 'serial_no', 'employee_id', 'status_id', 'price'];
-            foreach (($payload['items'] ?? []) as $item) {
-                $rows[] = [
-                    $payload['generated_at'] ?? '',
-                    $item['id'] ?? '',
-                    $item['Asset_Name'] ?? '',
-                    $item['Asset_Category'] ?? '',
-                    $item['Serial_No'] ?? '',
-                    $item['Employee_ID'] ?? '',
-                    $item['Status_ID'] ?? '',
-                    $item['Price'] ?? '',
-                ];
-            }
-        } elseif ($category === 'maintenance') {
-            $headers = ['generated_at', 'maintenance_id', 'asset_id', 'type', 'request_date', 'completion_date', 'cost', 'status_id'];
-            foreach (($payload['items'] ?? []) as $item) {
-                $rows[] = [
-                    $payload['generated_at'] ?? '',
-                    $item['id'] ?? '',
-                    $item['Asset_ID'] ?? '',
-                    $item['Maintenance_Type'] ?? '',
-                    $item['Request_Date'] ?? '',
-                    $item['Completion_Date'] ?? '',
-                    $item['Cost'] ?? '',
-                    $item['Status_ID'] ?? '',
-                ];
-            }
-        } elseif ($category === 'assignments') {
-            $headers = ['generated_at', 'asset_id', 'asset_name', 'serial_no', 'employee_id', 'status_id'];
-            foreach (($payload['items'] ?? []) as $item) {
-                $rows[] = [
-                    $payload['generated_at'] ?? '',
-                    $item['id'] ?? '',
-                    $item['Asset_Name'] ?? '',
-                    $item['Serial_No'] ?? '',
-                    $item['Employee_ID'] ?? '',
-                    $item['Status_ID'] ?? '',
-                ];
-            }
-        } elseif ($category === 'consumables') {
-            $headers = ['generated_at', 'consumable_id', 'item_name', 'category', 'in_stock', 'price', 'min_amt'];
-            foreach (($payload['items'] ?? []) as $item) {
-                $rows[] = [
-                    $payload['generated_at'] ?? '',
-                    $item['id'] ?? '',
-                    $item['item_name'] ?? '',
-                    $item['category'] ?? '',
-                    $item['in_stock'] ?? '',
-                    $item['price'] ?? '',
-                    $item['min_amt'] ?? '',
-                ];
-            }
-        } elseif ($category === 'accessories') {
-            $headers = ['generated_at', 'accessory_id', 'name', 'category', 'model_number', 'total_qty', 'remaining_qty', 'price'];
-            foreach (($payload['items'] ?? []) as $item) {
-                $rows[] = [
-                    $payload['generated_at'] ?? '',
-                    $item['id'] ?? '',
-                    $item['name'] ?? '',
-                    $item['category'] ?? '',
-                    $item['model_number'] ?? '',
-                    $item['total_qty'] ?? '',
-                    $item['remaining_qty'] ?? '',
-                    $item['price'] ?? '',
-                ];
-            }
-
-        } elseif ($category === 'licenses' || $category === 'licences') {
-            $headers = ['generated_at', 'license_id', 'name', 'product_key', 'manufacturer', 'total_seats', 'remaining_seats', 'price'];
-            foreach (($payload['items'] ?? []) as $item) {
-                $rows[] = [
-                    $payload['generated_at'] ?? '',
-                    $item['id'] ?? '',
-                    $item['name'] ?? '',
-                    $item['product_key'] ?? '',
-                    $item['manufacturer'] ?? '',
-                    $item['total_seats'] ?? '',
-                    $item['remaining_seats'] ?? '',
-                    $item['price'] ?? '',
-                ];
-            }
-        } elseif ($category === 'people' || $category === 'users') {
-            $headers = ['generated_at', 'user_id', 'name', 'email', 'role', 'is_verified', 'created_at'];
-            foreach (($payload['items'] ?? []) as $item) {
-                $rows[] = [
-                    $payload['generated_at'] ?? '',
-                    $item['id'] ?? '',
-                    $item['name'] ?? '',
-                    $item['email'] ?? '',
-                    $item['role'] ?? '',
-                    $item['is_verified'] ?? '',
-                    $item['created_at'] ?? '',
-                ];
-            }
-        } elseif ($category === 'activity logs' || $category === 'activity_logs' || $category === 'logs' || $category === 'audit logs') {
-            $headers = ['generated_at', 'log_id', 'employee_id', 'user_name', 'action', 'target_type', 'target_name', 'details', 'created_at'];
-            foreach (($payload['items'] ?? []) as $item) {
-                $rows[] = [
-                    $payload['generated_at'] ?? '',
-                    $item['id'] ?? '',
-                    $item['Employee_ID'] ?? '',
-                    $item['user_name'] ?? '',
-                    $item['action'] ?? '',
-                    $item['target_type'] ?? '',
-                    $item['target_name'] ?? '',
-                    $item['details'] ?? '',
-                    $item['created_at'] ?? '',
-                ];
-            }
-        } else {
-            $headers = ['generated_at', 'metric', 'value'];
-            foreach (($payload['summary'] ?? []) as $metric => $value) {
-                $rows[] = [
-                    $payload['generated_at'] ?? now()->toDateTimeString(),
-                    (string) $metric,
-                    is_scalar($value) ? (string) $value : json_encode($value),
-                ];
-            }
+        foreach (($payload['summary'] ?? []) as $metric => $value) {
+            $rows[] = [
+                $payload['generated_at'] ?? now()->toDateTimeString(),
+                (string) $metric,
+                is_scalar($value) ? (string) $value : json_encode($value),
+            ];
         }
+        return $this->generateCsvContent($headers, $rows);
+    }
 
+    private function generateCsvContent(array $headers, array $rows): string
+    {
         $stream = fopen('php://temp', 'r+');
         fputcsv($stream, $headers);
         foreach ($rows as $row) {
@@ -367,7 +324,6 @@ class ReportService
         rewind($stream);
         $csv = stream_get_contents($stream) ?: '';
         fclose($stream);
-
         return $csv;
     }
 }

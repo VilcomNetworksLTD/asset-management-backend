@@ -2,7 +2,7 @@
   <div class="space-y-12">
     <div class="mb-10">
       <h1 class="text-3xl font-black text-slate-800 tracking-tight">Directory <span class="text-vilcom-blue">& Vendors</span></h1>
-      <p class="text-sm text-gray-400 font-bold mt-1 uppercase tracking-[0.2em] leading-relaxed">System architecture, personnel management, and enterprise supply chain control.</p>
+      <p class="text-sm text-gray-400 font-bold mt-1 uppercase tracking-[0.2em] leading-relaxed">Personnel management</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
@@ -23,7 +23,7 @@
         </div>
         <h3 class="text-2xl font-black text-slate-800 mb-4 tracking-tight group-hover:text-vilcom-blue transition-colors relative z-10">Personnel & Staff</h3>
         <p class="text-sm text-gray-500 leading-relaxed font-medium relative z-10">
-          Orchestrate system users, department structures, and administrative hierarchies. Control role-based access and organizational flow.
+          Manage personnel & staff information.
         </p>
       </router-link>
 
@@ -44,7 +44,7 @@
         </div>
         <h3 class="text-2xl font-black text-slate-800 mb-4 tracking-tight group-hover:text-vilcom-orange transition-colors relative z-10">Suppliers & Logistics</h3>
         <p class="text-sm text-gray-500 leading-relaxed font-medium relative z-10">
-          Manage international procurement channels, local vendors, and historical acquisition records for high-fidelity inventory auditing.
+          Manage supplier & logistics information.
         </p>
       </router-link>
     </div>

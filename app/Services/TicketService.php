@@ -11,6 +11,7 @@ use App\Models\Maintenance;
 use App\Models\Status;
 use App\Models\Ticket;
 use Illuminate\Support\Facades\Auth;
+use App\Mail\GeneralOperationalMail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -24,7 +25,7 @@ class TicketService
     {
         return DB::transaction(function () use ($id, $communication, $statusId) {
             $ticket = Ticket::findOrFail($id);
-            
+
             $ticket->update([
                 'Status_ID' => $statusId,
                 'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . $communication),
@@ -103,8 +104,46 @@ class TicketService
                 'action' => 'Assigned',
                 'target_type' => 'Asset',
                 'target_name' => $asset->Asset_Name,
-                'details' => "Assigned to Employee_ID {$ticket->Employee_ID} via Ticket #{$ticket->id}",
+                'details' => "Assigned to " . ($asset->user?->name ?? 'Staff') . " via Ticket resolution",
             ]);
+
+            // Requirement 2: Notify All Relevant Parties
+            $requester = \App\Models\User::find($ticket->Employee_ID);
+            $adminUser = Auth::user();
+
+            // Notify the Staff Member (Recipient)
+            if ($requester && $requester->email) {
+                \Illuminate\Support\Facades\Mail::to($requester->email)->send(new GeneralOperationalMail(
+                    $requester,
+                    "Equipment Assigned: {$asset->Asset_Name}",
+                    'Ticket Resolved',
+                    "The equipment requested in your ticket has been assigned to you.",
+                    [
+                        ['label' => 'Item', 'value' => $asset->Asset_Name],
+                        ['label' => 'Serial Number', 'value' => $asset->Serial_No],
+                    ],
+                    'View My Assets',
+                    config('app.url') . '/dashboard/user/workspace'
+                ));
+            }
+
+            // Notify Admins/Superadmins about the resolution
+            $admins = \App\Models\User::whereIn('role', ['admin', 'superadmin'])->get()->filter(fn($u) => $u->email);
+            foreach ($admins as $admin) {
+                \Illuminate\Support\Facades\Mail::to($admin->email)->send(new GeneralOperationalMail(
+                    $admin,
+                    "Ticket Resolution Logged",
+                    "Asset Assigned",
+                    "{$adminUser->name} has resolved a ticket by assigning equipment to {$requester->name}.",
+                    [
+                        ['label' => 'Staff Member', 'value' => $requester->name],
+                        ['label' => 'Equipment', 'value' => $asset->Asset_Name],
+                        ['label' => 'Resolved By', 'value' => $adminUser->name],
+                    ],
+                    'View All Tickets',
+                    config('app.url') . '/dashboard/admin/tickets'
+                ));
+            }
 
             return ['ticket' => $ticket, 'asset' => $asset, 'bundle' => $bundleItems];
         });

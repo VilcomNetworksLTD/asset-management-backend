@@ -7,6 +7,8 @@ use App\Models\Asset;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Exception;
+use App\Mail\GeneralOperationalMail;
+use Illuminate\Support\Facades\Mail;
 
 class TransferService
 {
@@ -29,7 +31,7 @@ class TransferService
             $asset->update(['status' => 'Pending Return']);
 
             // Create the Transfer record (Return type)
-            return Transfer::create([
+            $transfer = Transfer::create([
                 'asset_id' => $data['asset_id'],
                 'sender_id' => Auth::id(),
                 'receiver_id' => null, // Returning to the office/Admin
@@ -38,6 +40,17 @@ class TransferService
                 'notes' => $data['notes'] ?? null,
                 'type' => 'return'
             ]);
+
+            \App\Models\ActivityLog::create([
+                'asset_id' => $asset->id,
+                'Employee_ID' => Auth::id(),
+                'user_name' => Auth::user()->name,
+                'action' => 'Return Initiated',
+                'target_name' => $asset->Asset_Name,
+                'details' => "Asset return process started by user."
+            ]);
+
+            return $transfer;
         });
     }
 
@@ -87,7 +100,7 @@ class TransferService
             $asset = Asset::findOrFail($data['asset_id']);
 
             // Create a transfer record for the new user to verify
-            return Transfer::create([
+            $transfer = Transfer::create([
                 'asset_id' => $asset->id,
                 'sender_id' => Auth::id(), // Admin is the sender
                 'receiver_id' => $data['receiver_id'],
@@ -96,9 +109,58 @@ class TransferService
                 'type' => 'assignment',
                 'notes' => $data['notes'] ?? 'New assignment'
             ]);
+
+            // Requirement 2: Notify All Relevant Parties (Sender/Admin and Receiver)
+            $receiver = \App\Models\User::find($data['receiver_id']);
+            $admin = Auth::user();
+
+            // Notify the Receiver
+            if ($receiver && $receiver->email) {
+                Mail::to($receiver->email)->send(new GeneralOperationalMail(
+                    $receiver,
+                    "Equipment Assigned: {$asset->Asset_Name}",
+                    'New Assignment',
+                    "A {$asset->Asset_Name} has been assigned to you. Please log in to verify the condition and accept the item.",
+                    [
+                        ['label' => 'Item', 'value' => $asset->Asset_Name],
+                        ['label' => 'Serial Number', 'value' => $asset->Serial_No],
+                        ['label' => 'Assigned By', 'value' => $admin->name],
+                    ],
+                    'Accept Asset',
+                    config('app.url') . '/dashboard/user/workspace'
+                ));
+            }
+
+            // Notify the Admin/Superadmin (Confirmation)
+            $admins = \App\Models\User::whereIn('role', ['admin', 'superadmin'])->get()->filter(fn($u) => $u->email);
+            foreach ($admins as $adm) {
+                Mail::to($adm->email)->send(new GeneralOperationalMail(
+                    $adm,
+                    "Asset Assignment Initiated",
+                    'Transfer Logged',
+                    "The assignment of {$asset->Asset_Name} to {$receiver->name} has been initiated and is awaiting their acceptance.",
+                    [
+                        ['label' => 'Recipient', 'value' => $receiver->name],
+                        ['label' => 'Equipment', 'value' => $asset->Asset_Name],
+                    ],
+                    'Track Movements',
+                    config('app.url') . '/dashboard/admin/movements'
+                ));
+            }
+
+            // Log activity
+            \App\Models\ActivityLog::create([
+                'asset_id' => $asset->id,
+                'Employee_ID' => Auth::id(),
+                'user_name' => Auth::user()->name,
+                'action' => 'Assigned',
+                'target_name' => $asset->Asset_Name,
+                'details' => "Assigned to {$receiver->name}"
+            ]);
+
+            return $transfer;
         });
     }
-
     /**
      * 4. STAFF WORKFLOW: Inbound Verification
      * Staff B clicks "Accept" to officially take responsibility.
@@ -111,7 +173,7 @@ class TransferService
 
             if ($status === 'accepted') {
                 $transfer->update(['status' => 'deployed']);
-                
+
                 $asset->update([
                     'status' => 'Deployed',
                     'assigned_to' => Auth::id(),

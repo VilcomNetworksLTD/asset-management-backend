@@ -30,46 +30,63 @@ class DashboardService
 
         return [
             // Legacy keys
-            'total_assets'      => $assets,
-            'total_licenses'    => $licenses,
+            'total_assets' => $assets,
+            'total_licenses' => $licenses,
             'total_accessories' => $accessories,
 
-            'total_users'       => $users,
-            'total_ssl_certificates' => $ssl_certificates,
+            'total_users' => $users,
+            'total_ssl_certs' => $ssl_certificates,
 
-            // Frontend-friendly keys
-            'assets'            => $assets,
-            'licenses'          => $licenses,
-            'accessories'       => $accessories,
+            // Updated labels
+            'assets' => $assets,
+            'licenses' => $licenses,
+            'accessories' => $accessories,
 
-            'tickets'           => $tickets,
-            'ssl_certificates'  => $ssl_certificates,
-            'people'            => $users,
+            'tickets' => $tickets,
+            'ssl_certificates' => $ssl_certificates,
+            'people' => $users,
 
             'status_distribution' => [
-                'ready_to_deploy' => Asset::where(function($q) {
-                        $q->whereNull('Employee_ID')->orWhere('Employee_ID', 0);
-                    })->whereIn('Status_ID', function($query) {
-                        $query->select('id')->from('statuses')
-                              ->whereIn('Status_Name', ['Ready to Deploy', 'Available', 'Ready', 'In Stock', 'Active', 'New']);
-                    })->count(),
-                'deployed' => Asset::where(function($q) {
-                        $q->whereNotNull('Employee_ID')->where('Employee_ID', '>', 0);
-                    })->orWhereIn('Status_ID', function($query) {
-                        $query->select('id')->from('statuses')
-                              ->whereIn('Status_Name', ['Deployed', 'Assigned', 'In Use', 'Checked Out']);
-                    })->count(),
-                'archived' => Asset::whereIn('Status_ID', function($query) {
+                'ready_to_deploy' => Asset::where(function ($q) {
+                    $q->whereNull('Employee_ID')->orWhere('Employee_ID', 0);
+                })->whereIn('Status_ID', function ($query) {
                     $query->select('id')->from('statuses')
-                          ->whereIn('Status_Name', ['Archived', 'Archive', 'Broken', 'Lost', 'Stolen']);
+                        ->whereIn('Status_Name', ['Ready to Deploy', 'Available', 'Ready', 'In Stock', 'Active', 'New']);
                 })->count(),
-            ]
+                'deployed' => Asset::where(function ($q) {
+                    $q->whereNotNull('Employee_ID')->where('Employee_ID', '>', 0);
+                })->orWhereIn('Status_ID', function ($query) {
+                    $query->select('id')->from('statuses')
+                        ->whereIn('Status_Name', ['Deployed', 'Assigned', 'In Use', 'Checked Out']);
+                })->count(),
+                'archived' => Asset::whereIn('Status_ID', function ($query) {
+                    $query->select('id')->from('statuses')
+                        ->whereIn('Status_Name', ['Archived', 'Archive', 'Broken', 'Lost', 'Stolen']);
+                })->count(),
+            ],
+            // Requirement 8: Inventory Health Logic
+            'inventory_health' => [
+                'operational' => Asset::whereIn('Status_ID', function ($q) {
+                    $q->select('id')->from('statuses')->whereIn('Status_Name', ['Deployed', 'Ready to Deploy', 'Available']);
+                })->count(),
+                'non_operational' => Asset::whereIn('Status_ID', function ($q) {
+                    $q->select('id')->from('statuses')->whereIn('Status_Name', ['Broken', 'Out for Repair', 'Lost', 'Stolen']);
+                })->count(),
+            ],
         ];
+    }
+
+    /**
+     * Requirement 8: Recent Activity for Dashboard
+     */
+    public function getRecentActivity()
+    {
+        return \App\Models\ActivityLog::latest()->take(10)->get();
     }
 
     public function getTransfersData()
     {
-         return Transfer::with(['asset', 'user', 'status'])
+        return Transfer::with(['asset', 'user', 'status'])
             ->latest()
             ->paginate(10);
     }

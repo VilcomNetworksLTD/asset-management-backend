@@ -5,6 +5,17 @@
       <p class="text-sm text-gray-500">Track all changes and movements across the system.</p>
     </div>
 
+    <!-- Search Bar -->
+    <div class="mb-4 flex items-center">
+      <input
+        type="text"
+        v-model="searchQuery"
+        @keyup.enter="fetchLogs"
+        placeholder="Search logs..."
+        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      >
+    </div>
+
     <div class="bg-white border-t-[3px] border-gray-400 rounded shadow-sm">
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
@@ -58,11 +69,28 @@ import axios from 'axios';
 
 const logs = ref([]);
 const loading = ref(true);
+const searchQuery = ref('');
+const pagination = ref({
+  current_page: 1,
+  last_page: 1,
+  total: 0
+});
 
-const fetchLogs = async () => {
+const fetchLogs = async (page = 1) => {
+  loading.value = true;
   try {
-    const res = await axios.get('/api/activity-logs');
-    logs.value = res.data;
+    const res = await axios.get('/api/activity-logs', {
+      params: {
+        search: searchQuery.value,
+        limit: 50,
+        page: page
+      }
+    });
+    // Correctly point to the data array inside the pagination object
+    logs.value = res.data.data || [];
+    pagination.value.current_page = res.data.current_page;
+    pagination.value.last_page = res.data.last_page;
+    pagination.value.total = res.data.total;
   } catch (err) {
     console.error('Error fetching logs:', err);
   } finally {
@@ -97,5 +125,12 @@ const formatDetails = (text) => {
     .trim();
 };
 
-onMounted(fetchLogs);
+onMounted(() => fetchLogs(1));
 </script>
+
+<style scoped>
+/* Add a simple pagination footer if needed */
+.pagination-trigger {
+  @apply px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors;
+}
+</style>

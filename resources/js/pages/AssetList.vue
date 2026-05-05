@@ -20,12 +20,12 @@ const REFRESH_INTERVAL = 20000;
 
 watch(isFocused, (focused) => {
   if (focused) {
-    fetchAssets();
+    fetchAssets(true);
   }
 });
 
 setInterval(() => {
-  fetchAssets();
+  fetchAssets(true);
 }, REFRESH_INTERVAL);
 
 const form = reactive({
@@ -42,8 +42,8 @@ const selectedCategory = computed(() => {
   return categories.value.find(c => c.id === form.category_id);
 });
 
-const fetchAssets = async () => {
-  loading.value = true;
+const fetchAssets = async (isBackground = false) => {
+  if (!isBackground) loading.value = true;
   try {
     // Using the paginated 'list' endpoint
     const { data } = await axios.get('/api/assets/list');
@@ -51,7 +51,7 @@ const fetchAssets = async () => {
   } catch (error) {
     console.error("Error fetching assets:", error);
   } finally {
-    loading.value = false;
+    if (!isBackground) loading.value = false; // This line is now correct
   }
 };
 

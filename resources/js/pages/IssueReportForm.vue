@@ -19,18 +19,34 @@
           </div>
         </div>
 
-        <div v-if="form.type === 'equipment_request'">
-          <label class="block text-sm font-bold text-gray-700 mb-1">Equipment Category</label>
-          <select v-model="form.requested_category" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" required>
-            <option value="" disabled>-- What do you need? --</option>
-            <option value="Laptop">Laptop</option>
-            <option value="Desktop CPU">Desktop CPU</option>
-            <option value="Monitor">Monitor</option>
-            <option value="Printer">Printer</option>
-            <option value="Accessory">Accessory</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
+       <div v-if="form.type === 'equipment_request'">
+  <label class="block text-sm font-bold text-gray-700 mb-1">
+    Equipment Category
+  </label>
+
+  <select
+    v-model="form.requested_category"
+    class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+    required
+  >
+    <option value="" disabled>-- What do you need? --</option>
+    <option value="Laptop">Laptop</option>
+    <option value="Desktop CPU">Desktop CPU</option>
+    <option value="Monitor">Monitor</option>
+    <option value="Printer">Printer</option>
+    <option value="Accessory">Accessory</option>
+    <option value="Other">Other</option>
+  </select>
+
+  <!-- Show input only when "Other" is selected -->
+  <input
+    v-if="form.requested_category === 'Other'"
+    v-model="form.custom_category"
+    type="text"
+    placeholder="Please specify"
+    class="mt-2 w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+  />
+</div>
 
         <div>
           <label class="block text-sm font-bold text-gray-700 mb-1">Priority</label>
@@ -76,6 +92,7 @@ const myAssets = ref([]);
 const form = ref({
   type: 'equipment_request',
   requested_category: '',
+  custom_category: '',
   asset_id: '',
   description: '',
   priority: 'medium'
@@ -93,12 +110,15 @@ const submitTicket = async () => {
   submitting.value = true;
 
   const payload = {
+    type: form.value.type,
     description: form.value.description,
     priority: form.value.priority
   };
 
   if (form.value.type === 'equipment_request') {
-    payload.requested_category = form.value.requested_category;
+    payload.requested_category = form.value.requested_category === 'Other' 
+      ? form.value.custom_category 
+      : form.value.requested_category;
   } else {
     payload.asset_id = form.value.asset_id;
   }

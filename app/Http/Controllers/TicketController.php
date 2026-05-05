@@ -165,7 +165,7 @@ class TicketController extends Controller
 
         $admins = User::where('role', 'admin')->get()->filter(fn ($u) => $u->email);
         if ($admins->isNotEmpty()) {
-            $subject = "New Support Ticket #{$ticket->id} from {$user->name}";
+            $subject = "New Support Ticket from {$user->name}";
             $details = "A new support ticket has been created by {$user->name}.\n\n"
                 . "Subject: " . ($data['subject'] ?? 'Asset Issue') . "\n"
                 . "Details: {$ticket->Description}";

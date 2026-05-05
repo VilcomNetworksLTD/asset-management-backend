@@ -40,7 +40,7 @@ class AssetService
             $data['Status_ID'] = $data['Status_ID'] ?? $availableStatusId ?? 1;
 
             // 2. Pricing Logic
-            if (! empty($data['Price'])) {
+            if (!empty($data['Price'])) {
                 $data['depreciation_value'] = $data['Price'] * 0.10;
                 $data['current_value'] = $data['Price'] - $data['depreciation_value'];
             } else {
@@ -48,12 +48,10 @@ class AssetService
                 $data['current_value'] = 0;
             }
 
-            // 3. Backward Compatibility
-            if (! isset($data['Asset_Category']) && isset($data['category_id'])) {
+            // Requirement 4: Use Full Category Name (Avoid prefix collisions)
+            if (isset($data['category_id']) && !empty($data['category_id'])) {
                 $cat = Category::find($data['category_id']);
-                if ($cat) {
-                    $data['Asset_Category'] = $cat->name;
-                }
+                $data['Asset_Category'] = $cat ? $cat->name : ($data['Asset_Category'] ?? 'General');
             }
 
             // 4. Create Core Asset
@@ -111,7 +109,7 @@ class AssetService
                 'user_name' => Auth::user()->name ?? 'System',
                 'action' => 'Updated',
                 'target_type' => 'Asset',
-                'target_name' => $asset->Asset_Name,
+                'target_name' => $asset->Asset_Name
             ]);
 
             return $asset->fresh()->load(['status', 'supplier', 'user', 'category', 'locationModel']);

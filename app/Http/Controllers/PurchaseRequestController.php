@@ -138,13 +138,21 @@ class PurchaseRequestController extends Controller
 
     public function approve(Request $request, int $id): JsonResponse
     {
+        $user = Auth::user();
+        if ($user->role !== 'management' && $user->role !== 'admin') {
+            return response()->json(['message' => 'Unauthorized Access Protocol.'], 403);
+        }
+
         $purchase = PurchaseRequest::with(['requester', 'initiator'])->findOrFail($id);
         
-        DB::transaction(function () use ($purchase) {
+        $data = $request->validate(['notes' => 'nullable|string']);
+
+        DB::transaction(function () use ($purchase, $data) {
             $purchase->update([
                 'status' => 'approved',
                 'approver_id' => Auth::id(),
-                'approved_at' => now()
+                'approved_at' => now(),
+                'notes' => $data['notes'] ?? $purchase->notes
             ]);
 
             ActivityLog::create([
@@ -153,7 +161,7 @@ class PurchaseRequestController extends Controller
                 'action' => 'Purchase Approved',
                 'target_type' => 'PurchaseRequest',
                 'target_name' => $purchase->item_name,
-                'details' => "Management approved purchase for: {$purchase->item_name}"
+                'details' => "Management approved purchase for: {$purchase->item_name}. Notes: " . ($data['notes'] ?? 'None')
             ]);
         });
 
@@ -168,6 +176,11 @@ class PurchaseRequestController extends Controller
 
     public function reject(Request $request, int $id): JsonResponse
     {
+        $user = Auth::user();
+        if ($user->role !== 'management' && $user->role !== 'admin') {
+            return response()->json(['message' => 'Unauthorized Access Protocol.'], 403);
+        }
+
         $purchase = PurchaseRequest::with(['requester', 'initiator'])->findOrFail($id);
         $data = $request->validate(['rejection_reason' => 'required|string']);
 
@@ -175,7 +188,7 @@ class PurchaseRequestController extends Controller
             $purchase->update([
                 'status' => 'rejected',
                 'approver_id' => Auth::id(),
-                'notes' => $data['rejection_reason'],
+                'rejection_reason' => $data['rejection_reason'],
                 'approved_at' => now()
             ]);
 
@@ -185,7 +198,7 @@ class PurchaseRequestController extends Controller
                 'action' => 'Purchase Rejected',
                 'target_type' => 'PurchaseRequest',
                 'target_name' => $purchase->item_name,
-                'details' => "Management rejected purchase: {$data['rejection_reason']}"
+                'details' => "Management rejected purchase: {$purchase->item_name}. Reason: {$data['rejection_reason']}"
             ]);
         });
 

@@ -379,7 +379,7 @@ class TransferController extends Controller
 
                 // build subject/details more generally in case there is no asset
                 if ($asset) {
-                    $subject = "Asset Ready for Verification: {$asset->Asset_Name}";
+                    $subject = "Asset Ready for Verification";
                     $details = "An asset, '{$asset->Asset_Name}', originally from {$sender->name}, has been processed by {$admin->name} and is now assigned to you. Please log in to your dashboard to verify the inbound transfer.";
                 } else {
                     $subject = 'Items Ready for Verification';
@@ -815,3 +815,5 @@ class TransferController extends Controller
         ];
     }
 }
+
+

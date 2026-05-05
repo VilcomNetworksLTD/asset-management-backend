@@ -72,7 +72,7 @@ class AssetController extends Controller
 
         $asset = $this->assetService->store($data);
 
-        return response()->json($asset->load(['status', 'supplier', 'user', 'category', 'locationModel']), 201);
+        return $this->successResponse($asset->load(['status', 'supplier', 'user', 'category', 'locationModel']), 'Asset created successfully', 201);
     }
 
     /**
@@ -373,7 +373,7 @@ class AssetController extends Controller
 
         $asset = $this->assetService->updateAsset($id, $data);
 
-        return response()->json($asset->load(['status', 'supplier', 'user', 'category', 'locationModel']));
+        return $this->successResponse($asset->load(['status', 'supplier', 'user', 'category', 'locationModel']), 'Asset updated successfully');
     }
 
     public function show($id): JsonResponse

@@ -324,7 +324,7 @@ onMounted(() => {
       <div v-if="asset" class="flex gap-4">
         <template v-if="!isEditing && isAdmin">
           <button @click="enableEditMode" class="bg-white border border-gray-100 text-slate-700 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 hover:shadow-lg transition-all flex items-center gap-2">
-            <Edit3 class="size-4 text-vilcom-blue" /> Edit Global Data
+            <Edit3 class="size-4 text-vilcom-blue" /> Edit Asset Details
           </button>
           <button @click="openAssignModal" class="bg-vilcom-blue text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:shadow-xl hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-blue-900/10">
             <UserPlus class="size-4" /> {{ asset.user ? 'Give to someone else' : 'Assign to member' }}
@@ -588,7 +588,7 @@ onMounted(() => {
                <div class="p-3 bg-white/10 rounded-2xl">
                   <ShieldCheck class="size-6" />
                </div>
-               <h3 class="font-black tracking-tight text-lg">Vendor Lock</h3>
+               <h3 class="font-black tracking-tight text-lg">Supplier</h3>
             </div>
             <div class="space-y-1">
                <div class="text-xl font-black">{{ asset.supplier.Supplier_Name }}</div>

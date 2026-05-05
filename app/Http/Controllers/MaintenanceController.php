@@ -96,7 +96,7 @@ class MaintenanceController extends Controller
         // notify relevant parties
         $admins = \App\Models\User::where('role', 'admin')->get()->filter(fn($u)=> $u->email);
         $assetOwner = $maintenance->asset?->employee;
-        $subject = "Maintenance scheduled for asset #{$maintenance->Asset_ID}";
+        $subject = "Maintenance scheduled for asset";
         $details = "A maintenance task has been scheduled:\n" .
             "Type: {$maintenance->Maintenance_Type}\n" .
             "Asset ID: {$maintenance->Asset_ID}\n" .
