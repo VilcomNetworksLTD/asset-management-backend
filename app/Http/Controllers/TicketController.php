@@ -18,11 +18,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Validation\ValidationException;
+use App\Traits\SendsDetailedEmails;
 
 class TicketController extends Controller
 {
+    use SendsDetailedEmails;
+
     protected $ticketService;
 
     public function __construct(TicketService $ticketService)
@@ -81,6 +82,7 @@ class TicketController extends Controller
     {
         $data = $request->validate([
             'asset_id' => 'nullable|integer|exists:assets,id',
+            'other_asset' => 'nullable|string|max:255',
             'requested_category' => 'nullable|string|max:255',
             'subject' => 'nullable|string|max:255',
             'description' => 'required|string|max:2000',
@@ -96,8 +98,10 @@ class TicketController extends Controller
         $user = $request->user() ?? Auth::user();
 
         $description = '';
-        if (empty($data['asset_id'])) {
-            if (!empty($data['requested_category'])) {
+        if (empty($data['asset_id']) || !empty($data['other_asset'])) {
+            if (!empty($data['other_asset'])) {
+                $description = "Asset (Other): {$data['other_asset']}\nDetails: {$data['description']}";
+            } elseif (!empty($data['requested_category'])) {
                 $description = 'Request Category: ' . $data['requested_category']
                     . "\nRequest Details: " . $data['description'];
             } else {
@@ -108,7 +112,7 @@ class TicketController extends Controller
             $description = $data['description'];
         }
 
-        $pendingStatus = Status::firstOf(['Pending', 'New', 'Open']) ?? 1;
+        $pendingStatus = Status::whereRaw('LOWER(Status_Name) IN ("pending", "new", "open")')->value('id') ?? 1;
         $recent = Ticket::where('Employee_ID', $user->id)
             ->where('Description', $description)
             ->where('Status_ID', $pendingStatus)
@@ -118,20 +122,23 @@ class TicketController extends Controller
             return response()->json($recent->load(['user','issue.asset.category','status']), 200);
         }
 
-        $ticket = DB::transaction(function () use ($data, $user) {
-            if (empty($data['asset_id'])) {
-                $description = '';
-                if (!empty($data['requested_category'])) {
-                    $description = 'Request Category: ' . $data['requested_category']
-                        . "\nRequest Details: " . $data['description'];
-                } else {
-                    $description = 'Subject: ' . ($data['subject'] ?? 'General IT Support')
-                        . "\nDetails: " . $data['description'];
-                }
+         $ticket = DB::transaction(function () use ($data, $user) {
+             $statusId = Status::whereRaw('LOWER(Status_Name) IN ("pending", "new", "open")')->value('id') ?? 1;
+             if (empty($data['asset_id'])) {
+                 $description = '';
+                 if (!empty($data['other_asset'])) {
+                     $description = "Asset (Other): {$data['other_asset']}\nDetails: {$data['description']}";
+                 } elseif (!empty($data['requested_category'])) {
+                     $description = 'Request Category: ' . $data['requested_category']
+                         . "\nRequest Details: " . $data['description'];
+                 } else {
+                     $description = 'Subject: ' . ($data['subject'] ?? 'General IT Support')
+                         . "\nDetails: " . $data['description'];
+                 }
 
                 return Ticket::create([
                     'Employee_ID' => $user->id,
-                    'Status_ID' => Status::firstOf(['Pending', 'New', 'Open']) ?? 1,
+                    'Status_ID' => $statusId,
                     'Priority' => $data['priority'] ?? 'medium',
                     'Description' => $description,
                 ]);
@@ -141,12 +148,12 @@ class TicketController extends Controller
                 'Employee_ID' => $user->id,
                 'Asset_ID' => $data['asset_id'],
                 'Issue_Description' => $data['description'],
-                'Status_ID' => Status::firstOf(['Pending', 'New', 'Open']) ?? 1,
+                'Status_ID' => $statusId,
             ]);
 
             $ticket = Ticket::create([
                 'Employee_ID' => $user->id,
-                'Status_ID' => Status::firstOf(['Pending', 'New', 'Open']) ?? 1,
+                'Status_ID' => $statusId,
                 'Priority' => $data['priority'] ?? 'medium',
                 'Description' => $data['description'],
             ]);
@@ -158,19 +165,95 @@ class TicketController extends Controller
 
         $admins = User::where('role', 'admin')->get()->filter(fn ($u) => $u->email);
         if ($admins->isNotEmpty()) {
-            $subject = "New Support Ticket #{$ticket->id} from {$user->name}";
-            $details = "A new support ticket has been created by {$user->name}.\n\n"
-                . "Subject: " . ($data['subject'] ?? 'Asset Issue') . "\n"
-                . "Details: {$ticket->Description}";
-
-            foreach ($admins as $admin) {
-                Mail::raw($details, function ($message) use ($admin, $subject) {
-                    $message->to($admin->email)->subject($subject);
-                });
-            }
+            $this->sendDetailedEmail(
+                $admins,
+                "New Support Ticket Received",
+                "Action Required: New Ticket",
+                "A new support ticket has been created by {$user->name} and is awaiting administrative attention.",
+                [
+                    "Requester" => $user->name,
+                    "Department" => $user->department?->name ?? 'N/A',
+                    "Priority" => ucfirst($data['priority'] ?? 'medium'),
+                    "Description" => $data['description'],
+                ],
+                "View Tickets",
+                config('app.url') . "/dashboard/support/tickets"
+            );
         }
 
-        return response()->json($ticket->load(['user', 'issue.asset.category', 'status']), 201);
+        // Notify the user too
+        $this->sendDetailedEmail(
+            $user,
+            "Ticket Created Successfully",
+            "Support Ticket Logged",
+            "Your support ticket has been successfully logged. Our IT team will review it shortly.",
+            [
+                "Subject" => $data['subject'] ?? 'Asset Issue',
+                "Priority" => ucfirst($data['priority'] ?? 'medium'),
+                "Status" => "Pending Review",
+            ],
+            "Track My Ticket",
+            config('app.url') . "/dashboard/user/workspace"
+        );
+
+        return response()->json(['success' => true, 'message' => 'Ticket created successfully.'], 201);
+    }
+
+    public function resolveTicket(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'communication' => 'nullable|string|max:2000',
+        ]);
+
+        $ticket = Ticket::findOrFail($id);
+        $resolvedStatusId = Status::whereRaw('LOWER(Status_Name) IN ("closed", "resolved", "completed")')->value('id');
+
+        $ticket->update([
+            'Status_ID' => $resolvedStatusId ?? $ticket->Status_ID,
+            'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . now()->format('Y-m-d H:i:s') . " - Ticket closed. " . ($data['communication'] ?? 'No additional comments.')),
+        ]);
+
+        ActivityLog::create([
+            'asset_id' => $ticket->issue?->asset?->id,
+            'Employee_ID' => Auth::id(),
+            'user_name' => Auth::user()->name ?? 'System',
+            'action' => 'Ticket Resolved',
+            'target_type' => 'Ticket',
+            'target_name' => '#' . $ticket->id,
+            'details' => $data['communication'] ?? 'Ticket marked as resolved',
+        ]);
+
+        $ticket->load(['user', 'issue.asset.category', 'status']);
+        return response()->json(['message' => 'Ticket resolved successfully.', 'ticket' => $ticket]);
+    }
+
+    public function rejectTicket(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'rejection_reason' => 'required|string|max:2000',
+        ]);
+
+        $ticket = Ticket::findOrFail($id);
+        $rejectedStatusId = Status::whereRaw('LOWER(Status_Name) IN ("rejected", "declined")')->value('id');
+
+        $ticket->update([
+            'Status_ID' => $rejectedStatusId ?? $ticket->Status_ID,
+            'rejection_reason' => $data['rejection_reason'],
+            'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . now()->format('Y-m-d H:i:s') . " - Ticket rejected. Reason: " . $data['rejection_reason']),
+        ]);
+
+        ActivityLog::create([
+            'asset_id' => $ticket->issue?->asset?->id,
+            'Employee_ID' => Auth::id(),
+            'user_name' => Auth::user()->name ?? 'System',
+            'action' => 'Ticket Rejected',
+            'target_type' => 'Ticket',
+            'target_name' => '#' . $ticket->id,
+            'details' => $data['rejection_reason'],
+        ]);
+
+        $ticket->load(['user', 'issue.asset.category', 'status']);
+        return response()->json(['message' => 'Ticket rejected.', 'ticket' => $ticket]);
     }
 
     public function update(Request $request, $id)
@@ -198,9 +281,9 @@ class TicketController extends Controller
 
         if (!empty($data['action'])) {
             if ($data['action'] === 'resolve') {
-                $ticket->Status_ID = Status::firstOf(['Resolved', 'Closed', 'Completed']) ?? $ticket->Status_ID;
+                $ticket->Status_ID = Status::whereRaw('LOWER(Status_Name) IN ("closed", "resolved", "completed")')->value('id') ?? $ticket->Status_ID;
             } elseif ($data['action'] === 'reopen') {
-                $ticket->Status_ID = Status::firstOf(['Pending', 'Open', 'New']) ?? $ticket->Status_ID;
+                $ticket->Status_ID = Status::whereRaw('LOWER(Status_Name) IN ("pending", "open", "new")')->value('id') ?? $ticket->Status_ID;
             }
         }
 
@@ -208,26 +291,24 @@ class TicketController extends Controller
         $ticket->load(['user', 'issue.asset.category', 'status']);
 
         $ticketUser = $ticket->user;
-        if ($ticketUser && $ticketUser->email) {
-            $subject = "Update on your Support Ticket #{$ticket->id}";
-            $details = "There has been an update on your support ticket #{$ticket->id}.\n\n";
-
-            if (!empty($data['communication'])) {
-                $details .= "An admin has left a note: '{$data['communication']}'\n\n";
-            }
-            if (!empty($data['action'])) {
-                $ticket->load('status');
-                $details .= "The ticket has been " . ($data['action'] === 'resolve' ? 'resolved' : 'reopened')
-                    . ", status now: {$ticket->status->Status_Name}.\n\n";
-            }
-            $details .= "Please log in to view the details.";
-
-            Mail::raw($details, function ($message) use ($ticketUser, $subject) {
-                $message->to($ticketUser->email)->subject($subject);
-            });
+        if ($ticketUser) {
+            $statusName = $ticket->status?->Status_Name ?? 'Updated';
+            $this->sendDetailedEmail(
+                $ticketUser,
+                "Ticket Update: " . $statusName,
+                "Support Ticket Progress",
+                "There has been an update on your support ticket.",
+                [
+                    "Current Status" => $statusName,
+                    "Admin Note" => $data['communication'] ?? 'Status updated',
+                    "Last Updated" => now()->toDayDateTimeString(),
+                ],
+                "View Progress",
+                config('app.url') . "/dashboard/user/workspace"
+            );
         }
 
-        return response()->json(['message' => 'Ticket updated successfully', 'ticket' => $ticket]);
+        return response()->json(['success' => true, 'message' => 'Ticket updated successfully']);
     }
 
     public function destroy(int $id): JsonResponse
@@ -256,8 +337,8 @@ class TicketController extends Controller
                 'asset_tag' => 'AST-' . str_pad((string) $a->id, 4, '0', STR_PAD_LEFT),
                 'model' => $a->Asset_Name,
                 'serial' => $a->Serial_No,
-                'category' => $a->category?->Category_Name ?? 'Uncategorized',
-                'status' => $a->status,
+                'category' => $a->category?->name ?? 'Uncategorized',
+                'status_name' => $a->status?->Status_Name ?? 'Unknown',
             ]);
 
         return response()->json($assets);
@@ -311,9 +392,9 @@ class TicketController extends Controller
         $asset = Asset::findOrFail($assetId);
 
         DB::transaction(function () use ($ticket, $asset, $data) {
-            $storeStatusId = Status::whereIn('Status_Name', ['Ready to Deploy', 'Available'])->value('id');
-            $maintStatusId = Status::whereIn('Status_Name', ['Out for Repair', 'Maintenance'])->value('id');
-            $closedStatusId = Status::whereIn('Status_Name', ['Resolved', 'Closed'])->value('id');
+            $storeStatusId = Status::whereRaw('LOWER(Status_Name) IN ("ready to deploy", "available")')->value('id');
+            $maintStatusId = Status::whereRaw('LOWER(Status_Name) IN ("out for repair", "maintenance")')->value('id');
+            $closedStatusId = Status::whereRaw('LOWER(Status_Name) IN ("closed", "resolved")')->value('id');
 
             if ($data['disposition'] === 'store') {
                 $asset->update([
@@ -385,9 +466,9 @@ class TicketController extends Controller
                 'status' => 'pending'
             ]);
 
-            $awaitingStatus = Status::where('Status_Name', 'Awaiting Purchase')->first();
+            $awaitingStatus = Status::whereRaw('LOWER(Status_Name) IN ("escalated to management", "escalated", "awaiting purchase")')->value('id');
             $ticket->update([
-                'Status_ID' => $awaitingStatus->id ?? $ticket->Status_ID,
+                'Status_ID' => $awaitingStatus ?? $ticket->Status_ID,
                 'Communication_log' => trim($ticket->Communication_log . "\n" . now()->format('Y-m-d H:i:s') . " - Escalated to Management.")
             ]);
 
@@ -412,8 +493,8 @@ class TicketController extends Controller
         $asset = Asset::findOrFail($data['asset_id']);
 
         $bundleSummary = DB::transaction(function () use ($ticket, $asset, $data) {
-            $deployedStatusId = Status::whereIn('Status_Name', ['Deployed', 'Assigned', 'In Use'])->value('id');
-            $resolvedStatusId = Status::whereIn('Status_Name', ['Resolved', 'Closed', 'Completed'])->value('id');
+            $deployedStatusId = Status::where('Status_Name', 'Deployed')->value('id') ?? Status::whereRaw('LOWER(Status_Name) IN ("deployed", "assigned", "in use")')->value('id');
+            $resolvedStatusId = Status::where('Status_Name', 'Closed')->value('id') ?? Status::whereRaw('LOWER(Status_Name) IN ("closed", "resolved", "completed")')->value('id');
 
             $asset->update([
                 'Employee_ID' => $ticket->Employee_ID,
@@ -435,7 +516,7 @@ class TicketController extends Controller
 
             $ticket->update([
                 'Status_ID' => $resolvedStatusId ?? $ticket->Status_ID,
-                'Communication_log' => trim($ticket->Communication_log . "\n" . ($data['communication'] ?? 'Asset assigned.'))
+                'Communication_log' => trim($ticket->Communication_log . "\n" . ($data['communication'] ?? 'Ticket closed and asset assigned.'))
             ]);
 
             if ($ticket->issue) {
@@ -468,7 +549,7 @@ class TicketController extends Controller
 
         $ticket = Ticket::create([
             'Employee_ID' => $user->id,
-            'Status_ID' => Status::firstOf(['Pending','New','Open']) ?? 1,
+            'Status_ID' => Status::whereRaw('LOWER(Status_Name) IN ("pending", "new", "open")')->value('id') ?? 1,
             'Priority' => 'medium',
             'Description' => $description,
         ]);

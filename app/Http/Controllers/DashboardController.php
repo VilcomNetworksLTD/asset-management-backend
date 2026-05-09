@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Models\Ticket;
 use App\Models\ActivityLog;
 use App\Models\Accessory;
-use App\Models\Component;
 use App\Models\Consumable;
 use App\Models\License;
 use Illuminate\Http\Request;
@@ -35,7 +34,13 @@ public function index(Request $request)
     if ($user->role === 'admin') { 
         return Inertia::render('AdminDashboard', [
             'stats' => $this->dashboardService->getStats(),
-            'recentActivity' => ActivityLog::latest()->take(5)->get()
+            'recentActivity' => ActivityLog::latest()->take(5)->get()->map(fn($log) => [
+                'id' => $log->id,
+                'type' => $log->action,
+                'message' => $log->details ?? "{$log->user_name} {$log->action} {$log->target_type}: {$log->target_name}",
+                'time' => $log->created_at->diffForHumans(),
+                'color' => $this->getStatusColor($log->action)
+            ])
         ]);
     }
 
@@ -43,7 +48,13 @@ public function index(Request $request)
     return Inertia::render('UserDashboard', [
         'stats' => $this->dashboardService->getStats(),
         'myAssets' => Asset::with(['status', 'category'])->where('Employee_ID', $user->id)->get(),
-        'recentActivity' => ActivityLog::where('Employee_ID', $user->id)->latest()->take(5)->get()
+        'recentActivity' => ActivityLog::where('Employee_ID', $user->id)->latest()->take(5)->get()->map(fn($log) => [
+            'id' => $log->id,
+            'type' => $log->action,
+            'message' => $log->details ?? "{$log->action} {$log->target_type}: {$log->target_name}",
+            'time' => $log->created_at->diffForHumans(),
+            'color' => $this->getStatusColor($log->action)
+        ])
     ]);
 }
 
@@ -73,6 +84,7 @@ public function index(Request $request)
             'category' => $asset->category ? $asset->category->name : $asset->Asset_Category,
             'category_obj' => $asset->category,
             'status_name' => optional($asset->status)->Status_Name ?? 'Deployed',
+            'purchase_date' => $asset->Purchase_Date,
         ];
     }
 
@@ -83,11 +95,11 @@ public function index(Request $request)
     // Fetch all other assigned items
     $myLicenses = $user->licenses()->wherePivotNull('returned_at')->get();
     $myAccessories = $user->accessories()->withPivot('quantity')->wherePivotNull('returned_at')->get();
-    $myComponents = $user->components()->withPivot('quantity')->wherePivotNull('returned_at')->get();
+    
 
     // Calculate total quantities for items that have them
     $myAccessoriesCount = $myAccessories->sum(fn($i) => $i->pivot->quantity);
-    $myComponentsCount = $myComponents->sum(fn($i) => $i->pivot->quantity);
+   
 
     $logs = ActivityLog::where('Employee_ID', $user->id)
         ->latest()
@@ -110,19 +122,20 @@ public function index(Request $request)
         'logs' => $logs,
         'my_licenses_count' => $myLicenses->count(),
         'my_accessories_count' => $myAccessoriesCount,
-        'my_components_count' => $myComponentsCount,
         'recent_licenses' => $myLicenses->take(5),
         'recent_accessories' => $myAccessories->take(5),
-        'recent_components' => $myComponents->take(5),
+        
     ]);
 }
     private function getStatusColor($type)
     {
-        return match(strtolower($type ?? '')) {
-            'requested', 'pending' => 'bg-orange-500',
-            'update', 'edit'       => 'bg-blue-500',
-            'checkout', 'deployed' => 'bg-green-500',
-            default                => 'bg-gray-400',
-        };
+        $type = strtolower($type ?? '');
+        
+        if (str_contains($type, 'resolved') || str_contains($type, 'verified') || str_contains($type, 'deployed') || str_contains($type, 'accepted') || str_contains($type, 'assigned')) return 'bg-green-500';
+        if (str_contains($type, 'requested') || str_contains($type, 'pending') || str_contains($type, 'alert')) return 'bg-orange-500';
+        if (str_contains($type, 'created') || str_contains($type, 'updated') || str_contains($type, 'scanned') || str_contains($type, 'discovered')) return 'bg-blue-500';
+        if (str_contains($type, 'rejected') || str_contains($type, 'deleted') || str_contains($type, 'disputed')) return 'bg-red-500';
+
+        return 'bg-gray-400';
     }
 }

@@ -188,13 +188,14 @@ class ReturnRequestTest extends TestCase
         ]);
 
         // create component and accessory records so the name resolver can look them up
-        $comp1 = \App\Models\Component::create([
+        $comp1 = \App\Models\Accessory::create([
             'name' => 'Comp A',
             'category' => 'Generic',
             'serial_no' => 'C-001',
             'total_qty' => 1,
             'remaining_qty' => 1,
             'price' => 0,
+            'type' => 'component',
         ]);
         $acc1 = \App\Models\Accessory::create([
             'name' => 'Acc B',

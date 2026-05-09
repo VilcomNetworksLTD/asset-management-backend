@@ -70,9 +70,10 @@ class AssetController extends Controller
     public function hodDepartmentAssets(Request $request): JsonResponse
     {
         $user = Auth::user();
+        $role = strtolower($user->role ?? '');
 
-        if (!$user || strtolower($user->role) !== 'hod') {
-            return response()->json(['error' => 'Unauthorized. Only HODs can access this page.'], 403);
+        if (!$user || !in_array($role, ['hod', 'manager'])) {
+            return response()->json(['error' => 'Unauthorized. Only HODs and Managers can access this page.'], 403);
         }
 
         if (!$user->department_id) {
@@ -138,9 +139,10 @@ class AssetController extends Controller
     public function hodStaffAssets(Request $request): JsonResponse
     {
         $user = Auth::user();
+        $role = strtolower($user->role ?? '');
 
-        if (!$user || strtolower($user->role) !== 'hod') {
-            return response()->json(['error' => 'Unauthorized. Only HODs can access this page.'], 403);
+        if (!$user || !in_array($role, ['hod', 'manager'])) {
+            return response()->json(['error' => 'Unauthorized. Only HODs and Managers can access this page.'], 403);
         }
 
         if (!$user->department_id) {
@@ -153,8 +155,17 @@ class AssetController extends Controller
         $staff = User::where('department_id', $user->department_id)
             ->where('id', '!=', $user->id)
             ->select('id', 'name', 'email')
-            ->get()
-            ->map(function ($employee) {
+            ->get();
+
+        if ($staff->isEmpty()) {
+            app(\App\Services\SafetikaService::class)->syncUsers();
+            $staff = User::where('department_id', $user->department_id)
+                ->where('id', '!=', $user->id)
+                ->select('id', 'name', 'email')
+                ->get();
+        }
+
+        $staff = $staff->map(function ($employee) {
                 $assets = Asset::where('Employee_ID', $employee->id)
                     ->with(['status:id,Status_Name', 'category:id,name'])
                     ->get();
@@ -189,8 +200,17 @@ class AssetController extends Controller
         $staff = User::where('department_id', $user->department_id)
             ->where('id', '!=', $user->id)
             ->select('id', 'name', 'email')
-            ->get()
-            ->map(function ($employee) {
+            ->get();
+
+        if ($staff->isEmpty()) {
+            app(\App\Services\SafetikaService::class)->syncUsers();
+            $staff = User::where('department_id', $user->department_id)
+                ->where('id', '!=', $user->id)
+                ->select('id', 'name', 'email')
+                ->get();
+        }
+
+        $staff = $staff->map(function ($employee) {
                 $assets = Asset::where('Employee_ID', $employee->id)
                     ->with(['status:id,Status_Name', 'category:id,name'])
                     ->get();
@@ -330,6 +350,7 @@ class AssetController extends Controller
             'location_id' => 'nullable|exists:locations,id',
             'Supplier_ID' => 'sometimes|required|integer|exists:suppliers,id',
             'Price' => 'nullable|numeric|min:0',
+            'Purchase_Date' => 'nullable|date',
             'warranty_image' => 'nullable|image|max:10240',
             'custom_attributes' => 'nullable|array',
         ]);
@@ -478,7 +499,7 @@ class AssetController extends Controller
         $rules = [];
         $attributeNames = [];
         foreach ($category->fields as $field) {
-            $key = $field['key'] ?? $field['name'] ?? null;
+            $key = $field['name'] ?? null;
             if (!$key) continue;
             $label = $field['label'] ?? $key;
             $type = $field['type'] ?? 'text';
@@ -504,7 +525,8 @@ class AssetController extends Controller
                     break;
                 case 'image':
                 case 'file':
-                    $fieldRules[] = 'file';
+                    // Files are sent as base64 data URLs, treat as string
+                    $fieldRules[] = 'string';
                     break;
                 case 'select':
                     if (!empty($field['options'])) {
@@ -530,7 +552,7 @@ class AssetController extends Controller
         $rules = [];
         $attributeNames = [];
         foreach ($location->fields as $field) {
-            $key = $field['key'] ?? $field['name'] ?? null;
+            $key = $field['name'] ?? null;
             if (!$key) continue;
             $label = $field['label'] ?? $key;
             $required = filter_var($field['required'] ?? false, FILTER_VALIDATE_BOOLEAN);

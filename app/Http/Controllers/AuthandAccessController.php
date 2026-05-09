@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Department;
 use App\Services\SafetikaService;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -113,6 +114,8 @@ class AuthandAccessController extends Controller
 
             $hubUser = $responseData['user'] ?? $responseData;
 
+            Log::info('Raw hubUser keys', ['keys' => array_keys($hubUser ?? [])]);
+
             if (! $hubUser || ! isset($hubUser['email'])) {
                 Log::error('Invalid user data from HUB', [
                     'response' => $responseData,
@@ -125,6 +128,13 @@ class AuthandAccessController extends Controller
 
             // 4. Process user data
             $fullName = trim(($hubUser['first_name'] ?? '').' '.($hubUser['last_name'] ?? ''));
+
+            // Fetch additional user data from Hub API (role, department, etc.)
+            $fullUserData = $this->safetikaService->fetchUserFullData($accessToken, $hubUser['id'] ?? 0);
+            if ($fullUserData) {
+                $hubUser = array_merge($hubUser, $fullUserData);
+                Log::info('Merged full user data', ['keys' => array_keys($hubUser)]);
+            }
 
             // ✅ FIXED ROLE HANDLING
             $hubRole = 'employee';
@@ -141,10 +151,28 @@ class AuthandAccessController extends Controller
                 }
             } elseif (! empty($hubUser['role'])) {
                 $hubRole = strtolower($hubUser['role']);
+            } elseif (! empty($hubUser['technician_role'])) {
+                $hubRole = strtolower($hubUser['technician_role']);
+            } elseif (! empty($hubUser['user_type'])) {
+                $hubRole = strtolower($hubUser['user_type']);
+            } elseif (! empty($hubUser['type'])) {
+                $hubRole = strtolower($hubUser['type']);
+            } elseif (! empty($hubUser['access_level'])) {
+                $hubRole = strtolower($hubUser['access_level']);
+            } elseif (! empty($hubUser['role_name'])) {
+                $hubRole = strtolower($hubUser['role_name']);
+            } elseif (! empty($hubUser['user_role'])) {
+                $hubRole = strtolower($hubUser['user_role']);
             }
 
+            Log::info('Role from hubUser', ['hubRole' => $hubRole, 'fields_checked' => ['roles', 'role', 'technician_role', 'user_type', 'type', 'access_level', 'role_name', 'user_role']]);
+
+            // Try to fetch roles from Hub API if available
+            $hubRole = $this->safetikaService->fetchUserRole($accessToken, $hubUser['id'] ?? null) ?? $hubRole;
+
             Log::info('Resolved role', [
-                'hub_roles_raw' => $hubUser['roles'] ?? null,
+                'hub_roles_raw' => $hubUser['roles'] ?? $hubUser['role'] ?? null,
+                'hub_user_keys' => array_keys($hubUser ?? []),
                 'final_role' => $hubRole,
             ]);
 
@@ -164,50 +192,48 @@ class AuthandAccessController extends Controller
             );
 
             // Fetch departments from hub and sync
-            $this->safetikaService->syncDepartments();
+            $this->safetikaService->syncDepartments($accessToken);
 
 // Try various ways Safetika might return department info
             $deptId = null;
             $deptName = null;
 
-            // Check for departments array: { departments: [{ id: 1, name: "CSS" }] }
-            if (isset($hubUser['departments']) && is_array($hubUser['departments']) && !empty($hubUser['departments'])) {
-                $firstDept = $hubUser['departments'][0];
-                $deptId = $firstDept['id'] ?? null;
-                $deptName = $firstDept['name'] ?? $firstDept['title'] ?? null;
+            // The hubUser now contains merged data from fetchUserFullData
+            // Check all possible department fields
+            $deptFields = [
+                'department', 'department_id', 'department_name', 'dept_name', 'dept',
+                'division', 'unit', 'team', 'section', 'section_name', 'job_title', 'site'
+            ];
+            
+            foreach ($deptFields as $field) {
+                if (isset($hubUser[$field])) {
+                    $value = $hubUser[$field];
+                    if (is_array($value)) {
+                        // Nested: { department: { id: 1, name: "CSS" } }
+                        $deptId = $value['id'] ?? null;
+                        $deptName = $value['name'] ?? $value['title'] ?? null;
+                    } elseif (is_numeric($value)) {
+                        // Numeric ID
+                        $deptId = $value;
+                    } elseif (is_string($value)) {
+                        // String name
+                        $deptName = $value;
+                    }
+                    if ($deptId || $deptName) {
+                        Log::info('Department found from field', ['field' => $field, 'deptId' => $deptId, 'deptName' => $deptName]);
+                        break;
+                    }
+                }
             }
-            // Check for nested department object: { department: { id: 1, name: "IT" } }
-            elseif (isset($hubUser['department']) && is_array($hubUser['department'])) {
-                $deptId = $hubUser['department']['id'] ?? null;
-                $deptName = $hubUser['department']['name'] ?? $hubUser['department']['title'] ?? null;
-            }
-            // Check for department_name string
-            elseif (isset($hubUser['department_name']) && is_string($hubUser['department_name'])) {
-                $deptName = $hubUser['department_name'];
-            }
-            // Check for dept_name string
-            elseif (isset($hubUser['dept_name']) && is_string($hubUser['dept_name'])) {
-                $deptName = $hubUser['dept_name'];
-            }
-            // Check for dept string
-            elseif (isset($hubUser['dept']) && is_string($hubUser['dept'])) {
-                $deptName = $hubUser['dept'];
-            }
-            // Check for direct department_id field
-            elseif (isset($hubUser['department_id'])) {
-                $deptId = $hubUser['department_id'];
-            }
-            // Check for division
-            elseif (isset($hubUser['division']) && is_string($hubUser['division'])) {
-                $deptName = $hubUser['division'];
-            }
-            // Check for unit
-            elseif (isset($hubUser['unit']) && is_string($hubUser['unit'])) {
-                $deptName = $hubUser['unit'];
-            }
-            // Check for team
-            elseif (isset($hubUser['team']) && is_string($hubUser['team'])) {
-                $deptName = $hubUser['team'];
+
+            // Fallback: try fetchUserDepartment API if still not found
+            if (!$deptId && !$deptName) {
+                $userDeptData = $this->safetikaService->fetchUserDepartment($accessToken, $hubUser['id'] ?? 0);
+                if ($userDeptData) {
+                    $deptId = $userDeptData['id'] ?? null;
+                    $deptName = $userDeptData['name'] ?? null;
+                    Log::info('Department from API fallback', ['deptId' => $deptId, 'deptName' => $deptName]);
+                }
             }
 
             Log::info('Looking for department', [
@@ -334,5 +360,49 @@ class AuthandAccessController extends Controller
             $response->json(),
             $response->status()
         );
+    }
+
+    public function debugHub(): JsonResponse
+    {
+        $hubConfig = config('services.safetika_hub');
+        
+        $result = [
+            'configured' => !empty($hubConfig['url']),
+            'url' => $hubConfig['url'] ?? null,
+            'token_status' => null,
+            'user_data' => null,
+            'error' => null,
+        ];
+
+        try {
+            $tokenResponse = Http::withHeaders(['Accept' => 'application/json'])
+                ->asForm()
+                ->post(rtrim($hubConfig['url'], '/').'/api/oauth/token', [
+                    'grant_type' => 'client_credentials',
+                    'client_id' => $hubConfig['client_id'],
+                    'client_secret' => $hubConfig['client_secret'],
+                    'scope' => '',
+                ]);
+
+            $result['token_status'] = $tokenResponse->status();
+            
+            if ($tokenResponse->successful()) {
+                $accessToken = $tokenResponse->json()['access_token'] ?? null;
+                
+                if ($accessToken) {
+                    $userResponse = Http::withHeaders(['Accept' => 'application/json'])
+                        ->withToken($accessToken)
+                        ->get(rtrim($hubConfig['url'], '/').'/api/asset/me');
+                    
+                    $result['user_data'] = $userResponse->json();
+                }
+            } else {
+                $result['error'] = $tokenResponse->json();
+            }
+        } catch (\Exception $e) {
+            $result['error'] = $e->getMessage();
+        }
+
+        return response()->json($result);
     }
 }

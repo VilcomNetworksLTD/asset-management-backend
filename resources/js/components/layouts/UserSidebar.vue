@@ -28,13 +28,6 @@
       </li>
     </ul>
 
-    <!-- FOOTER -->
-    <div v-if="!compactSidebar" class="p-4 border-t border-slate-700/50 shrink-0">
-      <div class="p-4 bg-slate-800/50 rounded-xl">
-        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Vilcom Asset Manager</p>
-        <p class="text-xs text-slate-400 mt-1">v2.0.0</p>
-      </div>
-    </div>
   </aside>
 </template>
 

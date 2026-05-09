@@ -17,15 +17,6 @@
             </transition>
           </router-view>
         </main>
-
-        <!-- FOOTER -->
-        <footer class="py-6 px-12 border-t border-gray-100 flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] bg-white">
-           <div>© 2026 Vilcom Networks LTD | Asset Management System v2.0</div>
-           <div class="flex gap-6">
-             <span class="hover:text-vilcom-blue cursor-pointer">Security Protocol V3</span>
-             <span class="hover:text-vilcom-blue cursor-pointer">Support API</span>
-           </div>
-        </footer>
       </div>
     </div>
   </div>

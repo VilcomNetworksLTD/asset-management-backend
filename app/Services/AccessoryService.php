@@ -6,8 +6,12 @@ use App\Models\Accessory;
 
 class AccessoryService
 {
-    public function getAllAccessories()
+    public function getAllAccessories($type = null)
     {
-        return Accessory::all();
+        $query = Accessory::query();
+        if ($type) {
+            $query->where('type', $type);
+        }
+        return $query->get();
     }
 }

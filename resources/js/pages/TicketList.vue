@@ -12,7 +12,6 @@
       
       <div class="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 flex gap-1">
         <button @click="currentTab = 'asset'" :class="tabClass('asset')">Inventory Requests</button>
-        <button @click="currentTab = 'general'" :class="tabClass('general')">IT Support</button>
       </div>
     </div>
 
@@ -76,16 +75,24 @@
       </div>
 
       <!-- Assign Panel -->
-      <div v-if="showAssign" class="p-10 bg-green-50/20 border-b border-green-100 space-y-8">
-        <div class="flex items-center justify-between">
-           <div class="flex items-center gap-3">
-              <div class="p-2 bg-green-600 rounded-lg text-white">
-                <UserPlus class="size-4" />
-              </div>
-              <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Inventory Assignment Workflow</h3>
-           </div>
-           <p class="text-[10px] font-bold text-green-600 uppercase tracking-widest bg-green-50 px-3 py-1 rounded-lg">Fulfilling Ticket #{{ assignTicket?.id }}</p>
-        </div>
+         <div v-if="showAssign" class="p-10 bg-green-50/20 border-b border-green-100 space-y-8">
+         <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+               <div class="p-2 bg-green-600 rounded-lg text-white">
+                 <UserPlus class="size-4" />
+               </div>
+               <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Inventory Assignment Workflow</h3>
+            </div>
+            <p class="text-[10px] font-bold text-green-600 uppercase tracking-widest bg-green-50 px-3 py-1 rounded-lg">Fulfilling Ticket #{{ assignTicket?.id }}</p>
+         </div>
+
+         <!-- Requested equipment info -->
+         <div class="bg-blue-50/50 border border-blue-100 rounded-2xl p-4">
+            <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Requested Equipment</p>
+            <p class="text-sm font-bold text-slate-700">
+              {{ extractRequestedCategory(assignTicket) || 'Equipment request (no specific item)' }}
+            </p>
+         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
            <div class="space-y-4">
@@ -152,12 +159,15 @@
 
            <div class="space-y-4">
               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Estimated Cost</label>
-              <input 
-                v-model="escalateForm.estimated_cost" 
-                type="number"
-                class="w-full bg-white border-none rounded-2xl p-5 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue" 
-                placeholder="Enter estimated cost..." 
-              />
+              <div class="relative">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-black text-[10px]">KSh</span>
+                <input 
+                  v-model="escalateForm.estimated_cost" 
+                  type="number"
+                  class="w-full bg-white border-none rounded-2xl p-5 pl-12 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue" 
+                  placeholder="Enter estimated cost..." 
+                />
+              </div>
            </div>
 
            <div class="space-y-4">
@@ -175,18 +185,50 @@
            <button @click="submitEscalation" class="bg-purple-600 text-white px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-purple-900/10 hover:opacity-90 transition-all active:scale-95">ESCALATE TO MANAGEMENT</button>
            <button @click="showEscalate = false" class="text-gray-400 font-black text-[10px] uppercase tracking-widest hover:text-red-500 transition-colors">Cancel</button>
         </div>
-      </div>
+       </div>
 
-      <!-- Table View -->
+       <!-- Reject Panel -->
+       <div v-if="showReject" class="p-10 bg-red-50/20 border-b border-red-100 space-y-8">
+         <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+               <div class="p-2 bg-red-600 rounded-lg text-white">
+                 <XCircle class="size-4" />
+               </div>
+               <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Reject Ticket Request</h3>
+            </div>
+            <p class="text-[10px] font-bold text-red-600 uppercase tracking-widest bg-red-50 px-3 py-1 rounded-lg">Ticket #{{ rejectingId }}</p>
+         </div>
+
+         <div class="space-y-6">
+            <div class="space-y-4">
+               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Rejection Reason *</label>
+               <textarea 
+                 v-model="rejectForm.rejection_reason" 
+                 rows="4"
+                 class="w-full bg-white border-none rounded-2xl p-5 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-red-500" 
+                 placeholder="Explain why this request is being rejected..."
+               ></textarea>
+            </div>
+         </div>
+
+         <div class="flex gap-4">
+            <button @click="submitReject" :disabled="saving" class="bg-red-600 text-white px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-red-900/10 hover:opacity-90 transition-all active:scale-95">
+              {{ saving ? 'PROCESSING...' : 'CONFIRM REJECTION' }}
+            </button>
+            <button @click="showReject = false" class="text-gray-400 font-black text-[10px] uppercase tracking-widest hover:text-gray-600 transition-colors">Cancel</button>
+         </div>
+       </div>
+
+       <!-- Table View -->
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-gray-50/50 border-b border-gray-50">
-              <th v-if="role === 'admin'" class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Originator</th>
-              <th class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Objective Details</th>
-              <th class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Priority</th>
-              <th class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40 text-center">Protocol Status</th>
-              <th class="p-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32 text-right">Interactions</th>
+              <th v-if="role === 'admin'" class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Requester</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-64">Equipment Details</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Priority</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40 text-center"> Status</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32 text-right">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-50">
@@ -196,7 +238,7 @@
               </td>
             </tr>
             <tr v-for="ticket in rows" :key="ticket.id" class="group transition-all hover:bg-blue-50/30">
-              <td v-if="role === 'admin'" class="p-8">
+              <td v-if="role === 'admin'" class="px-6 py-5">
                  <div class="flex items-center gap-3">
                     <div class="size-10 bg-slate-100 rounded-full flex items-center justify-center font-black text-slate-400 text-xs uppercase">
                        {{ ticket.user?.name.charAt(0) }}
@@ -208,41 +250,58 @@
                  </div>
               </td>
 
-              <td class="p-8">
-                 <div class="space-y-1.5 max-w-xl">
+              <td class="px-6 py-5">
+                 <div class="space-y-1.5 max-w-[200px]">
                     <div class="font-black text-slate-800 text-base tracking-tight group-hover:text-vilcom-blue transition-colors">
                        {{ currentTab === 'asset' ? (ticket.issue?.asset?.Asset_Name || extractRequestedCategory(ticket) || 'Inventory Request') : extractSubject(ticket.Description) }}
                     </div>
-                    <div class="text-[11px] font-bold text-gray-400 leading-relaxed italic whitespace-pre-wrap">
+                    <div class="text-[11px] font-bold text-gray-400 leading-relaxed italic whitespace-pre-wrap line-clamp-2 hover:line-clamp-none cursor-help transition-all">
                        {{ cleanDescription(ticket.Description) }}
+                    </div>
+                    <div v-if="ticket.status?.Status_Name?.toLowerCase() === 'rejected' && ticket.rejection_reason" class="mt-3 group/reason">
+                       <div class="inline-flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-[9px] font-black uppercase tracking-widest border border-red-100 hover:bg-red-600 hover:text-white transition-all cursor-default">
+                          <AlertCircle class="size-3" />
+                          Feedback
+                       </div>
+                       <div class="hidden group-hover/reason:block absolute z-20 mt-2 p-4 bg-white shadow-2xl border border-red-100 rounded-2xl w-64 text-[10px] font-bold text-slate-600 leading-relaxed">
+                          <div class="text-red-600 uppercase tracking-widest font-black mb-2 flex items-center gap-2">
+                             <div class="size-1 bg-red-600 rounded-full"></div>
+                             Official Reason
+                          </div>
+                          {{ ticket.rejection_reason }}
+                       </div>
                     </div>
                  </div>
               </td>
 
-              <td class="p-8">
+              <td class="px-6 py-5">
                 <span :class="priorityClass(ticket.Priority)" class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">
                   {{ ticket.Priority }}
                 </span>
               </td>
 
-              <td class="p-8 text-center">
+              <td class="px-6 py-5 text-center">
                 <div :class="statusContainerClass(ticket.status?.Status_Name)" class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all">
                    <div :class="statusDotClass(ticket.status?.Status_Name)" class="size-1.5 rounded-full animate-pulse"></div>
                    <span class="text-[10px] font-black uppercase tracking-widest">{{ ticket.status?.Status_Name || 'Processing' }}</span>
                 </div>
               </td>
 
-              <td class="p-8 text-right">
-                <div class="flex justify-end gap-3 opacity-40 group-hover:opacity-100 transition-opacity">
+              <td class="px-6 py-5 text-right">
+                <div class="flex justify-end gap-3 md:opacity-40 group-hover:opacity-100 transition-opacity">
                    <!-- ACTION TRANSITIONS -->
                    <template v-if="!isResolved(ticket)">
-                      <button @click="openUpdate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-blue hover:border-vilcom-blue hover:shadow-lg transition-all" title="Edit Ticket & Add Note">
-                        <Edit3 class="size-4" />
-                      </button>
+                       <button @click="openUpdate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-blue hover:border-vilcom-blue hover:shadow-lg transition-all" title="Edit Ticket & Add Note">
+                         <Edit3 class="size-4" />
+                       </button>
 
-                      <button v-if="role === 'admin' && currentTab === 'general'" @click="resolveTicket(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Mark as Resolved">
-                        <CheckCircle class="size-4" />
-                      </button>
+                       <button v-if="role === 'admin'" @click="openReject(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-red-600 hover:border-red-600 hover:shadow-lg transition-all" title="Reject Request">
+                         <XCircle class="size-4" />
+                       </button>
+
+                       <button v-if="role === 'admin' && currentTab === 'general'" @click="resolveTicket(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Mark as Resolved">
+                         <CheckCircle class="size-4" />
+                       </button>
 
                       <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset" @click="openAssign(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-orange hover:border-vilcom-orange hover:shadow-lg transition-all" title="Assign Asset to User">
                         <Package class="size-4" />
@@ -303,7 +362,7 @@ import axios from 'axios';
 import { 
   Search, Edit3, UserPlus, CheckCircle, Package, 
   Trash2, ChevronLeft, ChevronRight, Inbox,
-  ShieldCheck, Info, AlertCircle, ArrowUpRight
+  ShieldCheck, Info, AlertCircle, ArrowUpRight, XCircle
 } from 'lucide-vue-next';
 import Loader from '@/components/Loader.vue';
 
@@ -328,7 +387,11 @@ const assignSearch = ref('')
 
 const showEscalate = ref(false)
 const escalateTicket = ref(null)
-const escalateForm = reactive({ item_name: '', estimated_cost: '', reason: '' }) 
+const escalateForm = reactive({ item_name: '', estimated_cost: '', reason: '' })
+
+const showReject = ref(false)
+const rejectingId = ref(null)
+const rejectForm = reactive({ rejection_reason: '' }) 
 
 const role = (() => {
   try { return JSON.parse(localStorage.getItem('user_data') || '{}').role || 'user' } catch { return 'user' }
@@ -373,7 +436,8 @@ const loadStatuses = async () => {
 
 const isAssetTicket = (ticket) => {
   const desc = ticket.Description || '';
-  return !!(ticket.issue || desc.includes('Request Category:'));
+  const lowerDesc = desc.toLowerCase();
+  return !!(ticket.issue || lowerDesc.includes('request category:') || lowerDesc.includes('asset (other):'));
 };
 
 const rows = computed(() => {
@@ -394,10 +458,11 @@ const extractSubject = (desc) => {
 
 const cleanDescription = (desc) => {
   if (!desc) return '';
-  // Remove Subject:, Request Category:, Details:, and Request Details: lines
+  // Remove Subject:, Request Category:, Asset (Other):, Details:, and Request Details: lines
   return desc
     .replace(/Subject:.*\n?/i, '')
     .replace(/Request Category:.*\n?/i, '')
+    .replace(/Asset \(Other\):.*\n?/i, '')
     .replace(/Details:.*\n?/i, '')
     .replace(/Request Details:.*\n?/i, '')
     .trim();
@@ -418,26 +483,30 @@ const openUpdate = (ticket) => {
   showUpdate.value = true
 }
 
-const isResolved = (ticket) => {
-  const statusName = ticket.status?.Status_Name?.toLowerCase() || '';
-  return ['resolved', 'closed', 'completed'].includes(statusName);
-}
+ const isResolved = (ticket) => {
+   const statusName = ticket.status?.Status_Name?.toLowerCase() || '';
+   return ['resolved', 'closed', 'completed', 'rejected', 'declined'].includes(statusName);
+ }
 
-const statusContainerClass = (status) => {
-  const s = String(status || '').toLowerCase();
-  if (['resolved', 'closed', 'completed'].includes(s)) return 'bg-green-50 text-green-600 border-green-100 shadow-sm shadow-green-900/5';
-  if (s === 'pending' || s === 'new' || s === 'open') return 'bg-orange-50 text-vilcom-orange border-orange-100 shadow-sm shadow-orange-900/5';
-  if (s === 'in progress') return 'bg-blue-50 text-vilcom-blue border-blue-100 shadow-sm shadow-blue-900/5';
-  return 'bg-gray-50 text-gray-500 border-gray-100';
-}
+ const statusContainerClass = (status) => {
+   const s = String(status || '').toLowerCase();
+   if (['resolved', 'closed', 'completed'].includes(s)) return 'bg-green-50 text-green-600 border-green-100 shadow-sm shadow-green-900/5';
+   if (s === 'pending' || s === 'new' || s === 'open') return 'bg-orange-50 text-vilcom-orange border-orange-100 shadow-sm shadow-orange-900/5';
+   if (s === 'in progress') return 'bg-blue-50 text-vilcom-blue border-blue-100 shadow-sm shadow-blue-900/5';
+   if (s.includes('escalated') || s.includes('awaiting')) return 'bg-purple-50 text-purple-600 border-purple-100 shadow-sm shadow-purple-900/5';
+   if (s === 'rejected' || s === 'declined') return 'bg-red-50 text-red-600 border-red-100 shadow-sm shadow-red-900/5';
+   return 'bg-gray-50 text-gray-500 border-gray-100';
+ }
 
-const statusDotClass = (status) => {
-  const s = String(status || '').toLowerCase();
-  if (['resolved', 'closed', 'completed'].includes(s)) return 'bg-green-500';
-  if (s === 'pending' || s === 'new' || s === 'open') return 'bg-vilcom-orange';
-  if (s === 'in progress') return 'bg-vilcom-blue';
-  return 'bg-gray-400';
-}
+ const statusDotClass = (status) => {
+   const s = String(status || '').toLowerCase();
+   if (['resolved', 'closed', 'completed'].includes(s)) return 'bg-green-500';
+   if (s === 'pending' || s === 'new' || s === 'open') return 'bg-vilcom-orange';
+   if (s === 'in progress') return 'bg-vilcom-blue';
+   if (s.includes('escalated') || s.includes('awaiting')) return 'bg-purple-500';
+   if (s === 'rejected' || s === 'declined') return 'bg-red-500';
+   return 'bg-gray-400';
+ }
 
 const resolveTicket = async (ticket) => {
   if (!confirm('Mark this support ticket as resolved?')) return;
@@ -446,10 +515,10 @@ const resolveTicket = async (ticket) => {
       action: 'resolve',
       communication: 'Issue has been finalized and resolved by IT support team.'
     });
-    alert('Ticket resolution committed.');
+    window.vnlNotify.success('Ticket resolution committed.');
     fetchRows(pagination.current_page);
   } catch (err) {
-    alert('Failed to finalize resolution.');
+    window.vnlNotify.error('Failed to finalize resolution.');
   }
 }
 
@@ -474,8 +543,14 @@ const saveUpdate = async () => {
 
 const extractRequestedCategory = (ticket) => {
   const text = String(ticket?.Description || '')
-  const line = text.split('\n').find((l) => l.toLowerCase().startsWith('request category:'))
-  return line ? line.split(':').slice(1).join(':').trim() : ''
+  // Check for "Asset (Other):" first for custom equipment
+  const otherLine = text.split('\n').find((l) => l.toLowerCase().startsWith('asset (other):'))
+  if (otherLine) {
+    return otherLine.split(':').slice(1).join(':').trim()
+  }
+  // Fallback to "Request Category:"
+  const reqLine = text.split('\n').find((l) => l.toLowerCase().startsWith('request category:'))
+  return reqLine ? reqLine.split(':').slice(1).join(':').trim() : ''
 }
 
 const openAssign = async (ticket) => {
@@ -505,7 +580,7 @@ const openEscalate = (ticket) => {
 const submitEscalation = async () => {
   if (!escalateTicket.value) return
   if (!escalateForm.item_name || !escalateForm.reason) {
-    alert('Please provide item name and reason for escalation.')
+    window.vnlNotify.error('Please provide item name and reason for escalation.');
     return
   }
   
@@ -516,11 +591,38 @@ const submitEscalation = async () => {
       estimated_cost: escalateForm.estimated_cost || null
     })
     showEscalate.value = false
-    alert('Ticket escalated to management for approval.')
+    window.vnlNotify.success('Ticket escalated to management for approval.');
     fetchRows(pagination.current_page)
   } catch (err) {
     console.error('Escalation failed:', err)
-    alert('Failed to escalate ticket.')
+    window.vnlNotify.error('Failed to escalate ticket.');
+  }
+}
+
+const openReject = (ticket) => {
+  rejectingId.value = ticket.id
+  rejectForm.rejection_reason = ''
+  showReject.value = true
+}
+
+const submitReject = async () => {
+  if (!rejectForm.rejection_reason?.trim()) {
+    alert('Please provide a rejection reason.')
+    return
+  }
+  saving.value = true
+  try {
+    await axios.post(`/api/tickets/${rejectingId.value}/reject`, {
+      rejection_reason: rejectForm.rejection_reason.trim()
+    })
+    showReject.value = false
+    alert('Ticket rejected successfully.')
+    fetchRows(pagination.current_page)
+  } catch (err) {
+    console.error('Rejection failed:', err)
+    alert('Failed to reject ticket.')
+  } finally {
+    saving.value = false
   }
 }
 

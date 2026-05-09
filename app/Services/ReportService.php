@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Accessory;
 use App\Models\ActivityLog;
 use App\Models\Asset;
-use App\Models\Component;
 use App\Models\Consumable;
 use App\Models\License;
 use App\Models\Maintenance;
@@ -22,12 +21,16 @@ class ReportService
      */
     public function getInventorySummary(): array
     {
+        // Using consistent "Out for Repair" check for Admin Dashboard health
+        $repairStatusIds = \App\Models\Status::whereIn('Status_Name', ['Out for Repair', 'Maintenance', 'Under Repair'])->pluck('id');
+
         return [
             'total_assets' => Asset::count(),
             'total_users' => User::count(),
             'total_accessories' => Accessory::count(),
-            'total_consumables' => Consumable::count(),
+            'total_ssl_certificates' => \App\Models\SslCertificate::count(),
             'total_licenses' => License::count(),
+            'out_for_repair' => Asset::whereIn('Status_ID', $repairStatusIds)->count(),
             'pending_maintenance' => Maintenance::whereNull('Completion_Date')->count(),
             'total_cost' => $this->calculateTotalInvestment(),
         ];
@@ -44,54 +47,52 @@ class ReportService
     public function generateReport(string $category): Report
     {
         $normalized = strtolower(trim($category));
+        $now = Carbon::now(); // Single timestamp instance for accuracy
 
         [$title, $payload] = match ($normalized) {
             'inventory', 'asset inventory' => [
-                'Asset Inventory Report - ' . now()->format('Y-m-d H:i'),
-                $this->generateInventoryPayload(),
+                'Asset Inventory Report - ' . $now->format('Y-m-d H:i'),
+                $this->generateInventoryPayload($now),
             ],
             'maintenance', 'maintenance summary' => [
-                'Maintenance Summary Report - ' . now()->format('Y-m-d H:i'),
-                $this->generateMaintenancePayload(),
+                'Maintenance Summary Report - ' . $now->format('Y-m-d H:i'),
+                $this->generateMaintenancePayload($now),
             ],
             'assignments', 'user assignments' => [
-                'User Assignments Report - ' . now()->format('Y-m-d H:i'),
-                $this->generateAssignmentPayload(),
-            ],
-            'consumables' => [
-                'Consumables Report - ' . now()->format('Y-m-d H:i'),
-                $this->generateConsumablesPayload(),
+                'User Assignments Report - ' . $now->format('Y-m-d H:i'),
+                $this->generateAssignmentPayload($now),
             ],
             'accessories' => [
-                'Accessories Report - ' . now()->format('Y-m-d H:i'),
-                $this->generateAccessoriesPayload(),
+                'Accessories Report - ' . $now->format('Y-m-d H:i'),
+                $this->generateAccessoriesPayload($now),
             ],
-            'components' => [
-                'Components Report - ' . now()->format('Y-m-d H:i'),
-                $this->generateComponentsPayload(),
+            'ssl', 'ssl certificates', 'ssl_certificates' => [
+                'SSL Certificates Report - ' . $now->format('Y-m-d H:i'),
+                $this->generateSslPayload($now),
             ],
+           
             'licenses', 'licences' => [
-                'Licenses Report - ' . now()->format('Y-m-d H:i'),
-                $this->generateLicensesPayload(),
+                'Licenses Report - ' . $now->format('Y-m-d H:i'),
+                $this->generateLicensesPayload($now),
             ],
             'people', 'users' => [
-                'People Report - ' . now()->format('Y-m-d H:i'),
-                $this->generatePeoplePayload(),
+                'People Report - ' . $now->format('Y-m-d H:i'),
+                $this->generatePeoplePayload($now),
             ],
             'activity logs', 'activity_logs', 'logs', 'audit logs' => [
-                'Activity Logs Report - ' . now()->format('Y-m-d H:i'),
-                $this->generateActivityLogsPayload(),
+                'Activity Logs Report - ' . $now->format('Y-m-d H:i'),
+                $this->generateActivityLogsPayload($now),
             ],
             default => [
-                'System Snapshot Report - ' . now()->format('Y-m-d H:i'),
+                'System Snapshot Report - ' . $now->format('Y-m-d H:i'),
                 [
-                    'generated_at' => Carbon::now()->toDateTimeString(),
+                    'generated_at' => $now->toDateTimeString(),
                     'summary' => $this->getInventorySummary(),
                 ],
             ],
         };
 
-        $filename = 'reports/' . now()->format('Ymd_His') . '_' . str_replace(' ', '_', strtolower($normalized)) . '.csv';
+        $filename = 'reports/' . $now->format('Ymd_His') . '_' . str_replace(' ', '_', strtolower($normalized)) . '.csv';
         Storage::disk('local')->put($filename, $this->payloadToCsv($normalized, $payload));
 
         $report = Report::create([
@@ -117,10 +118,10 @@ class ReportService
         return (float) ($assetCosts + $licenseCosts + $maintenanceCosts);
     }
 
-    private function generateInventoryPayload(): array
+    private function generateInventoryPayload(Carbon $now): array
     {
         return [
-            'generated_at' => Carbon::now()->toDateTimeString(),
+            'generated_at' => $now->toDateTimeString(),
             'summary' => [
                 'total_assets' => Asset::count(),
                 'by_status' => Asset::query()
@@ -129,14 +130,14 @@ class ReportService
                     ->get(),
             ],
             'items' => Asset::with(['status', 'user'])
-                ->get(['id', 'Asset_Name', 'Asset_Category', 'Serial_No', 'Employee_ID', 'Status_ID', 'Price']),
+                ->get(['id', 'Asset_Name', 'Asset_Category', 'Serial_No', 'Employee_ID', 'Status_ID', 'Price', 'Purchase_Date']),
         ];
     }
 
-    private function generateMaintenancePayload(): array
+    private function generateMaintenancePayload(Carbon $now): array
     {
         return [
-            'generated_at' => Carbon::now()->toDateTimeString(),
+            'generated_at' => $now->toDateTimeString(),
             'summary' => [
                 'pending_maintenance' => Maintenance::whereNull('Completion_Date')->count(),
                 'completed_maintenance' => Maintenance::whereNotNull('Completion_Date')->count(),
@@ -162,42 +163,31 @@ class ReportService
         ];
     }
 
-    private function generateConsumablesPayload(): array
+    private function generateSslPayload(Carbon $now): array
     {
         return [
-            'generated_at' => Carbon::now()->toDateTimeString(),
+            'generated_at' => $now->toDateTimeString(),
             'summary' => [
-                'total_consumables' => Consumable::count(),
-                'total_in_stock' => (int) Consumable::sum('in_stock'),
-                'total_value' => (float) Consumable::selectRaw('SUM(in_stock * price) as total')->value('total'),
+                'total_certificates' => \App\Models\SslCertificate::count(),
+                'expired' => \App\Models\SslCertificate::where('expiry_date', '<', $now)->count(),
+                'expiring_soon' => \App\Models\SslCertificate::whereBetween('expiry_date', [$now, $now->copy()->addDays(30)])->count(),
             ],
-            'items' => Consumable::query()->get(['id', 'item_name', 'category', 'in_stock', 'price', 'min_amt']),
+            'items' => \App\Models\SslCertificate::with('assignedOwner:id,name')
+                ->get(['id', 'common_name', 'ca_vendor', 'expiry_date', 'installed_on', 'status', 'assigned_owner_id']),
         ];
     }
 
     private function generateAccessoriesPayload(): array
     {
+        $query = Accessory::query();
         return [
             'generated_at' => Carbon::now()->toDateTimeString(),
             'summary' => [
-                'total_accessories' => Accessory::count(),
-                'total_remaining_qty' => (int) Accessory::sum('remaining_qty'),
-                'total_value' => (float) Accessory::selectRaw('SUM(remaining_qty * price) as total')->value('total'),
+                'total_accessories' => $query->count(),
+                'total_remaining_qty' => (int) $query->sum('remaining_qty'),
+                'total_value' => (float) $query->selectRaw('SUM(remaining_qty * price) as total')->value('total'),
             ],
-            'items' => Accessory::query()->get(['id', 'name', 'category', 'model_number', 'total_qty', 'remaining_qty', 'price']),
-        ];
-    }
-
-    private function generateComponentsPayload(): array
-    {
-        return [
-            'generated_at' => Carbon::now()->toDateTimeString(),
-            'summary' => [
-                'total_components' => Component::count(),
-                'total_remaining_qty' => (int) Component::sum('remaining_qty'),
-                'total_value' => (float) Component::selectRaw('SUM(remaining_qty * price) as total')->value('total'),
-            ],
-            'items' => Component::query()->get(['id', 'name', 'category', 'serial_no', 'total_qty', 'remaining_qty', 'price']),
+            'items' => $query->get(['id', 'name', 'category', 'model_number', 'total_qty', 'remaining_qty', 'price']),
         ];
     }
 
@@ -253,7 +243,7 @@ class ReportService
         $headers = [];
 
         if ($category === 'inventory') {
-            $headers = ['generated_at', 'asset_id', 'asset_name', 'category', 'serial_no', 'employee_id', 'status_id', 'price'];
+            $headers = ['generated_at', 'asset_id', 'asset_name', 'category', 'serial_no', 'employee_id', 'status_id', 'price', 'purchase_date'];
             foreach (($payload['items'] ?? []) as $item) {
                 $rows[] = [
                     $payload['generated_at'] ?? '',
@@ -264,6 +254,7 @@ class ReportService
                     $item['Employee_ID'] ?? '',
                     $item['Status_ID'] ?? '',
                     $item['Price'] ?? '',
+                    $item['Purchase_Date'] ?? '',
                 ];
             }
         } elseif ($category === 'maintenance') {
@@ -292,17 +283,17 @@ class ReportService
                     $item['Status_ID'] ?? '',
                 ];
             }
-        } elseif ($category === 'consumables') {
-            $headers = ['generated_at', 'consumable_id', 'item_name', 'category', 'in_stock', 'price', 'min_amt'];
+        } elseif ($category === 'ssl' || $category === 'ssl certificates' || $category === 'ssl_certificates') {
+            $headers = ['generated_at', 'common_name', 'vendor', 'expiry_date', 'installed_on', 'status', 'owner'];
             foreach (($payload['items'] ?? []) as $item) {
                 $rows[] = [
                     $payload['generated_at'] ?? '',
-                    $item['id'] ?? '',
-                    $item['item_name'] ?? '',
-                    $item['category'] ?? '',
-                    $item['in_stock'] ?? '',
-                    $item['price'] ?? '',
-                    $item['min_amt'] ?? '',
+                    $item['common_name'] ?? '',
+                    $item['ca_vendor'] ?? '',
+                    $item['expiry_date'] ?? '',
+                    $item['installed_on'] ?? '',
+                    $item['status'] ?? '',
+                    $item['assignedOwner']['name'] ?? '',
                 ];
             }
         } elseif ($category === 'accessories') {
@@ -319,20 +310,7 @@ class ReportService
                     $item['price'] ?? '',
                 ];
             }
-        } elseif ($category === 'components') {
-            $headers = ['generated_at', 'component_id', 'name', 'category', 'serial_no', 'total_qty', 'remaining_qty', 'price'];
-            foreach (($payload['items'] ?? []) as $item) {
-                $rows[] = [
-                    $payload['generated_at'] ?? '',
-                    $item['id'] ?? '',
-                    $item['name'] ?? '',
-                    $item['category'] ?? '',
-                    $item['serial_no'] ?? '',
-                    $item['total_qty'] ?? '',
-                    $item['remaining_qty'] ?? '',
-                    $item['price'] ?? '',
-                ];
-            }
+        
         } elseif ($category === 'licenses' || $category === 'licences') {
             $headers = ['generated_at', 'license_id', 'name', 'product_key', 'manufacturer', 'total_seats', 'remaining_seats', 'price'];
             foreach (($payload['items'] ?? []) as $item) {
@@ -357,7 +335,7 @@ class ReportService
                     $item['email'] ?? '',
                     $item['role'] ?? '',
                     $item['is_verified'] ?? '',
-                    $item['created_at'] ?? '',
+                    isset($item['created_at']) ? \Illuminate\Support\Carbon::parse($item['created_at'])->timezone(config('app.timezone'))->format('Y-m-d H:i:s') : '',
                 ];
             }
         } elseif ($category === 'activity logs' || $category === 'activity_logs' || $category === 'logs' || $category === 'audit logs') {
@@ -372,7 +350,7 @@ class ReportService
                     $item['target_type'] ?? '',
                     $item['target_name'] ?? '',
                     $item['details'] ?? '',
-                    $item['created_at'] ?? '',
+                    isset($item['created_at']) ? \Illuminate\Support\Carbon::parse($item['created_at'])->timezone(config('app.timezone'))->format('Y-m-d H:i:s') : '',
                 ];
             }
         } else {

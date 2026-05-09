@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-10 font-inter">
+  <div class="p-4 md:p-0 space-y-10 font-inter">
     <!-- Header Section -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
       <div>
@@ -39,83 +39,98 @@
          <div class="size-12 border-4 border-vilcom-blue/10 border-t-vilcom-blue rounded-full animate-spin"></div>
       </div>
 
-      <table class="w-full text-left border-collapse">
-        <thead>
-          <tr class="bg-slate-50/50">
-            <th class="p-8 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Requester</th>
-            <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Asset Owner</th>
-            <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Item Details</th>
-            <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Source</th>
-            <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Workflow Type</th>
-            <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Est. Cost</th>
-            <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em] text-center">Status</th>
-            <th class="p-8 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em] text-right">Action</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-50">
-          <tr v-for="req in requests" :key="req.id" class="group hover:bg-slate-50/50 transition-colors">
-            <td class="p-8">
-              <div class="flex items-center gap-4">
-                <div class="size-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-bold uppercase text-xs">
-                  {{ req.requester?.name?.charAt(0) }}
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse min-w-[1200px]">
+          <thead>
+            <tr class="bg-slate-50/50">
+              <th class="p-8 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Requester</th>
+              <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Asset Owner</th>
+              <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Item Details</th>
+              <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Source</th>
+              <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Workflow Type</th>
+              <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Est. Cost</th>
+              <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em] text-center">Status</th>
+              <th class="p-8 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em] text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-50">
+            <tr v-for="req in requests" :key="req.id" class="group hover:bg-slate-50/50 transition-colors">
+              <td class="p-8">
+                <div class="flex items-center gap-4">
+                  <div class="size-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-bold uppercase text-xs">
+                    {{ req.requester?.name?.charAt(0) }}
+                  </div>
+                  <div>
+                     <div class="text-sm font-black text-slate-800">{{ req.requester?.name }}</div>
+                     <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{{ req.source_type_label }}</div>
+                  </div>
                 </div>
-                <div>
-                   <div class="text-sm font-black text-slate-800">{{ req.requester?.name }}</div>
-                   <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{{ req.source_type_label }}</div>
+              </td>
+              <td class="p-6">
+                <div class="text-sm font-bold text-slate-700">{{ req.asset_owner_name || 'N/A' }}</div>
+              </td>
+              <td class="p-6">
+                <div class="text-sm font-bold text-slate-700">{{ req.item_name }}</div>
+                <div class="text-[10px] text-gray-400 mt-1 truncate max-w-[200px]">{{ req.description || 'No additional parameters' }}</div>
+              </td>
+              <td class="p-6">
+                <div v-if="req.ticket_id" class="flex items-center gap-2">
+                  <span class="px-3 py-1.5 rounded-lg text-[9px] font-black bg-purple-50 text-purple-600 uppercase tracking-widest">{{ req.source_type_label }}</span>
                 </div>
-              </div>
-            </td>
-            <td class="p-6">
-              <div class="text-sm font-bold text-slate-700">{{ req.asset_owner_name || 'N/A' }}</div>
-            </td>
-            <td class="p-6">
-              <div class="text-sm font-bold text-slate-700">{{ req.item_name }}</div>
-              <div class="text-[10px] text-gray-400 mt-1 truncate max-w-[200px]">{{ req.description || 'No additional parameters' }}</div>
-            </td>
-            <td class="p-6">
-              <div v-if="req.ticket_id" class="flex items-center gap-2">
-                <span class="px-3 py-1.5 rounded-lg text-[9px] font-black bg-purple-50 text-purple-600 uppercase tracking-widest">{{ req.source_type_label }}</span>
-              </div>
-              <div v-else-if="req.maintenance_id" class="flex items-center gap-2">
-                <span class="px-3 py-1.5 rounded-lg text-[9px] font-black bg-orange-50 text-orange-600 uppercase tracking-widest">{{ req.source_type_label }}</span>
-              </div>
-              <div v-else class="flex items-center gap-2">
-                <span class="px-3 py-1.5 rounded-lg text-[9px] font-black bg-gray-50 text-gray-600 uppercase tracking-widest">{{ req.source_type_label }}</span>
-              </div>
-            </td>
-            <td class="p-6">
-              <span class="px-3 py-1.5 rounded-lg text-[9px] font-black bg-blue-50 text-vilcom-blue uppercase tracking-widest">{{ req.type.replace('_', ' ') }}</span>
-            </td>
-            <td class="p-6">
-              <div class="text-sm font-black text-slate-800">{{ req.estimated_cost ? '$' + req.estimated_cost : 'TBD' }}</div>
-            </td>
-            <td class="p-6 text-center">
-              <span :class="['px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.15em]', statusStyles[req.status]]">
-                {{ req.status }}
-              </span>
-            </td>
-            <td class="p-8 text-right">
-              <div v-if="req.status === 'pending'" class="flex items-center justify-end gap-3">
-                 <button @click="openDecision(req, 'approved')" class="p-3 bg-green-50 text-green-600 rounded-xl hover:bg-green-600 hover:text-white transition-all shadow-sm" title="Authorize Acquisition">
-                   <Check class="size-4" />
-                 </button>
-                 <button @click="openDecision(req, 'rejected')" class="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm" title="Deny Request">
-                   <X class="size-4" />
-                 </button>
-              </div>
-              <div v-else-if="req.status === 'approved'" class="text-[10px] font-black text-blue-500 uppercase tracking-widest">
-                 Authorized by {{ req.management?.name || 'VNL Admin' }}
-              </div>
-              <div v-else-if="req.status === 'rejected'" class="text-[10px] font-black text-red-400 uppercase tracking-widest line-through">
-                 Deployment Terminated
-              </div>
-            </td>
-          </tr>
-          <tr v-if="!loading && requests.length === 0">
-             <td colspan="7" class="p-20 text-center font-bold text-slate-300 italic">No acquisition requests currently in queue.</td>
-          </tr>
-        </tbody>
-      </table>
+                <div v-else-if="req.maintenance_id" class="flex items-center gap-2">
+                  <span class="px-3 py-1.5 rounded-lg text-[9px] font-black bg-orange-50 text-orange-600 uppercase tracking-widest">{{ req.source_type_label }}</span>
+                </div>
+                <div v-else class="flex items-center gap-2">
+                  <span class="px-3 py-1.5 rounded-lg text-[9px] font-black bg-gray-50 text-gray-600 uppercase tracking-widest">{{ req.source_type_label }}</span>
+                </div>
+              </td>
+              <td class="p-6">
+                <span class="px-3 py-1.5 rounded-lg text-[9px] font-black bg-blue-50 text-vilcom-blue uppercase tracking-widest">{{ req.type.replace('_', ' ') }}</span>
+              </td>
+              <td class="p-6">
+                <div class="text-sm font-black text-slate-800">{{ req.estimated_cost ? 'KSh ' + req.estimated_cost : 'TBD' }}</div>
+                <div v-if="req.status === 'rejected' && req.rejection_reason" class="mt-3 group/reason relative">
+                   <div class="inline-flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-[9px] font-black uppercase tracking-widest border border-red-100 hover:bg-red-600 hover:text-white transition-all cursor-default">
+                      <AlertCircle class="size-3" />
+                      Feedback
+                   </div>
+                   <div class="hidden group-hover/reason:block absolute z-20 mt-2 p-4 bg-white shadow-2xl border border-red-100 rounded-2xl w-64 text-[10px] font-bold text-slate-600 leading-relaxed right-0 top-full">
+                      <div class="text-red-600 uppercase tracking-widest font-black mb-2 flex items-center gap-2">
+                         <div class="size-1 bg-red-600 rounded-full"></div>
+                         Official Reason
+                      </div>
+                      {{ req.rejection_reason }}
+                   </div>
+                </div>
+              </td>
+              <td class="p-6 text-center">
+                <span :class="['px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.15em]', statusStyles[req.status]]">
+                  {{ req.status }}
+                </span>
+              </td>
+              <td class="p-8 text-right">
+                <div v-if="req.status === 'pending'" class="flex items-center justify-end gap-3">
+                   <button @click="openDecision(req, 'approved')" class="p-3 bg-green-50 text-green-600 rounded-xl hover:bg-green-600 hover:text-white transition-all shadow-sm" title="Authorize Acquisition">
+                     <Check class="size-4" />
+                   </button>
+                   <button @click="openDecision(req, 'rejected')" class="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm" title="Deny Request">
+                     <X class="size-4" />
+                   </button>
+                </div>
+                <div v-else-if="req.status === 'approved'" class="text-[10px] font-black text-blue-500 uppercase tracking-widest">
+                   Authorized by {{ req.management?.name || 'VNL Admin' }}
+                </div>
+                <div v-else-if="req.status === 'rejected'" class="text-[10px] font-black text-red-400 uppercase tracking-widest line-through">
+                   Deployment Terminated
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!loading && requests.length === 0">
+               <td colspan="8" class="p-20 text-center font-bold text-slate-300 italic">No acquisition requests currently in queue.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Decision Modal -->
@@ -140,7 +155,7 @@
               <div class="space-y-2" v-if="currentDecision === 'approved'">
                 <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Authorized Budget Limit</label>
                 <div class="relative">
-                  <span class="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 font-black">$</span>
+                  <span class="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 font-black text-[10px]">KSh</span>
                   <input v-model="decisionForm.estimated_cost" type="number" class="w-full bg-slate-50 border-none rounded-2xl py-4 pl-10 pr-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20" placeholder="0.00">
                 </div>
               </div>

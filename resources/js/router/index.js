@@ -9,7 +9,6 @@ import ConsumableList from '../pages/ConsumableList.vue';
 import PeopleList from '../pages/PeopleList.vue';
 import AccessoryList from '../pages/AccessoryList.vue';
 import LicenseList from '../pages/LicenseList.vue';
-import ComponentList from '../pages/ComponentList.vue';
 import MaintenanceList from '../pages/MaintenanceList.vue';
 import ActivityLogList from '../pages/ActivityLogList.vue';
 import ReportsList from '../pages/ReportsList.vue';
@@ -103,7 +102,6 @@ const routes = [{
             { path: 'suppliers', name: 'suppliers-list', component: Supplier },
             { path: 'accessories', name: 'accessories-list', component: AccessoryList },
             { path: 'licenses', name: 'licenses-list', component: LicenseList },
-            { path: 'components', name: 'components-list', component: ComponentList },
             { path: 'maintenances', name: 'maintenances-list', component: MaintenanceList },
             { path: 'logs', name: 'activitylogs-list', component: ActivityLogList },
             { path: 'reports', name: 'reports-list', component: ReportsList },
@@ -166,13 +164,6 @@ const routes = [{
                 name: 'user-licenses',
                 component: () =>
                     import ('../pages/UserLicenseList.vue'),
-                meta: { layout: 'UserLayout', requiresAuth: true }
-            },
-            {
-                path: 'my-components',
-                name: 'user-components',
-                component: () =>
-                    import ('../pages/UserComponentList.vue'),
                 meta: { layout: 'UserLayout', requiresAuth: true }
             },
             {

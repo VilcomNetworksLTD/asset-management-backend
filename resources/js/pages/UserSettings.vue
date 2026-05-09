@@ -176,6 +176,7 @@ import {
 const loading = ref({ profile: false, logout: false });
 const showLoginHistory = ref(false);
 const notifications = ref(true);
+const compactSidebar = ref(false);
 
 const profileForm = ref({
   name: '',

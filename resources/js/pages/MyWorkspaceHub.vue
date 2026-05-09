@@ -62,7 +62,6 @@ const userRole = (user.role || '').toLowerCase();
 const categories = [
   { name: 'Equipment', label: 'My', routeName: 'user-assets', icon: Laptop, colorClass: 'text-blue-600' },
   { name: 'Licenses', label: 'My', routeName: 'user-licenses', icon: Save, colorClass: 'text-teal-600' },
-  { name: 'Components', label: 'My', routeName: 'user-components', icon: HardDrive, colorClass: 'text-indigo-600' },
   { name: 'Accessories', label: 'My', routeName: 'user-accessories', icon: Keyboard, colorClass: 'text-orange-600' },
 ];
 

@@ -22,7 +22,8 @@
     <div class="wrapper">
         <div class="main">
             <div class="header">
-                <h1>Vilcom Networks LTD</h1>
+                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;">Asset Management System</h1>
+                <div style="font-size: 10px; font-weight: 900; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.4em;">Vilcom Networks LTD</div>
                 <div class="header-accent"></div>
             </div>
             <div class="content">

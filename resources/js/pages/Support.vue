@@ -14,38 +14,41 @@
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">ID</th>
-                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Requester</th>
-                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Subject / Issue</th>
-                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Priority</th>
-                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Status</th>
-                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Action</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">ID</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Requester</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Subject / Issue</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase w-24">Priority</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase w-32">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase w-24">Action</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
               <tr v-for="ticket in tickets" :key="ticket.id">
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ ticket.user?.name || 'Unknown' }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{ ticket.user?.name || 'Unknown' }}</td>
+                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {{ ticket.user?.name || 'Unknown' }}
                 </td>
-                <td class="px-6 py-4 text-sm text-gray-700">
-                  <div class="max-w-xs truncate" :title="ticket.Description">
+                <td class="px-4 py-4 text-sm text-gray-700 w-48">
+                  <div class="max-w-[200px] truncate" :title="ticket.Description">
                     {{ ticket.Description.split('\n')[0] }}
                   </div>
+                  <div v-if="ticket.status?.Status_Name?.toLowerCase() === 'rejected' && ticket.rejection_reason" class="mt-1 text-xs text-red-600 font-bold italic">
+                    Reason: {{ ticket.rejection_reason }}
+                  </div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                <td class="px-4 py-4 whitespace-nowrap text-sm">
                   <span :class="{
                     'text-red-600 font-bold': ticket.Priority === 'high',
                     'text-yellow-600 font-bold': ticket.Priority === 'medium',
                     'text-green-600 font-bold': ticket.Priority === 'low'
                   }">{{ ticket.Priority ? ticket.Priority.toUpperCase() : 'NORMAL' }}</span>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                <td class="px-4 py-4 whitespace-nowrap text-sm">
                   <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
                     {{ ticket.status?.Status_Name || 'Pending' }}
                   </span>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
                   <button 
                     @click="openResolveModal(ticket)"
                     class="text-indigo-600 hover:text-indigo-900 font-bold"

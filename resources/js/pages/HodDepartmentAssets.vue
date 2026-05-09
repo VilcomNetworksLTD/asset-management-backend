@@ -1,5 +1,3 @@
-Here is the updated minimalist component with the asset images and assignment history section removed, keeping only the essential information.
-```vue
 <template>
   <div class="p-6 md:p-8 max-w-6xl mx-auto space-y-6 font-sans min-h-screen bg-white">
     <!-- Header Section -->
@@ -10,7 +8,7 @@ Here is the updated minimalist component with the asset images and assignment hi
           <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Department Oversight</span>
         </div>
         <h1 class="text-3xl md:text-4xl font-light text-gray-900 tracking-tight">
-          Personnel Inventory
+          Personnel <span class="font-bold text-blue-600">Inventory</span>
         </h1>
         <p class="text-sm text-gray-400 mt-1">
           Monitor assets assigned to staff members
@@ -322,7 +320,7 @@ const fetchDepartmentAssets = async () => {
     
     // Check if user has department assigned
     if (staffWithAssets.value.length === 0) {
-      error.value = 'No staff found in your department. Make sure you have a department assigned.';
+      error.value = 'No personnel data found. Please ensure you are assigned to a department in the Safetika Hub.';
     }
   } catch (err) {
     error.value = err.response?.data?.message || err.response?.data?.error || 'Failed to load assets.';
@@ -381,4 +379,3 @@ onMounted(fetchDepartmentAssets);
   transform: scale(0.95);
 }
 </style>
-```

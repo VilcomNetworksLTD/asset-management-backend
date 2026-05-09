@@ -40,20 +40,6 @@
           </div>
 
           <div v-if="!loadingExtras" class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <!-- Components -->
-            <div class="space-y-4">
-              <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                <LayoutGrid class="size-3" />
-                Components
-              </div>
-              <div v-if="components.length" class="space-y-2">
-                <label v-for="c in (components || []).filter(item => item)" :key="c.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer group/item shadow-sm">
-                  <input type="checkbox" :value="c.id" v-model="selectedComponents" class="size-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
-                  <span class="text-xs font-bold text-slate-700">{{ c.name }}</span>
-                </label>
-              </div>
-              <div v-else class="text-[10px] text-gray-400 italic">No assigned components</div>
-            </div>
 
             <!-- Accessories -->
             <div class="space-y-4">
@@ -137,13 +123,10 @@ import { ref, onMounted, watch, computed } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { Undo2, ChevronDown, LayoutGrid, Keyboard } from 'lucide-vue-next'
-import Loader from '@/components/Loader.vue'
-import PageHeader from '@/components/PageHeader.vue'
 
 const router = useRouter()
 
 const myAssets = ref([])
-const components = ref([])
 const accessories = ref([])
 const licenses = ref([])
 // Consumables removed per system update
@@ -151,7 +134,6 @@ const licenses = ref([])
 const loadingExtras = ref(false)
 const loading = ref(false)
 
-const selectedComponents = ref([])
 const selectedAccessories = ref([])
 const selectedLicenses = ref([])
 
@@ -164,12 +146,14 @@ const form = ref({
 
 const isSubmittable = computed(() => {
   return !!form.value.asset_id ||
-    selectedComponents.value.length > 0 ||
+  
     selectedAccessories.value.length > 0 ||
     selectedLicenses.value.length > 0;
 });
 
 /* LOAD ASSETS + EXTRAS */
+
+
 onMounted(async () => {
   try {
     const assetRes = await axios.get('/api/my-returnable-assets')
@@ -186,7 +170,7 @@ const loadExtras = async () => {
         const { data } = await axios.get('/api/my-assigned-items');
         
         
-        components.value = (data.components || []).filter(Boolean).map(c => ({ ...c, name: c.Component_Name || c.name }));
+      
         accessories.value = (data.accessories || []).filter(Boolean).map(a => ({ ...a, name: a.Accessory_Name || a.name }));
         licenses.value = (data.licenses || []).filter(Boolean).map(l => ({ ...l, name: l.License_Name || l.name }));
         
@@ -202,7 +186,7 @@ const submitReturn = async () => {
   loading.value = true
   try {
     const extras = []
-    extras.push(...selectedComponents.value.map(id => ({ type: 'component', id })))
+    
     extras.push(...selectedAccessories.value.map(id => ({ type: 'accessory', id })))
     extras.push(...selectedLicenses.value.map(id => ({ type: 'license', id })))
 
@@ -221,7 +205,7 @@ const submitReturn = async () => {
     alert(msg)
   } finally {
     loading.value = false
-    selectedComponents.value = []
+    
     selectedAccessories.value = []
     selectedLicenses.value = []
   }

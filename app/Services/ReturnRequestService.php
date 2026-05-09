@@ -10,8 +10,12 @@ use App\Models\Status;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
+use App\Traits\SendsDetailedEmails;
+
 class ReturnRequestService
 {
+    use SendsDetailedEmails;
+
     public function listAll()
     {
         return ReturnRequest::with(['asset.status', 'sender', 'actionedBy'])
@@ -79,31 +83,37 @@ class ReturnRequestService
             'reason' => $data['reason'] ?? null,
         ]);
 
-        // send a quick confirmation email to the requester
-        if ($user->email) {
-            $assetDesc = $asset ? "asset '{$asset->Asset_Name}'" : 'selected items';
-            $subject = "Return request received";
-            $details = "Your return request for {$assetDesc} has been submitted and is awaiting inspection.";
-            \Illuminate\Support\Facades\Mail::to($user->email)
-                ->queue(new \App\Mail\SimpleNotification($subject, $details));
-        }
+        // send a confirmation email to the requester
+        $this->sendDetailedEmail(
+            $user,
+            "Return Request Logged",
+            "Request Received",
+            "Your request to return equipment has been submitted and is awaiting administrative inspection.",
+            [
+                "Asset/Items" => $asset ? $asset->Asset_Name : 'Selected Peripherals',
+                "Condition" => $data['sender_condition'] ?? 'Good',
+                "Status" => "Pending Inspection",
+            ],
+            "Track My Request",
+            config('app.url') . "/dashboard/user/workspace"
+        );
 
-        // notify administrators about the new request as well
+        // notify administrators about the new request
         $admins = User::where('role', 'admin')->get()->filter(fn($u) => $u->email);
         if ($admins->isNotEmpty()) {
-            $subject = "New return request submitted";
-            $details = "A new return request has been submitted by {$user->name}.\n";
-            if ($asset) {
-                $details .= "Asset: {$asset->Asset_Name}\n";
-            } else {
-                $details .= "Items: " . collect($data['items'] ?? [])->pluck('type')->implode(', ') . "\n";
-            }
-            $details .= "Please log in to review and inspect.";
-
-            foreach ($admins as $admin) {
-                \Illuminate\Support\Facades\Mail::to($admin->email)
-                    ->queue(new \App\Mail\SimpleNotification($subject, $details));
-            }
+            $this->sendDetailedEmail(
+                $admins,
+                "New Return Request",
+                "Administrative Task",
+                "A new return request has been submitted by {$user->name} and requires inspection.",
+                [
+                    "Employee" => $user->name,
+                    "Asset" => $asset ? $asset->Asset_Name : 'Mixed Items',
+                    "Priority" => "Medium",
+                ],
+                "Inspect Return",
+                config('app.url') . "/dashboard/operations/transfers"
+            );
         }
 
         ActivityLog::create([
@@ -148,13 +158,6 @@ class ReturnRequestService
                         if (!$type || !$itemId) continue;
 
                         switch ($type) {
-                            case 'component':
-                                $comp = \App\Models\Component::find($itemId);
-                                if ($comp) {
-                                    $this->returnItemToStock($sender->components(), 'component_id', $itemId);
-                                    $comp->increment('remaining_qty');
-                                }
-                                break;
                             case 'accessory':
                                 $acc = \App\Models\Accessory::find($itemId);
                                 if ($acc) {
@@ -202,15 +205,20 @@ class ReturnRequestService
 
             // let the original requester know of the decision
             $requester = User::find($request->Sender_ID);
-            if ($requester && $requester->email) {
-                $subj = "Update on your return request";
-                $msg = "Hello {$requester->name},\n\nYour return request has been {$lower}.";
-                if ($reason) {
-                    $msg .= "\nReason: {$reason}";
-                }
-                $msg .= "\n\nThank you.";
-                \Illuminate\Support\Facades\Mail::to($requester->email)
-                    ->queue(new \App\Mail\SimpleNotification($subj, $msg));
+            if ($requester) {
+                $this->sendDetailedEmail(
+                    $requester,
+                    "Return Request " . ucfirst($lower),
+                    "Request Outcome",
+                    "Your request to return equipment has been processed.",
+                    [
+                        "Decision" => ucfirst($lower),
+                        "Asset" => $request->asset?->Asset_Name ?? 'Mixed Items',
+                        "Reason/Note" => $reason ?? 'Processed by Admin',
+                    ],
+                    "View My Assets",
+                    config('app.url') . "/dashboard/user/workspace"
+                );
             }
 
             // determine final workflow status
@@ -232,7 +240,7 @@ class ReturnRequestService
      */
     private function returnItemToStock($relation, string $foreignKey, int $itemId): void
     {
-        $pivot = $relation->where($foreignKey, $itemId)->wherePivotNull('returned_at')->first();
+        $pivot = $relation->wherePivot($foreignKey, $itemId)->wherePivotNull('returned_at')->first();
         if ($pivot) {
             $qty = $pivot->pivot->quantity ?? 1;
             if ($qty > 1) {
@@ -276,16 +284,22 @@ class ReturnRequestService
             ]);
         });
 
-        // notify the requester that their item has been inspected and is now
-        // awaiting final decision
+        // notify the requester that their item has been inspected
         $requester = User::find($request->Sender_ID);
-        if ($requester && $requester->email) {
-            $subj = "Your return request has been inspected";
-            $msg = "Hello {$requester->name},\n\n" .
-                   "Your return request has been inspected by an admin. " .
-                   "A final decision (accept/reject) will be communicated shortly.";
-            \Illuminate\Support\Facades\Mail::to($requester->email)
-                ->queue(new \App\Mail\SimpleNotification($subj, $msg));
+        if ($requester) {
+            $this->sendDetailedEmail(
+                $requester,
+                "Return Inspected",
+                "Inspection Complete",
+                "Your return request has been inspected by an admin and is awaiting final approval.",
+                [
+                    "Asset" => $request->asset?->Asset_Name ?? 'Mixed Items',
+                    "Condition Found" => $data['condition'],
+                    "Next Step" => "Final Decision by Management/Admin",
+                ],
+                "Track Progress",
+                config('app.url') . "/dashboard/user/workspace"
+            );
         }
 
         return $request->fresh(['asset.status', 'sender', 'actionedBy']);
@@ -305,9 +319,6 @@ class ReturnRequestService
         }
 
         switch ($type) {
-            case 'component':
-                return \App\Models\Component::find($id)?->name
-                    ?? "Component #{$id}";
             case 'accessory':
                 return \App\Models\Accessory::find($id)?->name
                     ?? "Accessory #{$id}";

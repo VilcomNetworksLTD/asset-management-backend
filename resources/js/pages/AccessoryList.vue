@@ -149,6 +149,16 @@ onMounted(() => {
         <option value="Charger">Charger</option>
         <option value="Cables">Cables</option>
         <option value="Adapters">Adapters</option>
+        <option value="">Select Category</option>
+        <option value="Motherboard">Motherboard</option>
+        <option value="CPU">CPU</option>
+        <option value="RAM">RAM</option>
+        <option value="GPU">GPU</option>
+        <option value="Hard Drive">Hard Drive</option>
+        <option value="Power Supply">Power Supply</option>
+        <option value="Keyboard">Keyboard</option>
+        <option value="Mouse">Mouse</option>
+        <option value="Network Card">Network Card</option>
       </select>
       
       <select v-model.number="filters.per_page" class="border px-3 py-2 rounded text-sm">
@@ -172,9 +182,20 @@ onMounted(() => {
         <option value="Charger">Charger</option>
         <option value="Cables">Cables</option>
         <option value="Adapters">Adapters</option>
+        <option value="">Select Category</option>
+        <option value="Motherboard">Motherboard</option>
+        <option value="CPU">CPU</option>
+        <option value="RAM">RAM</option>
+        <option value="GPU">GPU</option>
+        <option value="Hard Drive">Hard Drive</option>
+        <option value="Power Supply">Power Supply</option>
+        <option value="Keyboard">Keyboard</option>
+        <option value="Mouse">Mouse</option>
+        <option value="Network Card">Network Card</option>
       </select>
 
       <input v-model="form.model_number" class="border p-2 rounded" placeholder="Model Number" />
+      <input v-model="form.serial_no" class="border p-2 rounded" placeholder="Serial Number" />
       <input v-model="form.total_qty" type="number" class="border p-2 rounded" placeholder="Total Qty" />
       <input v-model="form.remaining_qty" type="number" class="border p-2 rounded" placeholder="Remaining Qty" />
       <input v-model="form.price" type="number" class="border p-2 rounded" placeholder="Price" />
@@ -238,6 +259,7 @@ onMounted(() => {
             <td class="p-4 font-bold text-[#3c8dbc]">{{ item.name }}</td>
             <td class="p-4">{{ item.category }}</td>
             <td class="p-4 font-mono text-[11px] text-gray-500">{{ item.model_number || 'N/A' }}</td>
+            <td class="p-3 border-r font-mono text-[11px] text-gray-500">{{ item.serial_no || 'N/A' }}</td>
             <td class="p-4 text-center">
               <span class="px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-bold" :class="item.remaining_qty < 1 ? 'text-red-600' : 'text-gray-700'">
                 {{ item.remaining_qty }} / {{ item.total_qty }}

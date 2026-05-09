@@ -13,7 +13,6 @@ class ActivityLogService
     $user = Auth::user();
 
     return ActivityLog::create([
-        'asset_id',
         'Employee_ID' => $user ? $user->id : null, 
         'user_name'   => $user ? $user->name : 'System',
         'action'      => $action,

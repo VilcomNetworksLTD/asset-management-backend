@@ -18,14 +18,6 @@
           </router-view>
         </main>
 
-        <!-- FOOTER -->
-        <footer class="py-6 px-12 border-t border-gray-100 flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] bg-white">
-           <div>© 2026 Vilcom Networks LTD | Personal Workspace v2.0</div>
-           <div class="flex gap-6">
-             <span class="hover:text-vilcom-orange cursor-pointer">Staff Portal</span>
-             <span class="hover:text-vilcom-orange cursor-pointer">Helpdesk</span>
-           </div>
-        </footer>
       </div>
     </div>
   </div>

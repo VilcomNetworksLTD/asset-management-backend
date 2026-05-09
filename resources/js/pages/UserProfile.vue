@@ -94,11 +94,14 @@ const user = ref({});
 
 const refreshProfile = async () => {
   try {
-    const { data } = await axios.get('/api/profile')
-    user.value = data || {}
-    localStorage.setItem('user_data', JSON.stringify(data || {}))
-  } catch {
+    const res = await axios.get('/api/profile')
+    user.value = res.data || {}
+    localStorage.setItem('user_data', JSON.stringify(res.data || {}))
+    alert('Profile refreshed successfully!')
+  } catch (err) {
+    console.error(err)
     user.value = JSON.parse(localStorage.getItem('user_data') || '{}')
+    alert('Failed to refresh - using cached data')
   }
 }
 

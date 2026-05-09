@@ -21,12 +21,13 @@ class TransferService
             $asset = Asset::findOrFail($data['asset_id']);
 
             // Ensure the user actually owns the asset they are returning
-            if ($asset->assigned_to !== Auth::id()) {
+            if ($asset->Employee_ID !== Auth::id()) {
                 throw new Exception("You cannot return an asset that is not assigned to you.");
             }
 
             // Update Asset status to 'Pending Return'
-            $asset->update(['status' => 'Pending Return']);
+            $pendingStatusId = Status::where('Status_Name', 'Pending Return')->first()?->id ?? 1;
+            $asset->update(['Status_ID' => $pendingStatusId]);
 
             // Create the Transfer record (Return type)
             return Transfer::create([
@@ -61,16 +62,17 @@ class TransferService
             ]);
 
             /**
-             * Update Asset based on Admin's decision:
-             * 'Ready to Deploy' -> Asset is clean and stays in office.
-             * 'Out for Repair' -> Sent to technician.
-             * 'Archived/Lost'  -> Asset is gone/destroyed.
+             * Update Asset based on Admin's decision
              */
+            $statusName = $data['asset_status'] ?? 'Ready to Deploy';
+            // Normalize status names from UI if necessary
+            if (strtolower($statusName) === 'available') $statusName = 'Ready to Deploy';
+            
+            $statusId = Status::where('Status_Name', $statusName)->first()?->id ?? 1;
+
             $asset->update([
-                'status' => $data['asset_status'],
-                'physical_condition' => $data['condition'],
-                'assigned_to' => null, // Asset is officially unlinked from Caleb
-                'last_inspection_date' => now()
+                'Status_ID' => $statusId,
+                'Employee_ID' => null, // Asset is officially unlinked from Caleb
             ]);
 
             return $transfer;
@@ -92,7 +94,7 @@ class TransferService
                 'sender_id' => Auth::id(), // Admin is the sender
                 'receiver_id' => $data['receiver_id'],
                 'status' => 'pending_verification', // Limbo state until Staff B clicks 'Accept'
-                'admin_condition' => $asset->physical_condition,
+                'admin_condition' => $asset->physical_condition ?? 'Good',
                 'type' => 'assignment',
                 'notes' => $data['notes'] ?? 'New assignment'
             ]);
@@ -112,10 +114,11 @@ class TransferService
             if ($status === 'accepted') {
                 $transfer->update(['status' => 'deployed']);
                 
+                $deployedStatusId = Status::where('Status_Name', 'Deployed')->first()?->id ?? Status::where('Status_Name', 'Active')->first()?->id ?? 1;
+
                 $asset->update([
-                    'status' => 'Deployed',
-                    'assigned_to' => Auth::id(),
-                    'last_checkout_date' => now()
+                    'Status_ID' => $deployedStatusId,
+                    'Employee_ID' => Auth::id(),
                 ]);
             } else {
                 $transfer->update(['status' => 'disputed']);

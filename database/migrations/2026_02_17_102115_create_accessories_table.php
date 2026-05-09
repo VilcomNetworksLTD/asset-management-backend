@@ -14,6 +14,7 @@ class CreateAccessoriesTable extends Migration
             $table->string('name');
             $table->string('category');       
             $table->string('model_number')->nullable();
+            $table->string('serial_no')->nullable();
             $table->integer('total_qty')->default(0);
             $table->integer('remaining_qty')->default(0);
             $table->decimal('price', 10, 2)->nullable(); 
