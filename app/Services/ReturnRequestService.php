@@ -123,7 +123,7 @@ class ReturnRequestService
             'action' => 'Return Requested',
             'target_type' => $asset ? 'Asset' : 'Mixed Items',
             'target_name' => $asset ? $asset->Asset_Name : 'Mixed Items',
-            'details' => "Return Request #{$returnRequest->id} submitted for admin inspection",
+            'details' => "Return Request submitted for admin inspection",
         ]);
 
         return $returnRequest->fresh(['asset.status', 'sender', 'actionedBy']);

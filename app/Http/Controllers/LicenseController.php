@@ -114,7 +114,7 @@ class LicenseController extends Controller
         'action'      => 'Assigned',
         'target_type' => 'License',
         'target_name' => $license->name,
-        'details'     => "Assigned a seat to user: {$user->name} (ID: {$request->user_id})",
+        'details'     => "Assigned a seat to user: {$user->name}",
     ]);
 
     return response()->json(['message' => 'License seat assigned successfully']);

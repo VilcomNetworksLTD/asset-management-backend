@@ -429,7 +429,7 @@ class TicketController extends Controller
                 'action' => 'Processed Return',
                 'target_type' => 'Asset',
                 'target_name' => $asset->Asset_Name,
-                'details' => "Disposition: {$data['disposition']}. Ticket #{$ticket->id}",
+                'details' => "Disposition: {$data['disposition']}",
             ]);
         });
 

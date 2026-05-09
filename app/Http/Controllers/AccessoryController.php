@@ -128,7 +128,7 @@ class AccessoryController extends Controller
         'action'      => 'Assigned',
         'target_type' => 'Accessory',
         'target_name' => $accessory->name,
-        'details'     => "Assigned {$quantity} to user: {$user->name} (ID: {$userId})",
+        'details'     => "Assigned {$quantity} to user: {$user->name}",
     ]);
     
     return response()->json(['message' => 'Accessory assigned successfully']);

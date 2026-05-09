@@ -125,9 +125,7 @@ const formatDetails = (text) => {
 
   return text
     .replace(/\s*\(ID:\s*\d+\)/gi, '')
-    .replace(/\bID:\s*\d+/gi, '')
     .replace(/#\d+/g, '')
-    .replace(/\b\d+\b/g, '')
     .replace(/\s\s+/g, ' ')
     .trim();
 };
