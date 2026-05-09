@@ -70,13 +70,9 @@
 
           <!-- Actions -->
           <div class="flex flex-col sm:flex-row gap-3">
-            <button @click="$router.push('/dashboard/user/settings')" class="flex-1 bg-vilcom-blue text-white px-6 py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:shadow-xl hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10">
+            <button @click="$router.push('/dashboard/user/settings')" class="w-full bg-vilcom-blue text-white px-6 py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:shadow-xl hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10">
               <Edit class="size-4" />
               Edit Profile
-            </button>
-            <button @click="refreshProfile" class="px-6 py-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2">
-              <RefreshCw class="size-4" />
-              Refresh
             </button>
           </div>
         </div>

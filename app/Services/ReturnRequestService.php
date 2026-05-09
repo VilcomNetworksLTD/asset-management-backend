@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Mail\GeneralOperationalMail;
+use App\Models\Accessory;
 use App\Models\ActivityLog;
 use App\Models\Asset;
-use App\Models\Maintenance;
+use App\Models\Consumable;
+use App\Models\License;
 use App\Models\ReturnRequest;
 use App\Models\Status;
 use App\Models\User;
@@ -38,12 +41,17 @@ class ReturnRequestService
 
     public function getMyAssets(int $userId)
     {
-        return Asset::where('Employee_ID', $userId)
-            ->get(['id', 'Asset_Name', 'Serial_No'])
+        return Asset::with(['status', 'category', 'locationModel'])
+            ->where('Employee_ID', $userId)
+            ->get()
             ->map(fn ($a) => [
                 'id' => $a->id,
                 'model' => $a->Asset_Name,
                 'serial' => $a->Serial_No,
+                'barcode' => $a->barcode,
+                'category' => $a->category?->name ?? $a->Asset_Category,
+                'location' => $a->locationModel?->name ?? $a->Location,
+                'status' => $a->status?->Status_Name ?? 'Assigned',
             ]);
     }
 
@@ -51,7 +59,7 @@ class ReturnRequestService
     {
         // either asset_id or items must be provided
         $asset = null;
-        if (!empty($data['asset_id'])) {
+        if (! empty($data['asset_id'])) {
             $asset = Asset::findOrFail($data['asset_id']);
             if ((int) $asset->Employee_ID !== (int) $user->id) {
                 abort(response()->json(['message' => 'You can only request return for assets assigned to you.'], 403));
@@ -78,7 +86,7 @@ class ReturnRequestService
             'Items' => $data['items'] ?? [],
             'Notes' => trim(collect([
                 $data['notes'] ?? null,
-                !empty($data['issue_notes']) ? ('Reported issue: ' . $data['issue_notes']) : null,
+                ! empty($data['issue_notes']) ? ('Reported issue: '.$data['issue_notes']) : null,
             ])->filter()->implode(' | ')) ?: null,
             'reason' => $data['reason'] ?? null,
         ]);
@@ -137,10 +145,10 @@ class ReturnRequestService
         // handle acceptance / rejection
         if (in_array($lower, ['accepted', 'rejected'], true)) {
             $asset = $request->asset;
-            
+
             // ONLY unassign items if the request was ACCEPTED
             if ($lower === 'accepted') {
-                
+
                 // 1. Unassign primary hardware asset
                 if ($asset) {
                     $asset->update([
@@ -151,29 +159,31 @@ class ReturnRequestService
 
                 // 2. Unassign secondary items (Components, Accessories, Consumables, Licenses)
                 $sender = User::find($request->Sender_ID);
-                if ($sender && !empty($request->Items) && is_array($request->Items)) {
+                if ($sender && ! empty($request->Items) && is_array($request->Items)) {
                     foreach ($request->Items as $itm) {
                         $type = $itm['type'] ?? null;
                         $itemId = $itm['id'] ?? null;
-                        if (!$type || !$itemId) continue;
+                        if (! $type || ! $itemId) {
+                            continue;
+                        }
 
                         switch ($type) {
                             case 'accessory':
-                                $acc = \App\Models\Accessory::find($itemId);
+                                $acc = Accessory::find($itemId);
                                 if ($acc) {
                                     $this->returnItemToStock($sender->accessories(), 'accessory_id', $itemId);
                                     $acc->increment('remaining_qty');
                                 }
                                 break;
                             case 'consumable':
-                                $cons = \App\Models\Consumable::find($itemId);
+                                $cons = Consumable::find($itemId);
                                 if ($cons) {
                                     $this->returnItemToStock($sender->consumables(), 'consumable_id', $itemId);
                                     $cons->increment('in_stock');
                                 }
                                 break;
                             case 'license':
-                                $lic = \App\Models\License::find($itemId);
+                                $lic = License::find($itemId);
                                 if ($lic) {
                                     $pivot = $sender->licenses()->where('license_id', $itemId)->wherePivotNull('returned_at')->first();
                                     if ($pivot) {
@@ -189,7 +199,7 @@ class ReturnRequestService
 
             // attach rejection reason if supplied
             if ($lower === 'rejected' && $reason) {
-                $request->Notes = trim(collect([$request->Notes, 'Rejection reason: ' . $reason])->filter()->implode(' | '));
+                $request->Notes = trim(collect([$request->Notes, 'Rejection reason: '.$reason])->filter()->implode(' | '));
             }
 
             // log the outcome
@@ -200,7 +210,7 @@ class ReturnRequestService
                 'action' => $lower === 'accepted' ? 'Return Accepted' : 'Return Rejected',
                 'target_type' => $asset ? 'Asset' : 'Mixed Items',
                 'target_name' => $asset ? $asset->Asset_Name : 'Mixed Items',
-                'details' => "Return request was {$lower}" . ($reason ? ": {$reason}" : ''),
+                'details' => "Return request was {$lower}".($reason ? ": {$reason}" : ''),
             ]);
 
             // let the original requester know of the decision
@@ -232,6 +242,7 @@ class ReturnRequestService
         }
 
         $request->update(['Workflow_Status' => $lower]);
+
         return $request->fresh(['asset.status', 'sender', 'actionedBy']);
     }
 
@@ -258,8 +269,8 @@ class ReturnRequestService
         // build a combined notes string for audit
         $notes = trim(collect([
             $request->Notes,
-            !empty($data['admin_notes']) ? ('Admin notes: ' . $data['admin_notes']) : null,
-            'Disposition: ' . str_replace('_', ' ', $data['disposition'] ?? ''),
+            ! empty($data['admin_notes']) ? ('Admin notes: '.$data['admin_notes']) : null,
+            'Disposition: '.str_replace('_', ' ', $data['disposition'] ?? ''),
         ])->filter()->implode(' | '));
 
         DB::transaction(function () use ($request, $adminId, $data, $notes) {
@@ -314,23 +325,23 @@ class ReturnRequestService
     {
         $type = $item['type'] ?? '';
         $id = $item['id'] ?? null;
-        if (!$id) {
+        if (! $id) {
             return ucfirst($type ?: 'unknown');
         }
 
         switch ($type) {
             case 'accessory':
-                return \App\Models\Accessory::find($id)?->name
+                return Accessory::find($id)?->name
                     ?? "Accessory #{$id}";
             case 'license':
-                return \App\Models\License::find($id)?->name
+                return License::find($id)?->name
                     ?? "License #{$id}";
             case 'consumable':
                 // consumable uses item_name rather than name
-                return \App\Models\Consumable::find($id)?->item_name
+                return Consumable::find($id)?->item_name
                     ?? "Consumable #{$id}";
             default:
-                return ucfirst($type) . " #{$id}";
+                return ucfirst($type)." #{$id}";
         }
     }
 
@@ -368,7 +379,7 @@ class ReturnRequestService
                 'id' => $r->asset->id,
                 'model' => $r->asset->Asset_Name,
                 'serial' => $r->asset->Serial_No,
-                'asset_tag' => 'AST-' . str_pad((string) $r->asset->id, 4, '0', STR_PAD_LEFT),
+                'asset_tag' => 'AST-'.str_pad((string) $r->asset->id, 4, '0', STR_PAD_LEFT),
                 'status_name' => optional($r->asset->status)->Status_Name,
             ] : null,
             'created_at' => $r->created_at,

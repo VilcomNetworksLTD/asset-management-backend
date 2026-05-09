@@ -34,41 +34,26 @@
             <div v-if="loadingExtras" class="flex items-center gap-2 text-[10px] font-bold text-vilcom-blue animate-pulse">
                <div class="size-2 bg-vilcom-blue rounded-full animate-bounce"></div>
                LOADING...
-            </div>
-          </div>
+             </div>
+           </div>
 
-          <div v-if="!loadingExtras" class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <!-- Components -->
-            <div class="space-y-3">
-              <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <div class="size-1.5 bg-indigo-400 rounded-full"></div>
-                Components
-              </div>
-              <div v-if="components.length" class="space-y-2">
-                <label v-for="c in components" :key="c.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-indigo-100 hover:bg-indigo-50/50 transition-all cursor-pointer group/item">
-                  <input type="checkbox" :value="c.id" v-model="selectedComponents" class="size-5 rounded border-gray-300 text-vilcom-blue focus:ring-vilcom-blue">
-                  <span class="text-xs font-bold text-slate-700">{{ c.name }}</span>
-                </label>
-              </div>
-              <div v-else class="text-[10px] text-gray-400 italic">No assigned components found</div>
-            </div>
-
-            <!-- Accessories -->
-            <div class="space-y-3">
-              <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <div class="size-1.5 bg-orange-400 rounded-full"></div>
-                Accessories
-              </div>
-              <div v-if="accessories.length" class="space-y-2">
-                <label v-for="a in accessories" :key="a.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-orange-100 hover:bg-orange-50/50 transition-all cursor-pointer group/item">
-                  <input type="checkbox" :value="a.id" v-model="selectedAccessories" class="size-5 rounded border-gray-300 text-vilcom-orange focus:ring-vilcom-orange">
-                  <span class="text-xs font-bold text-slate-700">{{ a.name }}</span>
-                </label>
-              </div>
-              <div v-else class="text-[10px] text-gray-400 italic">No assigned accessories found</div>
-            </div>
-          </div>
-        </div>
+           <div v-if="!loadingExtras" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+             <!-- Accessories -->
+             <div class="space-y-3">
+               <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                 <div class="size-1.5 bg-orange-400 rounded-full"></div>
+                 Accessories
+               </div>
+               <div v-if="accessories.length" class="space-y-2">
+                 <label v-for="a in accessories" :key="a.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-orange-100 hover:bg-orange-50/50 transition-all cursor-pointer group/item">
+                   <input type="checkbox" :value="a.id" v-model="selectedAccessories" class="size-5 rounded border-gray-300 text-vilcom-orange focus:ring-vilcom-orange">
+                   <span class="text-xs font-bold text-slate-700">{{ a.name }}</span>
+                 </label>
+               </div>
+               <div v-else class="text-[10px] text-gray-400 italic">No assigned accessories found</div>
+             </div>
+           </div>
+         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
           <!-- Receiver Selection -->
@@ -162,7 +147,6 @@ const accessories = ref([])
 const licenses = ref([])
 // Consumables removed per system update
 
-const selectedComponents = ref([])
 const selectedAccessories = ref([])
 const selectedLicenses = ref([])
 
@@ -200,7 +184,6 @@ const loadExtras = async () => {
     try {
         const { data } = await axios.get('/api/my-assigned-items');
         
-        components.value = (data.components || []).map(c => ({ ...c, type: 'component', name: c.Component_Name || c.name }));
         accessories.value = (data.accessories || []).map(a => ({ ...a, type: 'accessory', name: a.Accessory_Name || a.name }));
         licenses.value = (data.licenses || []).map(l => ({ ...l, type: 'license', name: l.License_Name || l.name }));
         
@@ -215,7 +198,6 @@ const submitRequest = async () => {
   submitting.value = true
   const items = []
   
-  items.push(...selectedComponents.value.map(id => ({ type: 'component', id: Number(id) })))
   items.push(...selectedAccessories.value.map(id => ({ type: 'accessory', id: Number(id) })))
   items.push(...selectedLicenses.value.map(id => ({ type: 'license', id: Number(id) })))
 
@@ -238,20 +220,19 @@ const submitRequest = async () => {
     await axios.post('/api/request-transfer', payload)
     alert("Transfer request sent! Your colleague will get a message to confirm.")
     
-    // reset form on success
-    form.value = {
-      asset_id: '',
-      type: 'transfer',
-      receiver_id: '',
-      sender_condition: 'good',
-      missing_items_text: '',
-      issue_notes: '',
-      notes: '',
-      reason: '',
-    }
-    selectedComponents.value = []
-    selectedAccessories.value = []
-    selectedLicenses.value = []
+     // reset form on success
+     form.value = {
+       asset_id: '',
+       type: 'transfer',
+       receiver_id: '',
+       sender_condition: 'good',
+       missing_items_text: '',
+       issue_notes: '',
+       notes: '',
+       reason: '',
+     }
+     selectedAccessories.value = []
+     selectedLicenses.value = []
 
   } catch (err) {
     console.error('transfer submit failed', err)

@@ -315,7 +315,10 @@ const fetchDepartmentAssets = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const response = await axios.get('/api/hod/staff-assets');
+    const userData = localStorage.getItem('user_data');
+    const userRole = userData ? JSON.parse(userData).role?.toLowerCase() : 'staff';
+    const endpoint = userRole === 'manager' ? '/api/manager/staff-assets' : '/api/hod/staff-assets';
+    const response = await axios.get(endpoint);
     staffWithAssets.value = response.data.staff || [];
     
     // Check if user has department assigned

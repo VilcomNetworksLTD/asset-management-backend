@@ -108,12 +108,12 @@ Log::info('Raw Hub Department Data', ['data' => $hubDepartments]);
             Log::info('Departments synced from Safetika Hub', [
                 'count' => count($hubDepartments),
                 'endpoint' => $successfulEndpoint,
-                'departments' => array_column($hubDepartments, 'name')
+                'departments' => array_column($hubDepartments, 'name'),
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to sync departments from hub', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }

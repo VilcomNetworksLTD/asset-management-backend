@@ -16,8 +16,8 @@
     </div>
 
     <div class="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
-      <!-- Admin Filters -->
-      <div v-if="role === 'admin'" class="p-8 border-b border-gray-50 flex flex-wrap gap-4 items-center bg-gray-50/30">
+      <!-- Search & Filters -->
+      <div class="p-8 border-b border-gray-50 flex flex-wrap gap-4 items-center bg-gray-50/30">
         <div class="relative group">
           <input 
             v-model="filters.search" 
@@ -240,12 +240,12 @@
             <tr v-for="ticket in rows" :key="ticket.id" class="group transition-all hover:bg-blue-50/30">
               <td v-if="role === 'admin'" class="px-6 py-5">
                  <div class="flex items-center gap-3">
-                    <div class="size-10 bg-slate-100 rounded-full flex items-center justify-center font-black text-slate-400 text-xs uppercase">
+                    <div class="size-10 bg-slate-100 rounded-full flex items-center justify-center font-black text-slate-400 text-xs uppercase shadow-inner border border-slate-200">
                        {{ ticket.user?.name.charAt(0) }}
                     </div>
                     <div>
-                      <div class="font-black text-slate-700 text-sm tracking-tight">{{ ticket.user?.name }}</div>
-                      <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{{ ticket.user?.department?.name || 'Staff Member' }}</div>
+                      <div class="font-black text-slate-800 text-sm tracking-tight">{{ ticket.user?.name }}</div>
+                      <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{{ ticket.user?.department?.name || '' }}</div>
                     </div>
                  </div>
               </td>
@@ -303,18 +303,22 @@
                          <CheckCircle class="size-4" />
                        </button>
 
-                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset" @click="openAssign(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-orange hover:border-vilcom-orange hover:shadow-lg transition-all" title="Assign Asset to User">
+                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset && !isResolved(ticket)" @click="openAssign(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Assign Asset to User">
                         <Package class="size-4" />
                       </button>
 
-                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset" @click="openEscalate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-purple-600 hover:border-purple-600 hover:shadow-lg transition-all" title="Escalate to Management">
+                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset && !isResolved(ticket)" @click="openReject(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-red-600 hover:border-red-600 hover:shadow-lg transition-all" title="Reject Request">
+                        <AlertCircle class="size-4" />
+                      </button>
+
+                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset && !isResolved(ticket)" @click="openEscalate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-purple-600 hover:border-purple-600 hover:shadow-lg transition-all" title="Escalate to Management">
                         <ArrowUpRight class="size-4" />
                       </button>
                    </template>
-                   <template v-else>
-                      <div class="p-3 bg-green-50 text-green-600 rounded-xl border border-green-100 flex items-center gap-2" title="Resolution Finalized">
-                        <ShieldCheck class="size-4" />
-                        <span class="text-[9px] font-black uppercase tracking-widest">Archived</span>
+                   <template v-else-if="isRejected(ticket)">
+                      <div class="p-3 bg-red-50 text-red-600 rounded-xl border border-red-100 flex items-center gap-2" title="Request Declined">
+                        <AlertCircle class="size-4" />
+                        <span class="text-[9px] font-black uppercase tracking-widest">Declined</span>
                       </div>
                    </template>
 
@@ -357,14 +361,19 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, computed, watch } from 'vue'
+import { onMounted, reactive, ref, computed, watch, onUnmounted } from 'vue'
 import axios from 'axios';
+import { useWindowFocus } from '@vueuse/core';
 import { 
   Search, Edit3, UserPlus, CheckCircle, Package, 
   Trash2, ChevronLeft, ChevronRight, Inbox,
   ShieldCheck, Info, AlertCircle, ArrowUpRight, XCircle
 } from 'lucide-vue-next';
 import Loader from '@/components/Loader.vue';
+
+const isFocused = useWindowFocus()
+const REFRESH_INTERVAL = 20000
+let intervalId = null
 
 const all_rows = ref([])
 const loading = ref(false);
@@ -377,11 +386,17 @@ const pagination = reactive({ current_page: 1, last_page: 1, total: 0 })
 const showUpdate = ref(false)
 const editingId = ref(null)
 const updateForm = reactive({ description: '', priority: 'medium', communication: '' })
+
 const showAssign = ref(false)
 const assignTicket = ref(null)
 const assignForm = reactive({ asset_id: '', communication: '', accessory_allocations: [] })
 const assignOptions = ref([])
 const accessoryOptions = ref([])
+
+const showReject = ref(false)
+const rejectTicket = ref(null)
+const rejectForm = reactive({ reason: '' })
+
 const statuses = ref([])
 const assignSearch = ref('')
 
@@ -400,21 +415,21 @@ const role = (() => {
 const fetchRows = async (page = 1) => {
   loading.value = true
   try {
+    const params = {
+      search: filters.search || undefined,
+      priority: filters.priority || undefined,
+      per_page: filters.per_page,
+      page
+    };
+
     if (role === 'admin') {
-      const { data } = await axios.get('/api/tickets/list', {
-        params: {
-          search: filters.search || undefined,
-          priority: filters.priority || undefined,
-          per_page: filters.per_page,
-          page
-        }
-      })
+      const { data } = await axios.get('/api/tickets/list', { params })
       all_rows.value = data.data || []
       pagination.current_page = data.current_page || 1
       pagination.last_page = data.last_page || 1
       pagination.total = data.total || 0
     } else {
-      const { data } = await axios.get('/api/my-tickets')
+      const { data } = await axios.get('/api/my-tickets', { params })
       all_rows.value = data || []
       pagination.current_page = 1
       pagination.last_page = 1
@@ -569,12 +584,10 @@ const openAssign = async (ticket) => {
   accessoryOptions.value = (data?.data || []).filter((a) => Number(a.remaining_qty) > 0)
 }
 
-const openEscalate = (ticket) => {
-  escalateTicket.value = ticket
-  escalateForm.item_name = ''
-  escalateForm.estimated_cost = ''
-  escalateForm.reason = ''
-  showEscalate.value = true
+const openReject = (ticket) => {
+  rejectTicket.value = ticket
+  rejectForm.reason = ''
+  showReject.value = true
 }
 
 const submitEscalation = async () => {
@@ -585,10 +598,8 @@ const submitEscalation = async () => {
   }
   
   try {
-    await axios.post(`/api/tickets/${escalateTicket.value.id}/escalate`, {
-      item_name: escalateForm.item_name,
-      reason: escalateForm.reason,
-      estimated_cost: escalateForm.estimated_cost || null
+    await axios.post(`/api/tickets/${rejectTicket.value.id}/reject`, {
+      reason: rejectForm.reason
     })
     showEscalate.value = false
     window.vnlNotify.success('Ticket escalated to management for approval.');
@@ -671,10 +682,21 @@ const priorityClass = (p) => {
   return 'bg-blue-50 text-vilcom-blue border-blue-100';
 }
 
+watch(isFocused, (focused) => {
+  if (focused) {
+    fetchRows(pagination.current_page)
+  }
+})
+
 onMounted(() => {
   fetchRows()
   if (role === 'admin') {
     loadStatuses();
   }
+  intervalId = setInterval(() => fetchRows(pagination.current_page), REFRESH_INTERVAL)
+})
+
+onUnmounted(() => {
+  if (intervalId) clearInterval(intervalId)
 })
 </script>

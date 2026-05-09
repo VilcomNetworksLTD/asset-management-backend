@@ -113,11 +113,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import axios from 'axios'
+import { useWindowFocus } from '@vueuse/core'
 import Loader from '@/components/Loader.vue'
 import StatCard from '../components/dashboard/StatCard.vue'
 
+const isFocused = useWindowFocus()
+const REFRESH_INTERVAL = 30000
+let intervalId = null
 
 const stats = ref({
   assets: 0,
@@ -142,7 +146,6 @@ const fetchDashboardData = async () => {
       axios.get('/api/user')
     ])
 
-    // Set user name
     userName.value = userResponse?.data?.name ?? 'User'
     userRole.value = userResponse?.data?.role ?? 'staff'
 
@@ -150,16 +153,12 @@ const fetchDashboardData = async () => {
     console.info("this is the page")
     console.log('Dashboard API Data:', data)
 
-
-
-    // Stats
     stats.value.assets = data.my_assets_count ?? 0
     stats.value.tickets = data.open_tickets_count ?? 0
     stats.value.licenses = data.my_licenses_count ?? 0
     stats.value.accessories = data.my_accessories_count ?? 0
 
 
-    // Assets (handle nested data if paginated)
     let assetsArray = []
 
     if (Array.isArray(data.recent_assets)) {
@@ -186,5 +185,18 @@ const fetchDashboardData = async () => {
   }
 }
 
-onMounted(fetchDashboardData) 
+watch(isFocused, (focused) => {
+  if (focused) {
+    fetchDashboardData()
+  }
+})
+
+onMounted(() => {
+  fetchDashboardData()
+  intervalId = setInterval(fetchDashboardData, REFRESH_INTERVAL)
+})
+
+onUnmounted(() => {
+  if (intervalId) clearInterval(intervalId)
+})
 </script>

@@ -67,14 +67,14 @@ const categories = [
 
 const allSecondSection = [
   { 
-    name: 'Asset Request', 
+    name: 'Asset Return Request', 
     icon: Laptop, 
     iconColor: 'text-indigo-600', 
     routeName: 'user.request-return', 
-    description: 'Initiate a request for a new asset or equipment.' 
+    description: 'Initiate a request for returning an asset or equipment.' 
   },
   { 
-    name: 'Transfer Request', 
+    name: 'Asset Transfer Request', 
     icon: ArrowLeftRight, 
     iconColor: 'text-teal-600', 
     routeName: 'user.request-transfer', 

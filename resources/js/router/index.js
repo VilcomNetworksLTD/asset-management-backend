@@ -220,8 +220,8 @@ const routes = [{
             // REMOVED: MyHistory route was here
             {
                 path: 'department-assets',
-                name: 'HodDepartmentAssets',
-                component: HodDepartmentAssets,
+                name: 'department-assets',
+                component: DepartmentAssets,
                 meta: { layout: 'UserLayout', requiresAuth: true }
             },
             {

@@ -1,7 +1,8 @@
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
+import { useWindowFocus } from '@vueuse/core';
 import { 
   ArrowLeft, Barcode, Tag, Edit3, UserPlus, 
   Check, X, Camera, Printer, Trash2, 
@@ -23,6 +24,21 @@ const isEditing = ref(false);
 const saving = ref(false);
 const uploadingEvidence = ref(false);
 
+const isFocused = useWindowFocus();
+const REFRESH_INTERVAL = 15000;
+
+watch(isFocused, (focused) => {
+  if (focused && asset.value) {
+    fetchAsset();
+  }
+});
+
+setInterval(() => {
+  if (asset.value) {
+    fetchAsset();
+  }
+}, REFRESH_INTERVAL);
+
 /**
  * Enhanced Access Control logic:
  * 1. Full access if on the explicit Admin Route ('asset-detail').
@@ -34,15 +50,20 @@ const isAdmin = computed(() => {
   const isExplicitAdmin = route.name === 'asset-detail';
   
   const isHOD = userData.role?.toLowerCase() === 'hod' || userData.role?.toLowerCase() === 'manager';
-  const isManagementContext = route.path.includes('/tasks') || route.path.includes('/manage') || route.path.includes('/inventory') || route.path.includes('/definitions');
+  const isManagementContext = route.path.includes('/tasks') || route.path.includes('/manage') || route.path.includes('/inventory') || route.path.includes('/definitions') || route.path.includes('/hod');
   
-  // Check if HOD created either the category OR the asset itself
+  // Check if HOD/Manager created either the category OR the asset itself
   const createdCategory = asset.value?.category?.created_by === userData.id;
   const createdAsset = asset.value?.created_by === userData.id;
   
-  const isHODManager = isHOD && (createdCategory || createdAsset) && isManagementContext;
+  // Full access if in management context (regardless of who created the asset)
+  const isManagerInContext = isHOD && isManagementContext;
   
-  return isExplicitAdmin || isHODManager;
+  // Or if created the asset/category
+  const isAssetCreator = isHOD && (createdCategory || createdAsset);
+  
+  // Superadmin or Management/HOD in their respective sections
+  return (userData.role?.toLowerCase() === 'admin' || userData.role?.toLowerCase() === 'management') || isExplicitAdmin || isManagerInContext || isAssetCreator;
 });
 
 // Assignment logic
@@ -125,7 +146,10 @@ const handleFieldFileUpload = (key, event) => {
   if (file) {
     const reader = new FileReader();
     reader.onload = (e) => {
-      form.custom_attributes[key] = e.target.result;
+      form.custom_attributes[key] = {
+        name: file.name,
+        data: e.target.result
+      };
     };
     reader.readAsDataURL(file);
   }
@@ -133,19 +157,17 @@ const handleFieldFileUpload = (key, event) => {
 
 const openAssignModal = async () => {
   assignmentForm.receiver_id = null;
-  assignmentForm.selected_components = [];
+  assignmentForm.receiver_id = null;
   assignmentForm.notes = '';
   showAssignModal.value = true;
 
   if (!isAdmin.value) return; // Extra safety
 
   try {
-    const [userRes, compRes] = await Promise.all([
-      axios.get('/api/users-list'),
-      axios.get('/api/components/list', { params: { per_page: 100 } })
+    const [userRes] = await Promise.all([
+      axios.get('/api/users-list')
     ]);
     usersForDropdown.value = userRes.data;
-    componentsForDropdown.value = (compRes.data.data || compRes.data || []).filter(c => c.remaining_qty > 0);
   } catch (error) {
     console.error("Failed to fetch dropdown data:", error);
   }
@@ -163,8 +185,7 @@ const submitAssignment = async () => {
       asset_id: asset.value.id,
       receiver_id: assignmentForm.receiver_id,
       notes: assignmentForm.notes,
-      direct: assignmentForm.direct,
-      items: assignmentForm.selected_components.map(id => ({ type: 'component', id }))
+      direct: assignmentForm.direct
     };
 
     await axios.post('/api/admin/assets/assign', payload);
@@ -283,7 +304,7 @@ const saveChanges = async () => {
 };
 
 const hasCategoryFields = computed(() => {
-  return asset.value?.category?.fields && asset.value.category.fields.length > 0;
+  return asset.value?.category?.fields?.length > 0;
 });
 
 onMounted(() => {

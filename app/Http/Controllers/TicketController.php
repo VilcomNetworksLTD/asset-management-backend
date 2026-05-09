@@ -70,12 +70,18 @@ class TicketController extends Controller
     public function getUserTickets(Request $request): JsonResponse
     {
         $user = $request->user();
-        $tickets = Ticket::with(['issue.asset.category', 'status'])
-            ->where('Employee_ID', $user->id)
-            ->latest()
-            ->get();
+        $query = Ticket::with(['issue.asset.category', 'status'])
+            ->where('Employee_ID', $user->id);
 
-        return response()->json($tickets);
+        if ($search = $request->string('search')->toString()) {
+            $query->where('Description', 'like', "%{$search}%");
+        }
+
+        if ($priority = $request->string('priority')->toString()) {
+            $query->where('Priority', $priority);
+        }
+
+        return response()->json($query->latest()->get());
     }
 
     public function store(Request $request): JsonResponse
@@ -474,6 +480,29 @@ class TicketController extends Controller
 
             return response()->json(['message' => 'Escalated successfully.', 'purchase_request' => $purchaseRequest]);
         });
+    }
+
+    public function reject(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'reason' => 'required|string|max:2000',
+        ]);
+
+        $ticket = Ticket::with('user')->findOrFail($id);
+
+        DB::transaction(function () use ($ticket, $data) {
+            $rejectedStatusId = Status::whereIn('Status_Name', ['Rejected', 'Cancelled', 'Closed'])->value('id');
+
+            $ticket->update([
+                'Status_ID' => $rejectedStatusId ?? $ticket->Status_ID,
+                'Communication_log' => trim($ticket->Communication_log . "\n" . now()->format('Y-m-d H:i:s') . " - REQUEST REJECTED. Reason: " . $data['reason'])
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Ticket rejected successfully.',
+            'ticket' => $ticket->fresh()->load(['user', 'issue.asset.category', 'status']),
+        ]);
     }
 
     public function assignAsset(Request $request, int $id): JsonResponse

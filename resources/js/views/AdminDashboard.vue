@@ -36,6 +36,8 @@
 
 <script>
 import axios from "axios"
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { useWindowFocus } from '@vueuse/core'
 import StatCard from '../components/dashboard/StatCard.vue'
 import AssetChart from '../components/dashboard/AssetChart.vue'
 import RecentActivity from '../components/dashboard/RecentActivity.vue'

@@ -1,9 +1,13 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
-import Loader from '@/components/Loader.vue'; // Assuming you have a loader
+import { useWindowFocus } from '@vueuse/core';
+import Loader from '@/components/Loader.vue';
 
-// State
+const isFocused = useWindowFocus()
+const REFRESH_INTERVAL = 30000
+let intervalId = null
+
 const history = ref([]);
 const printers = ref([]); 
 const consumablesStock = ref([]); 
@@ -68,6 +72,14 @@ onMounted(() => {
   fetchAllHistory();
   fetchInventory();
   fetchPrinters();
+  intervalId = setInterval(() => {
+    fetchAllHistory();
+    fetchInventory();
+  }, REFRESH_INTERVAL);
+});
+
+onUnmounted(() => {
+  if (intervalId) clearInterval(intervalId);
 });
 
 const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '---';

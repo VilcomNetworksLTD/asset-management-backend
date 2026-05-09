@@ -164,7 +164,7 @@ import LocationSettings from './LocationSettings.vue';
 const user = JSON.parse(localStorage.getItem('user_data') || '{}');
 const role = (user.role || '').toLowerCase();
 const isAdmin = role === 'admin';
-const isHod = role === 'head_of_department' || role === 'hod';
+const isHod = role === 'head_of_department' || role === 'hod' || role === 'manager' || role === 'management';
 
 const allTabs = [
   { id: 'general', label: 'General', icon: markRaw(Settings) },

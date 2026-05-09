@@ -1,8 +1,7 @@
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import axios from 'axios';
-// NOTE: These are assumed to be existing UI components.
-// You may need to adjust the imports and component usage to match your project.
+import { useWindowFocus } from '@vueuse/core';
 import Modal from '@/components/Modal.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import AssetTable from '@/components/AssetTable.vue';
@@ -12,14 +11,23 @@ const categories = ref([]);
 const locations = ref([]);
 const suppliers = ref([]);
 const showAddModal = ref(false);
-const loading = ref(true);
-
-// New refs for barcode preview
 const showBarcodePreviewModal = ref(false);
 const assetForPreview = ref(null);
+const loading = ref(true);
 
-// This form now only contains core asset fields.
-// `custom_attributes` has been removed from the creation step.
+const isFocused = useWindowFocus();
+const REFRESH_INTERVAL = 20000;
+
+watch(isFocused, (focused) => {
+  if (focused) {
+    fetchAssets();
+  }
+});
+
+setInterval(() => {
+  fetchAssets();
+}, REFRESH_INTERVAL);
+
 const form = reactive({
   Asset_Name: '',
   category_id: null,
@@ -66,7 +74,10 @@ const handleFieldFileUpload = (key, event) => {
   if (file) {
     const reader = new FileReader();
     reader.onload = (e) => {
-      form.custom_attributes[key] = e.target.result;
+      form.custom_attributes[key] = {
+        name: file.name,
+        data: e.target.result
+      };
     };
     reader.readAsDataURL(file);
   }
@@ -127,6 +138,7 @@ const printBarcode = async (asset) => {
 
 const submitAsset = async () => {
   try {
+    console.log("Payload:", form);
     // 1. Send the request
     const response = await axios.post('/api/assets', form);
     
@@ -151,8 +163,9 @@ const submitAsset = async () => {
     fetchAssets(); 
     
   } catch (error) {
-    console.error("Error creating asset:", error);
-    alert('Failed to create asset. Check console for details.');
+    console.log("FULL ERROR:", error);
+    console.log("RESPONSE:", error.response);
+    console.log("DATA:", error.response?.data);
   }
 };
 

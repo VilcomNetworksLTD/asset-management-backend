@@ -26,4 +26,24 @@ class LocationController extends Controller
         $location = Location::create($data);
         return response()->json($location, 201);
     }
+
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $location = Location::findOrFail($id);
+
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'address' => 'nullable|string',
+        ]);
+
+        $location->update($data);
+        return response()->json($location);
+    }
+
+    public function destroy(int $id): JsonResponse
+    {
+        $location = Location::findOrFail($id);
+        $location->delete();
+        return response()->json(['message' => 'Location deleted successfully.']);
+    }
 }

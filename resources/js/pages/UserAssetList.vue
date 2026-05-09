@@ -8,10 +8,11 @@
           <thead>
             <tr class="bg-slate-50/50">
               <th class="px-8 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Asset Tag</th>
-              <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Model</th>
-              <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Serial</th>
+              <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Model Name</th>
               <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Category</th>
+              <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Location</th>
               <th class="px-8 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-right">Status</th>
+              <th class="px-8 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-right">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-50">
@@ -28,8 +29,13 @@
                 </span>
               </td>
               <td class="px-6 py-5 font-black text-slate-800">{{ asset.model }}</td>
-              <td class="px-6 py-5 font-mono text-xs text-gray-400">{{ asset.serial || 'N/A' }}</td>
               <td class="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-wider">{{ asset.category }}</td>
+              <td class="px-6 py-5 font-mono text-xs text-gray-400">{{ asset.location }}</td>
+              <td class="px-8 py-5 text-right">
+                <span class="px-3 py-1 rounded-lg text-[10px] font-black bg-green-100 text-green-700 uppercase">
+                  {{ asset.status_name || asset.status?.Status_Name || (typeof asset.status === 'string' ? asset.status : 'Assigned') }}
+                </span>
+              </td>
               <td class="px-8 py-5 text-right flex justify-end gap-3">
                 <router-link 
                   :to="{ name: 'user-asset-detail', params: { id: asset.id } }"
@@ -41,7 +47,7 @@
             </tr>
 
             <tr v-if="!loading && assets.length === 0">
-              <td colspan="5" class="p-12 text-center text-gray-400 font-black italic uppercase tracking-widest opacity-30">No assets assigned yet.</td>
+              <td colspan="6" class="p-12 text-center text-gray-400 font-black italic uppercase tracking-widest opacity-30">No assets assigned yet.</td>
             </tr>
           </tbody>
         </table>
@@ -77,7 +83,9 @@ const fetchAssets = async () => {
       model: a.model || a.Asset_Name || '',
       serial: a.serial || a.Serial_No || '',
       category: a.category?.name || a.category || a.Asset_Category || '',
+      location: a.location?.name || a.location || a.Location || 'N/A',
       status: a.status || a.status_name || null,
+      status_name: a.status_name || a.status?.Status_Name || a.status || null,
     }))
   } catch (e) {
     console.error('Failed to load assigned assets', e)

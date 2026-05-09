@@ -1,12 +1,17 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch, onUnmounted } from 'vue'
 import axios from 'axios'
+import { useWindowFocus } from '@vueuse/core'
 import { 
   Users, UserPlus, Search, Filter, 
   Trash2, Edit3, ChevronRight, X,
   Laptop, Save, HardDrive, Keyboard,
   ShieldCheck, ShieldAlert
 } from 'lucide-vue-next'
+
+const isFocused = useWindowFocus()
+const REFRESH_INTERVAL = 25000
+let intervalId = null
 
 const rows = ref([])
 const loading = ref(false)
@@ -121,9 +126,20 @@ const removeRow = async (id) => {
   fetchRows(pagination.current_page)
 }
 
+watch(isFocused, (focused) => {
+  if (focused) {
+    fetchRows(pagination.current_page)
+  }
+})
+
 onMounted(() => {
     fetchRows()
     fetchDepartments()
+    intervalId = setInterval(() => fetchRows(pagination.current_page), REFRESH_INTERVAL)
+})
+
+onUnmounted(() => {
+  if (intervalId) clearInterval(intervalId)
 })
 </script>
 
@@ -162,6 +178,8 @@ onMounted(() => {
           <option value="admin">Administrator</option>
           <option value="staff">Standard Staff</option>
           <option value="hod">Department Head</option>
+          <option value="manager">Manager</option>
+          <option value="employee">Employee</option>
           <option value="management">Management</option>
         </select>
         <div class="h-6 w-px bg-gray-100"></div>
@@ -198,6 +216,8 @@ onMounted(() => {
               <option value="admin">Administrator</option>
               <option value="staff">Standard Staff</option>
               <option value="hod">Department Head</option>
+              <option value="manager">Manager</option>
+              <option value="employee">Employee</option>
               <option value="management">Management</option>
             </select>
           </div>
@@ -397,24 +417,8 @@ onMounted(() => {
             <!-- SECTION: COMPONENTS & ACCESSORIES INFRASTRUCTURE -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
                <!-- COMPONENTS -->
-               <div class="space-y-6">
-                  <h3 class="text-sm font-black text-slate-800 uppercase tracking-[0.2em] flex items-center gap-3">
-                    <HardDrive class="size-4 text-indigo-600" />
-                    Internal Parts
-                  </h3>
-                  <div class="space-y-3">
-                    <div v-for="comp in selectedUserDetails.components" :key="'comp-'+comp.id" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-                      <div class="flex items-center gap-4">
-                        <div class="text-xs font-bold text-slate-700">{{ comp.name }}</div>
-                      </div>
-                      <div class="text-xs font-black text-indigo-600">x{{ comp.pivot?.quantity || 1 }}</div>
-                    </div>
-                  </div>
-                  <div v-if="!selectedUserDetails.components?.length" class="text-center p-6 bg-slate-50 rounded-2xl text-xs text-slate-400 font-bold italic">No internal parts.</div>
-               </div>
-
-               <!-- ACCESSORIES -->
-               <div class="space-y-6">
+                <!-- ACCESSORIES -->
+                <div class="space-y-6">
                   <h3 class="text-sm font-black text-slate-800 uppercase tracking-[0.2em] flex items-center gap-3">
                     <Keyboard class="size-4 text-vilcom-orange" />
                     Peripherals

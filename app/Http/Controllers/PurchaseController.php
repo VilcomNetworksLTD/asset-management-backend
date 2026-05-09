@@ -10,6 +10,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Mail;
 use App\Models\User;
 use App\Models\ActivityLog;
+use App\Mail\PurchaseEscalation;
+use App\Mail\PurchaseDecision;
 
 class PurchaseController extends Controller
 {
@@ -56,21 +58,9 @@ class PurchaseController extends Controller
         ]);
 
         // Notify Management about new purchase request (not just admins)
-        $managers = User::where('role', 'management')->get();
         foreach ($managers as $manager) {
             if ($manager->email) {
-                Mail::raw(
-                    "A new purchase request has been submitted and requires your review.\n\n" .
-                    "Item: {$purchaseRequest->item_name}\n" .
-                    "Type: {$purchaseRequest->type}\n" .
-                    "Requested by: " . Auth::user()->name . "\n" .
-                    "Estimated Cost: " . ($data['estimated_cost'] ?? 'Not specified') . "\n\n" .
-                    "Please review this request in the Purchase Approvals section.",
-                    function ($m) use ($manager, $purchaseRequest) {
-                        $m->to($manager->email)
-                          ->subject("New Purchase Request: {$purchaseRequest->item_name}");
-                    }
-                );
+                Mail::to($manager->email)->send(new PurchaseEscalation($purchaseRequest, $manager));
             }
         }
         
@@ -108,9 +98,7 @@ class PurchaseController extends Controller
         $managers = User::where('role', 'management')->get();
         foreach ($managers as $manager) {
             if ($manager->email) {
-                Mail::raw("A new purchase request for '{$purchaseRequest->item_name}' (Maintenance ID: {$maintenance->id}) requires your approval.", function ($m) use ($manager) {
-                    $m->to($manager->email)->subject("Action Required: Maintenance Purchase Request");
-                });
+                Mail::to($manager->email)->send(new PurchaseEscalation($purchaseRequest, $manager));
             }
         }
 
@@ -159,24 +147,13 @@ class PurchaseController extends Controller
 
         // Notify requester
         if ($requestUser && $requestUser->email) {
-            Mail::raw($message, function ($m) use ($requestUser, $subject) {
-                $m->to($requestUser->email)->subject($subject);
-            });
+            Mail::to($requestUser->email)->send(new PurchaseDecision($pRequest, $requestUser, $data['status']));
         }
 
         // Notify admins
-        $requesterEmail = $requestUser ? $requestUser->email : null;
         foreach ($admins as $admin) {
-            if ($admin->email && $requesterEmail && $admin->email !== $requesterEmail) {
-                Mail::raw(
-                    "Purchase request status update: {$pRequest->item_name}\n\n" .
-                    "Status: " . strtoupper($data['status']) . "\n" .
-                    "By: Management\n" .
-                    "Requester has been notified.",
-                    function ($m) use ($admin, $subject) {
-                        $m->to($admin->email)->subject($subject);
-                    }
-                );
+            if ($admin->email) {
+                Mail::to($admin->email)->send(new PurchaseDecision($pRequest, $admin, $data['status']));
             }
         }
         
@@ -245,30 +222,13 @@ class PurchaseController extends Controller
         $managers = User::where('role', 'management')->get();
         foreach ($managers as $manager) {
             if ($manager->email) {
-                Mail::raw(
-                    "A new purchase request requires your approval.\n\n" .
-                    "Item: {$purchase->item_name}\n" .
-                    "Requested by: {$purchase->requester->name}\n" .
-                    "Estimated Cost: " . ($data['estimated_cost'] ?? 'Not specified') . "\n\n" .
-                    "Please review and approve or reject this request in the Purchase Approvals section.",
-                    function ($m) use ($manager, $purchase) {
-                        $m->to($manager->email)
-                          ->subject("Action Required: Purchase Approval - {$purchase->item_name}");
-                    }
-                );
+                Mail::to($manager->email)->send(new PurchaseEscalation($purchase, $manager));
             }
         }
 
         // Email the requester that their request has been escalated
         if ($purchase->requester && $purchase->requester->email) {
-            Mail::raw(
-                "Your acquisition request for '{$purchase->item_name}' has been reviewed by IT Administration and escalated to Management for budget approval. " .
-                "You will be notified once Management makes a decision.",
-                function ($m) use ($purchase) {
-                    $m->to($purchase->requester->email)
-                      ->subject("Your Request Escalated: {$purchase->item_name}");
-                }
-            );
+            Mail::to($purchase->requester->email)->send(new PurchaseDecision($purchase, $purchase->requester, 'escalated'));
         }
 
         return response()->json(['message' => 'Request escalated to management.', 'request' => $purchase]);
@@ -302,11 +262,9 @@ class PurchaseController extends Controller
         ]);
 
         // Notify Staff and Admin
-        $recipients = array_filter([$purchase->requester?->email]);
-        foreach ($recipients as $email) {
-            Mail::raw("The purchase request for '{$purchase->item_name}' has been APPROVED by management. Procurement can now proceed.", function ($m) use ($email, $purchase) {
-                $m->to($email)->subject("Purchase Request Approved: {$purchase->item_name}");
-            });
+        $recipients = User::whereIn('email', array_filter([$purchase->requester?->email]))->get();
+        foreach ($recipients as $recipient) {
+            Mail::to($recipient->email)->send(new PurchaseDecision($purchase, $recipient, 'approved'));
         }
 
         return response()->json(['message' => 'Purchase request approved.', 'purchase' => $purchase]);
@@ -342,11 +300,9 @@ class PurchaseController extends Controller
         ]);
 
         // Notify Staff and Admin
-        $recipients = array_filter([$purchase->requester?->email]);
-        foreach ($recipients as $email) {
-            Mail::raw("The purchase request for '{$purchase->item_name}' was rejected. Reason: {$data['rejection_reason']}", function ($m) use ($email, $purchase) {
-                $m->to($email)->subject("Purchase Request Rejected: {$purchase->item_name}");
-            });
+        $recipients = User::whereIn('email', array_filter([$purchase->requester?->email]))->get();
+        foreach ($recipients as $recipient) {
+            Mail::to($recipient->email)->send(new PurchaseDecision($purchase, $recipient, 'rejected'));
         }
 
         return response()->json(['message' => 'Purchase request rejected.']);

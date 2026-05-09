@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Department;
+use App\Models\User;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,13 +22,14 @@ class UserController extends Controller
     public function index(): JsonResponse
     {
         $users = $this->userService->getAllUsers();
+
         return response()->json($users);
     }
 
     public function list(Request $request): JsonResponse
     {
         // Eager load department so we can show the name in the table
-        $query = \App\Models\User::query()
+        $query = User::query()
             ->withTrashed()
             ->with(['department:id,name', 'status']);
 
@@ -58,7 +61,7 @@ class UserController extends Controller
             'is_verified' => 'nullable|boolean',
         ]);
 
-        $user = \App\Models\User::create([
+        $user = User::create([
             'name' => $data['name'],
             'email' => $data['email'],
             'department_id' => $data['department_id'] ?? null,
@@ -72,18 +75,18 @@ class UserController extends Controller
 
     public function updateById(Request $request, int $id): JsonResponse
     {
-        $user = \App\Models\User::findOrFail($id);
+        $user = User::findOrFail($id);
 
         $data = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|email|max:255|unique:users,email,' . $id,
+            'email' => 'sometimes|required|email|max:255|unique:users,email,'.$id,
             'password' => 'nullable|string|min:8',
             'role' => 'sometimes|required|string|max:50',
             'is_verified' => 'sometimes|required|boolean',
             'department_id' => 'nullable|exists:departments,id',
         ]);
 
-        if (!empty($data['password'])) {
+        if (! empty($data['password'])) {
             $data['password'] = bcrypt($data['password']);
         } else {
             unset($data['password']);
@@ -96,7 +99,7 @@ class UserController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
-        $user = \App\Models\User::findOrFail($id);
+        $user = User::findOrFail($id);
         $user->delete();
 
         return response()->json(['message' => 'User deleted successfully']);
@@ -107,12 +110,11 @@ class UserController extends Controller
      */
     public function getUserDetails(int $id): JsonResponse
     {
-        $user = \App\Models\User::with([
-            'assets',        
-            'licenses',      
-            'components',    
-            'consumables',   
-            'accessories'    
+        $user = User::with([
+            'assets',
+            'licenses',
+            'consumables',
+            'accessories',
         ])->findOrFail($id);
 
         return response()->json($user);
@@ -125,6 +127,7 @@ class UserController extends Controller
     {
         $user = Auth::user();
         $user->load('department:id,name');
+
         return response()->json($user);
     }
 
@@ -135,14 +138,14 @@ class UserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . Auth::id(),
+            'email' => 'required|email|unique:users,email,'.Auth::id(),
         ]);
 
         $user = $this->userService->updateProfile(Auth::user(), $request->only('name', 'email'));
 
         return response()->json([
             'message' => 'Profile updated successfully',
-            'user' => $user
+            'user' => $user,
         ]);
     }
 
@@ -158,7 +161,7 @@ class UserController extends Controller
 
         $result = $this->userService->updatePassword(Auth::user(), $request->all());
 
-        if (!$result) {
+        if (! $result) {
             return response()->json(['message' => 'Current password is incorrect'], 422);
         }
 
@@ -171,7 +174,7 @@ class UserController extends Controller
     public function logoutAllDevices(): JsonResponse
     {
         $user = Auth::user();
-        
+
         $tokens = $user->tokens()->where('id', '!=', $user->currentAccessToken()->id)->get();
         $tokens->each(function ($token) {
             $token->delete();
@@ -181,19 +184,18 @@ class UserController extends Controller
     }
 
     /**
-     * Consolidated endpoint for components, accessories, licenses, and consumables assigned to the current user.
+     * Consolidated endpoint for accessories, licenses, and consumables assigned to the current user.
      */
     public function getMyAssignedItems(): JsonResponse
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $user->load(['components', 'accessories', 'licenses']);
+        $user->load(['accessories', 'licenses']);
 
         return response()->json([
-            'components' => $user->components,
             'accessories' => $user->accessories,
             'licenses' => $user->licenses,
         ]);
@@ -205,29 +207,31 @@ class UserController extends Controller
     public function syncDepartment(Request $request): JsonResponse
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
         $departmentId = $request->input('department_id');
-        
+
         if ($departmentId) {
-            $department = \App\Models\Department::find($departmentId);
-            if (!$department) {
+            $department = Department::find($departmentId);
+            if (! $department) {
                 return response()->json(['message' => 'Department not found'], 404);
             }
             $user->department_id = $department->id;
             $user->save();
+
             return response()->json([
                 'message' => 'Department assigned successfully',
-                'department' => $department
+                'department' => $department,
             ]);
         }
 
-        $departments = \App\Models\Department::orderBy('name')->get();
+        $departments = Department::orderBy('name')->get();
+
         return response()->json([
             'message' => 'Please select a department',
-            'departments' => $departments
+            'departments' => $departments,
         ]);
     }
 }

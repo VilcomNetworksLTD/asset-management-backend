@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\AssetAssigned;
+use App\Mail\TransferUpdate;
+use App\Models\Accessory;
 use App\Models\ActivityLog;
 use App\Models\Asset;
+use App\Models\Consumable;
+use App\Models\License;
 use App\Models\Maintenance;
-use App\Mail\AssetAssigned;
 use App\Models\Status;
 use App\Models\Transfer;
 use App\Models\User;
@@ -35,7 +39,7 @@ class TransferController extends Controller
 
         // map results using the shared helper so the shape stays
         // consistent with other endpoints
-        $paginated->getCollection()->transform(fn($t) => $this->mapTransfer($t));
+        $paginated->getCollection()->transform(fn ($t) => $this->mapTransfer($t));
 
         return response()->json($paginated);
     }
@@ -62,7 +66,7 @@ class TransferController extends Controller
 
         // map results using the shared helper so the shape stays
         // consistent with other endpoints
-        $paginated->getCollection()->transform(fn($t) => $this->mapTransfer($t));
+        $paginated->getCollection()->transform(fn ($t) => $this->mapTransfer($t));
 
         return response()->json($paginated);
     }
@@ -86,7 +90,7 @@ class TransferController extends Controller
         $isOwnerPending = ((int) $transfer->Sender_ID === (int) $user->id)
             && in_array(strtolower($transfer->Workflow_Status ?? ''), ['pending', 'pending_inspection'], true);
 
-        if (!$isAdmin && !$isOwnerPending) {
+        if (! $isAdmin && ! $isOwnerPending) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -98,19 +102,21 @@ class TransferController extends Controller
     public function getMyAssets(Request $request): JsonResponse
     {
         $user = Auth::user();
-        if (!$user) return response()->json([]);
+        if (! $user) {
+            return response()->json([]);
+        }
 
         $query = Asset::query();
 
         // Admin can see all available assets for assignment
         if ($user->role === 'admin') {
-             $query->where(function($q) {
-                 $q->whereNull('Employee_ID')
-                   ->orWhereHas('status', fn($s) => $s->whereIn('Status_Name', ['Available', 'Ready to Deploy']));
-             });
+            $query->where(function ($q) {
+                $q->whereNull('Employee_ID')
+                    ->orWhereHas('status', fn ($s) => $s->whereIn('Status_Name', ['Available', 'Ready to Deploy']));
+            });
         } else {
-             // Staff and HOD see only their assigned assets
-             $query->where('Employee_ID', $user->id);
+            // Staff and HOD see only their assigned assets
+            $query->where('Employee_ID', $user->id);
         }
 
         $assets = $query->with(['status', 'category', 'locationModel'])->get()
@@ -130,7 +136,7 @@ class TransferController extends Controller
     {
         // If this specific route is hit, default the type to 'return' if not provided.
         // This makes the endpoint more intuitive and robust against frontend omissions.
-        if ($request->is('api/transfers/return') && !$request->has('type')) {
+        if ($request->is('api/transfers/return') && ! $request->has('type')) {
             $request->merge(['type' => 'return']);
         }
 
@@ -138,6 +144,7 @@ class TransferController extends Controller
             'asset_id' => 'nullable|integer|exists:assets,id',
             'manual_asset_name' => 'nullable|string|max:255',
             'items' => 'nullable|array',
+            'items.*.type' => 'required_with:items|string|in:asset,accessory,license,consumable',
             'items.*.type' => 'required_with:items|string|in:asset,accessory,license,consumable',
             'items.*.id' => 'required_with:items|integer',
             'type' => 'required|in:return,transfer',
@@ -152,7 +159,7 @@ class TransferController extends Controller
 
         $user = $request->user();
         $asset = null;
-        if (!empty($data['asset_id'])) {
+        if (! empty($data['asset_id'])) {
             $asset = Asset::findOrFail($data['asset_id']);
             if ((int) $asset->Employee_ID !== (int) $user->id) {
                 return response()->json(['message' => 'You can only request transfer for assets assigned to you.'], 403);
@@ -172,8 +179,8 @@ class TransferController extends Controller
 
         // create Included_Items for user‑initiated transfer/return
         $included = [];
-        if (!empty($data['items']) && is_array($data['items'])) {
-            $included = array_map(fn($i) => $this->resolveItemName((array)$i), $data['items']);
+        if (! empty($data['items']) && is_array($data['items'])) {
+            $included = array_map(fn ($i) => $this->resolveItemName((array) $i), $data['items']);
         }
 
         $transfer = Transfer::create([
@@ -259,7 +266,7 @@ class TransferController extends Controller
 
         // map results using the shared helper so the shape stays
         // consistent with other endpoints
-        $paginated->getCollection()->transform(fn($t) => $this->mapTransfer($t));
+        $paginated->getCollection()->transform(fn ($t) => $this->mapTransfer($t));
 
         return response()->json($paginated);
     }
@@ -299,31 +306,33 @@ class TransferController extends Controller
                 : 'completed';
 
             // If the transfer is a "return" and is now completed, process the items.
-            if ($next === 'completed' && !empty($transfer->Items) && is_array($transfer->Items)) {
+            if ($next === 'completed' && ! empty($transfer->Items) && is_array($transfer->Items)) {
                 $sender = $transfer->sender;
                 if ($sender) {
                     foreach ($transfer->Items as $itm) {
                         $type = $itm['type'] ?? null;
                         $id = $itm['id'] ?? null;
-                        if (!$type || !$id) continue;
+                        if (! $type || ! $id) {
+                            continue;
+                        }
 
                         switch ($type) {
                             case 'accessory':
-                                $item = \App\Models\Accessory::find($id);
+                                $item = Accessory::find($id);
                                 if ($item) {
                                     $this->returnItemToStock($sender->accessories(), 'accessory_id', $item->id);
                                     $item->increment('remaining_qty');
                                 }
                                 break;
                             case 'consumable':
-                                $item = \App\Models\Consumable::find($id);
+                                $item = Consumable::find($id);
                                 if ($item) {
                                     $this->returnItemToStock($sender->consumables(), 'consumable_id', $item->id);
                                     $item->increment('in_stock');
                                 }
                                 break;
                             case 'license':
-                                $item = \App\Models\License::find($id);
+                                $item = License::find($id);
                                 if ($item) {
                                     $pivot = $sender->licenses()->where('license_id', $item->id)->wherePivotNull('returned_at')->first();
                                     if ($pivot) {
@@ -343,8 +352,8 @@ class TransferController extends Controller
                 'Missing_Items' => $data['missing_items'] ?? [],
                 'Notes' => trim(collect([
                     $transfer->Notes,
-                    !empty($data['admin_notes']) ? ('Admin notes: ' . $data['admin_notes']) : null,
-                    'Disposition: ' . str_replace('_', ' ', $data['disposition']),
+                    ! empty($data['admin_notes']) ? ('Admin notes: '.$data['admin_notes']) : null,
+                    'Disposition: '.str_replace('_', ' ', $data['disposition']),
                 ])->filter()->implode(' | ')),
                 'Actioned_By' => $request->user()->id,
                 'Actioned_At' => now(),
@@ -428,6 +437,7 @@ class TransferController extends Controller
             'asset_id' => 'nullable|integer|exists:assets,id',
             'items' => 'nullable|array',
             'items.*.type' => 'required_with:items|string|in:asset,accessory,license', // Removed consumable
+            'items.*.type' => 'required_with:items|string|in:asset,accessory,license', // Removed consumable
             'items.*.id' => 'required_with:items|integer',
             'receiver_id' => 'required|integer|exists:users,id',
             'notes' => 'nullable|string|max:2000',
@@ -435,7 +445,7 @@ class TransferController extends Controller
         ]);
 
         $asset = null;
-        if (!empty($data['asset_id'])) {
+        if (! empty($data['asset_id'])) {
             $asset = Asset::findOrFail($data['asset_id']);
         }
         $admin = $request->user();
@@ -444,12 +454,12 @@ class TransferController extends Controller
 
         // Filter out any consumables just in case
         $filteredItems = collect($data['items'] ?? [])
-            ->filter(fn($i) => ($i['type'] ?? '') !== 'consumable')
+            ->filter(fn ($i) => ($i['type'] ?? '') !== 'consumable')
             ->toArray();
 
         // figure out a human‑readable included items list
         $included = ['Charger'];
-        if (!empty($filteredItems)) {
+        if (! empty($filteredItems)) {
             $included = array_map(function ($i) {
                 return $this->resolveItemName((array) $i);
             }, $filteredItems);
@@ -506,7 +516,7 @@ class TransferController extends Controller
                         }
                         break;
                     case 'license':
-                        $lic = \App\Models\License::find($id);
+                        $lic = License::find($id);
                         if ($lic) {
                             $receiver->licenses()->attach($lic->id);
                         }
@@ -575,7 +585,7 @@ class TransferController extends Controller
 
         // map results using the shared helper so the shape stays
         // consistent with other endpoints
-        $paginated->getCollection()->transform(fn($t) => $this->mapTransfer($t));
+        $paginated->getCollection()->transform(fn ($t) => $this->mapTransfer($t));
 
         return response()->json($paginated);
     }
@@ -664,14 +674,16 @@ class TransferController extends Controller
                 }
 
                 // handle any extra items bundled with the transfer
-                if (!empty($transfer->Items) && is_array($transfer->Items)) {
+                if (! empty($transfer->Items) && is_array($transfer->Items)) {
                     foreach ($transfer->Items as $itm) {
                         $type = $itm['type'] ?? null;
                         $id = $itm['id'] ?? null;
-                        if (!$type || !$id) continue;
+                        if (! $type || ! $id) {
+                            continue;
+                        }
                         switch ($type) {
                             case 'accessory':
-                                $acc = \App\Models\Accessory::find($id);
+                                $acc = Accessory::find($id);
                                 if ($acc && $acc->remaining_qty > 0) {
                                     if ($sender) {
                                         $pivot = $sender->accessories()->wherePivot('accessory_id', $acc->id)
@@ -690,7 +702,7 @@ class TransferController extends Controller
                                 }
                                 break;
                             case 'consumable':
-                                $cons = \App\Models\Consumable::find($id);
+                                $cons = Consumable::find($id);
                                 if ($cons && $cons->in_stock > 0) {
                                     if ($sender) {
                                         $pivot = $sender->consumables()->where('consumable_id', $cons->id)
@@ -709,7 +721,7 @@ class TransferController extends Controller
                                 }
                                 break;
                             case 'license':
-                                $lic = \App\Models\License::find($id);
+                                $lic = License::find($id);
                                 if ($lic) {
                                     if ($sender) {
                                         $sender->licenses()->updateExistingPivot($lic->id, ['returned_at' => now()]);
@@ -737,7 +749,7 @@ class TransferController extends Controller
                 'action' => 'Transfer Disputed',
                 'target_type' => $asset ? 'Asset' : 'Mixed Items',
                 'target_name' => $asset ? $asset->Asset_Name : 'Mixed Items',
-                'details' => "Transfer disputed" . ($request->notes ? ": {$request->notes}" : ''),
+                'details' => 'Transfer disputed'.($request->notes ? ": {$request->notes}" : ''),
             ]);
 
             if ($asset) {
@@ -800,22 +812,22 @@ class TransferController extends Controller
     {
         $type = $item['type'] ?? '';
         $id = $item['id'] ?? null;
-        if (!$id) {
+        if (! $id) {
             return ucfirst($type ?: 'unknown');
         }
 
         switch ($type) {
             case 'accessory':
-                return \App\Models\Accessory::find($id)?->name
+                return Accessory::find($id)?->name
                     ?? "Accessory #{$id}";
             case 'license':
-                return \App\Models\License::find($id)?->name
+                return License::find($id)?->name
                     ?? "License #{$id}";
             case 'consumable':
-                return \App\Models\Consumable::find($id)?->item_name
+                return Consumable::find($id)?->item_name
                     ?? "Consumable #{$id}";
             default:
-                return ucfirst($type) . " #{$id}";
+                return ucfirst($type)." #{$id}";
         }
     }
 
@@ -827,33 +839,33 @@ class TransferController extends Controller
     private function formatItem(array $item): array
     {
         $type = $item['type'] ?? 'unknown';
-        $id   = $item['id'] ?? null;
+        $id = $item['id'] ?? null;
         $result = [
             'type' => $type,
-            'id'   => $id,
+            'id' => $id,
             'name' => $this->resolveItemName($item),
             'details' => null,
         ];
 
-        if (!$id) {
+        if (! $id) {
             return $result;
         }
 
         switch ($type) {
             case 'accessory':
-                $m = \App\Models\Accessory::find($id);
+                $m = Accessory::find($id);
                 if ($m) {
                     $result['details'] = $m->only(['id', 'name', 'category', 'model_number', 'serial_number', 'remaining_qty']);
                 }
                 break;
             case 'consumable':
-                $m = \App\Models\Consumable::find($id);
+                $m = Consumable::find($id);
                 if ($m) {
                     $result['details'] = $m->only(['id', 'item_name', 'in_stock']);
                 }
                 break;
             case 'license':
-                $m = \App\Models\License::find($id);
+                $m = License::find($id);
                 if ($m) {
                     $result['details'] = $m->only(['id', 'name']);
                 }
@@ -892,7 +904,7 @@ class TransferController extends Controller
                 'id' => $t->asset->id,
                 'model' => $t->asset->Asset_Name,
                 'serial' => $t->asset->Serial_No,
-                'asset_tag' => 'AST-' . str_pad((string) $t->asset->id, 4, '0', STR_PAD_LEFT),
+                'asset_tag' => 'AST-'.str_pad((string) $t->asset->id, 4, '0', STR_PAD_LEFT),
                 'status_name' => optional($t->asset->status)->Status_Name,
             ] : ($manualName ? [
                 'id' => null, // Provide a null ID instead of a null asset object
