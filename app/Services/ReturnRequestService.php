@@ -12,10 +12,13 @@ use App\Models\ReturnRequest;
 use App\Models\Status;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
+
+use App\Traits\SendsDetailedEmails;
 
 class ReturnRequestService
 {
+    use SendsDetailedEmails;
+
     public function listAll()
     {
         return ReturnRequest::with(['asset.status', 'sender', 'actionedBy'])
@@ -88,52 +91,37 @@ class ReturnRequestService
             'reason' => $data['reason'] ?? null,
         ]);
 
-        // send a quick confirmation email to the requester
-        if ($user->email) {
-            $assetDesc = $asset ? $asset->Asset_Name : 'Multiple Items';
-            Mail::to($user->email)->send(new GeneralOperationalMail(
-                $user,
-                'Return Request Logged',
-                'Request Received',
-                "Your return request for '{$assetDesc}' has been submitted and is awaiting administrative inspection.",
-                [
-                    ['label' => 'Asset/Items', 'value' => $assetDesc],
-                    ['label' => 'Status', 'value' => 'Pending Inspection'],
-                    ['label' => 'Request Date', 'value' => now()->format('M d, Y H:i')],
-                ],
-                'View Workspace',
-                config('app.url').'/dashboard/user/workspace'
-            ));
-        }
+        // send a confirmation email to the requester
+        $this->sendDetailedEmail(
+            $user,
+            "Return Request Logged",
+            "Request Received",
+            "Your request to return equipment has been submitted and is awaiting administrative inspection.",
+            [
+                "Asset/Items" => $asset ? $asset->Asset_Name : 'Selected Peripherals',
+                "Condition" => $data['sender_condition'] ?? 'Good',
+                "Status" => "Pending Inspection",
+            ],
+            "Track My Request",
+            config('app.url') . "/dashboard/user/workspace"
+        );
 
-        // notify administrators about the new request as well
-        $admins = User::where('role', 'admin')->get()->filter(fn ($u) => $u->email);
+        // notify administrators about the new request
+        $admins = User::where('role', 'admin')->get()->filter(fn($u) => $u->email);
         if ($admins->isNotEmpty()) {
-            $subject = 'New return request submitted';
-            $details = "A new return request has been submitted by {$user->name}.\n";
-            if ($asset) {
-                $details .= "Asset: {$asset->Asset_Name}\n";
-            } else {
-                $details .= 'Items: '.collect($data['items'] ?? [])->pluck('type')->implode(', ')."\n";
-            }
-            $details .= 'Please log in to review and inspect.';
-
-            $assetDesc = $asset ? $asset->Asset_Name : 'Multiple Items';
-            foreach ($admins as $admin) {
-                Mail::to($admin->email)->send(new GeneralOperationalMail(
-                    $admin,
-                    'New Return Request',
-                    'Action Required',
-                    "A new return request has been submitted by {$user->name} and requires inspection.",
-                    [
-                        ['label' => 'Requester', 'value' => $user->name],
-                        ['label' => 'Asset/Items', 'value' => $assetDesc],
-                        ['label' => 'Condition', 'value' => $data['sender_condition'] ?? 'Not specified'],
-                    ],
-                    'Review Request',
-                    config('app.url').'/dashboard/admin/movements'
-                ));
-            }
+            $this->sendDetailedEmail(
+                $admins,
+                "New Return Request",
+                "Administrative Task",
+                "A new return request has been submitted by {$user->name} and requires inspection.",
+                [
+                    "Employee" => $user->name,
+                    "Asset" => $asset ? $asset->Asset_Name : 'Mixed Items',
+                    "Priority" => "Medium",
+                ],
+                "Inspect Return",
+                config('app.url') . "/dashboard/operations/transfers"
+            );
         }
 
         ActivityLog::create([
@@ -143,7 +131,7 @@ class ReturnRequestService
             'action' => 'Return Requested',
             'target_type' => $asset ? 'Asset' : 'Mixed Items',
             'target_name' => $asset ? $asset->Asset_Name : 'Mixed Items',
-            'details' => "Return Request #{$returnRequest->id} submitted for admin inspection",
+            'details' => "Return Request submitted for admin inspection",
         ]);
 
         return $returnRequest->fresh(['asset.status', 'sender', 'actionedBy']);
@@ -180,7 +168,6 @@ class ReturnRequestService
                         }
 
                         switch ($type) {
-
                             case 'accessory':
                                 $acc = Accessory::find($itemId);
                                 if ($acc) {
@@ -228,21 +215,20 @@ class ReturnRequestService
 
             // let the original requester know of the decision
             $requester = User::find($request->Sender_ID);
-            if ($requester && $requester->email) {
-                $statusLabel = ucfirst($lower === 'closed' ? 'accepted' : $lower);
-                Mail::to($requester->email)->send(new GeneralOperationalMail(
+            if ($requester) {
+                $this->sendDetailedEmail(
                     $requester,
-                    "Return Request {$statusLabel}",
-                    'Request Update',
-                    "Your return request has been {$statusLabel} by the administration.",
+                    "Return Request " . ucfirst($lower),
+                    "Request Outcome",
+                    "Your request to return equipment has been processed.",
                     [
-                        ['label' => 'Asset', 'value' => $asset?->Asset_Name ?? 'Items'],
-                        ['label' => 'Outcome', 'value' => $statusLabel],
-                        ['label' => 'Reason', 'value' => $reason ?? 'No additional notes provided.'],
+                        "Decision" => ucfirst($lower),
+                        "Asset" => $request->asset?->Asset_Name ?? 'Mixed Items',
+                        "Reason/Note" => $reason ?? 'Processed by Admin',
                     ],
-                    'Go to Workspace',
-                    config('app.url').'/dashboard/user/workspace'
-                ));
+                    "View My Assets",
+                    config('app.url') . "/dashboard/user/workspace"
+                );
             }
 
             // determine final workflow status
@@ -265,7 +251,7 @@ class ReturnRequestService
      */
     private function returnItemToStock($relation, string $foreignKey, int $itemId): void
     {
-        $pivot = $relation->where($foreignKey, $itemId)->wherePivotNull('returned_at')->first();
+        $pivot = $relation->wherePivot($foreignKey, $itemId)->wherePivotNull('returned_at')->first();
         if ($pivot) {
             $qty = $pivot->pivot->quantity ?? 1;
             if ($qty > 1) {
@@ -309,23 +295,22 @@ class ReturnRequestService
             ]);
         });
 
-        // notify the requester that their item has been inspected and is now
-        // awaiting final decision
+        // notify the requester that their item has been inspected
         $requester = User::find($request->Sender_ID);
-        if ($requester && $requester->email) {
-            Mail::to($requester->email)->send(new GeneralOperationalMail(
+        if ($requester) {
+            $this->sendDetailedEmail(
                 $requester,
-                'Return Inspected',
-                'Under Review',
-                'Your return request has been physically inspected by an administrator. A final decision will be communicated shortly.',
+                "Return Inspected",
+                "Inspection Complete",
+                "Your return request has been inspected by an admin and is awaiting final approval.",
                 [
-                    ['label' => 'Asset', 'value' => $request->asset?->Asset_Name ?? 'Items'],
-                    ['label' => 'Admin Condition', 'value' => $data['condition'] ?? 'Good'],
-                    ['label' => 'Admin Notes', 'value' => $data['admin_notes'] ?? 'None'],
+                    "Asset" => $request->asset?->Asset_Name ?? 'Mixed Items',
+                    "Condition Found" => $data['condition'],
+                    "Next Step" => "Final Decision by Management/Admin",
                 ],
-                'Track Status',
-                config('app.url').'/dashboard/user/workspace'
-            ));
+                "Track Progress",
+                config('app.url') . "/dashboard/user/workspace"
+            );
         }
 
         return $request->fresh(['asset.status', 'sender', 'actionedBy']);
@@ -345,7 +330,6 @@ class ReturnRequestService
         }
 
         switch ($type) {
-
             case 'accessory':
                 return Accessory::find($id)?->name
                     ?? "Accessory #{$id}";

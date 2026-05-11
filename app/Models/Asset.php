@@ -13,6 +13,25 @@ class Asset extends Model
 {
     use SoftDeletes;
 
+    protected static function boot()
+    {
+        parent::boot();
+
+        // When an asset is deleted (archived), update its maintenance records
+        static::deleted(function ($asset) {
+            $archivedStatus = Status::where('Status_Name', 'Archived')->first();
+            if ($archivedStatus) {
+                Maintenance::where('Asset_ID', $asset->id)
+                    ->where('Workflow_Status', '!=', 'Closed')
+                    ->where('Workflow_Status', '!=', 'Completed')
+                    ->update([
+                        'Status_ID' => $archivedStatus->id,
+                        'Workflow_Status' => 'Archived'
+                    ]);
+            }
+        });
+    }
+
     protected $fillable = [
         'Asset_Name',
         'system_name',

@@ -23,7 +23,7 @@
         </div>
         <h3 class="text-2xl font-black text-slate-800 mb-4 tracking-tight group-hover:text-vilcom-blue transition-colors relative z-10">Personnel & Staff</h3>
         <p class="text-sm text-gray-500 leading-relaxed font-medium relative z-10">
-          Orchestrate system users, department structures, and administrative hierarchies. Control role-based access and organizational flow.
+          manages the staff and users in the organization.
         </p>
       </router-link>
 
@@ -42,9 +42,9 @@
             <ChevronRight class="size-6" />
           </div>
         </div>
-        <h3 class="text-2xl font-black text-slate-800 mb-4 tracking-tight group-hover:text-vilcom-orange transition-colors relative z-10">Suppliers & Logistics</h3>
+        <h3 class="text-2xl font-black text-slate-800 mb-4 tracking-tight group-hover:text-vilcom-orange transition-colors relative z-10">Suppliers & Vendor Management</h3>
         <p class="text-sm text-gray-500 leading-relaxed font-medium relative z-10">
-          Manage international procurement channels, local vendors, and historical acquisition records for high-fidelity inventory auditing.
+           manage your suplliers and vendor information
         </p>
       </router-link>
     </div>

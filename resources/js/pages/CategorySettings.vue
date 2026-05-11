@@ -41,18 +41,18 @@ const openEdit = (cat) => {
 };
 
 const addField = () => {
-  form.fields.push({ key: '', label: '', type: 'text', required: false });
+  form.fields.push({ name: '', label: '', type: 'text', required: false });
 };
 
 const removeField = (index) => {
   form.fields.splice(index, 1);
 };
 
-const generateKey = (index) => {
+const generateName = (index) => {
   const field = form.fields[index];
-  if (!field.key && field.label) {
+  if (!field.name && field.label) {
     // Simple slugify: "Model Number" -> "model_number"
-    field.key = field.label.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_');
+    field.name = field.label.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_');
   }
 };
 
@@ -108,10 +108,9 @@ onMounted(fetchCategories);
             </div>
             <div v-for="(field, i) in form.fields" :key="i" class="bg-gray-50 p-2 rounded mb-2 border relative">
               <button type="button" @click="removeField(i)" class="absolute top-1 right-1 text-gray-400 hover:text-red-500">&times;</button>
-              <input v-model="field.label" @input="generateKey(i)" placeholder="Label (e.g. CPU)" class="w-full text-sm border p-1 rounded mb-1" required />
-              <div class="grid grid-cols-2 gap-1">
-                <input v-model="field.key" placeholder="key" class="text-xs border p-1 rounded bg-gray-100 font-mono" readonly />
-                <select v-model="field.type" class="text-xs border p-1 rounded">
+               <input v-model="field.label" @input="generateName(i)" placeholder="Label (e.g. CPU)" class="w-full text-sm border p-1 rounded mb-1" required />
+               <div class="grid grid-cols-2 gap-1">
+                 <select v-model="field.type" class="text-xs border p-1 rounded">
                   <option value="text">Text</option>
                   <option value="number">Number</option>
                   <option value="date">Date</option>
@@ -150,7 +149,7 @@ onMounted(fetchCategories);
           <h3 class="font-bold text-gray-800">{{ cat.name }}</h3>
           <p class="text-sm text-gray-500 mb-2">{{ cat.description }}</p>
           <div class="flex flex-wrap gap-1">
-            <span v-for="f in cat.fields" :key="f.key" class="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">{{ f.label }}</span>
+            <span v-for="f in cat.fields" :key="f.name" class="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">{{ f.label }}</span>
           </div>
         </div>
         <div class="space-x-2 text-sm">

@@ -39,22 +39,23 @@
             </div>
           </div>
 
-           <div v-if="!loadingExtras" class="grid grid-cols-1 md:grid-cols-2 gap-8">
-             <!-- Accessories -->
-             <div class="space-y-4">
-               <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                 <Keyboard class="size-3" />
-                 Accessories
-               </div>
-               <div v-if="accessories.length" class="space-y-2">
-                 <label v-for="a in (accessories || []).filter(item => item)" :key="a.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer group/item shadow-sm">
-                   <input type="checkbox" :value="a.id" v-model="selectedAccessories" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
-                   <span class="text-xs font-bold text-slate-700">{{ a.name }}</span>
-                 </label>
-               </div>
-               <div v-else class="text-[10px] text-gray-400 italic">No assigned accessories</div>
-             </div>
-           </div>
+          <div v-if="!loadingExtras" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+            <!-- Accessories -->
+            <div class="space-y-4">
+              <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                <Keyboard class="size-3" />
+                Accessories
+              </div>
+              <div v-if="accessories.length" class="space-y-2">
+                <label v-for="a in (accessories || []).filter(item => item)" :key="a.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer group/item shadow-sm">
+                  <input type="checkbox" :value="a.id" v-model="selectedAccessories" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
+                  <span class="text-xs font-bold text-slate-700">{{ a.name }}</span>
+                </label>
+              </div>
+              <div v-else class="text-[10px] text-gray-400 italic">No assigned accessories</div>
+            </div>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -122,8 +123,6 @@ import { ref, onMounted, watch, computed } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { Undo2, ChevronDown, LayoutGrid, Keyboard } from 'lucide-vue-next'
-import Loader from '@/components/Loader.vue'
-import PageHeader from '@/components/PageHeader.vue'
 
 const router = useRouter()
 
@@ -147,11 +146,14 @@ const form = ref({
 
 const isSubmittable = computed(() => {
   return !!form.value.asset_id ||
+  
     selectedAccessories.value.length > 0 ||
     selectedLicenses.value.length > 0;
 });
 
 /* LOAD ASSETS + EXTRAS */
+
+
 onMounted(async () => {
   try {
     const assetRes = await axios.get('/api/my-returnable-assets')
@@ -167,6 +169,8 @@ const loadExtras = async () => {
     try {
         const { data } = await axios.get('/api/my-assigned-items');
         
+        
+      
         accessories.value = (data.accessories || []).filter(Boolean).map(a => ({ ...a, name: a.Accessory_Name || a.name }));
         licenses.value = (data.licenses || []).filter(Boolean).map(l => ({ ...l, name: l.License_Name || l.name }));
         
@@ -182,6 +186,7 @@ const submitReturn = async () => {
   loading.value = true
   try {
     const extras = []
+    
     extras.push(...selectedAccessories.value.map(id => ({ type: 'accessory', id })))
     extras.push(...selectedLicenses.value.map(id => ({ type: 'license', id })))
 
@@ -200,6 +205,7 @@ const submitReturn = async () => {
     alert(msg)
   } finally {
     loading.value = false
+    
     selectedAccessories.value = []
     selectedLicenses.value = []
   }

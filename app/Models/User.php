@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Status;
+use App\Models\Accessory;
 
 class User extends Authenticatable
 {
@@ -76,8 +80,11 @@ class User extends Authenticatable
 
     public function accessories()
     {
-        return $this->belongsToMany(Accessory::class)->withPivot('quantity', 'returned_at')->withTimestamps();
+        return $this->belongsToMany(Accessory::class, 'accessory_user')
+                    ->withPivot('quantity', 'returned_at')
+                    ->withTimestamps();
     }
+
 
     public function consumables()
     {

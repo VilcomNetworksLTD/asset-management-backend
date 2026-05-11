@@ -103,7 +103,7 @@ class TicketService
                 'action' => 'Assigned',
                 'target_type' => 'Asset',
                 'target_name' => $asset->Asset_Name,
-                'details' => "Assigned to Employee_ID {$ticket->Employee_ID} via Ticket #{$ticket->id}",
+                'details' => "Assigned to user via ticket",
             ]);
 
             return ['ticket' => $ticket, 'asset' => $asset, 'bundle' => $bundleItems];

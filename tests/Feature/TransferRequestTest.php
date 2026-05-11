@@ -31,13 +31,14 @@ class TransferRequestTest extends TestCase
         ]);
 
         // extras – use real component record so name lookup works
-        $comp = \App\Models\Component::create([
+        $comp = \App\Models\Accessory::create([
             'name' => 'Comp X',
             'category' => 'Generic',
             'serial_no' => 'C-X',
             'total_qty' => 1,
             'remaining_qty' => 1,
             'price' => 0,
+            'type' => 'component',
         ]);
 
         $this->actingAs($sender);
@@ -162,13 +163,14 @@ class TransferRequestTest extends TestCase
 
         $this->actingAs($sender);
         // include a component so pending assignment shows it
-        $comp = \App\Models\Component::create([
+        $comp = \App\Models\Accessory::create([
             'name' => 'Promo USB',
             'category' => 'Accessory',
             'serial_no' => 'USB-1',
             'total_qty' => 1,
             'remaining_qty' => 1,
             'price' => 0,
+            'type' => 'component',
         ]);
         $resp = $this->postJson('/api/transfers/return', [
             'asset_id' => $asset->id,
@@ -225,13 +227,14 @@ class TransferRequestTest extends TestCase
             'Employee_ID' => $sender->id,
         ]);
 
-        $comp = \App\Models\Component::create([
+        $comp = \App\Models\Accessory::create([
             'name' => 'Spare RAM',
             'category' => 'Memory',
             'serial_no' => 'RAM-1',
             'total_qty' => 1,
             'remaining_qty' => 1,
             'price' => 0,
+            'type' => 'component',
         ]);
 
         // sender must actually possess the component before transfer
@@ -262,23 +265,23 @@ class TransferRequestTest extends TestCase
         $this->postJson("/api/assignments/{$id}/verify", ['status' => 'accepted']);
 
         // component should now be attached and stock decremented
-        $this->assertDatabaseHas('component_user', [
+        $this->assertDatabaseHas('accessory_user', [
             'user_id' => $receiver->id,
-            'component_id' => $comp->id,
+            'accessory_id' => $comp->id,
             'quantity' => 1,
         ]);
-        $this->assertDatabaseHas('components', [
+        $this->assertDatabaseHas('accessories', [
             'id' => $comp->id,
             'remaining_qty' => 0,
         ]);
         // original sender should have an entry marked as returned (no active quantity)
-        $this->assertDatabaseHas('component_user', [
+        $this->assertDatabaseHas('accessory_user', [
             'user_id' => $sender->id,
-            'component_id' => $comp->id,
+            'accessory_id' => $comp->id,
         ]);
-        $this->assertDatabaseMissing('component_user', [
+        $this->assertDatabaseMissing('accessory_user', [
             'user_id' => $sender->id,
-            'component_id' => $comp->id,
+            'accessory_id' => $comp->id,
             'returned_at' => null,
         ]);
     }

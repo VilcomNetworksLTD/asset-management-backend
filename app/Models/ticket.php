@@ -19,6 +19,7 @@ class Ticket extends Model
         'Description',
         'Timestamp',
         'Communication_log',
+        'rejection_reason',
     ];
 
     /*RELATIONSHIPS*/

@@ -51,72 +51,60 @@ export default {
     RecentActivity
   },
 
-  setup() {
-    const isFocused = useWindowFocus()
-    const REFRESH_INTERVAL = 30000
-    let intervalId = null
-
-    const stats = ref([
-      { title: 'Assets', value: 0, icon: 'fa-barcode', bgColor: 'bg-vilcom-blue', link: '/dashboard/admin/assets' },
-      { title: 'Licenses', value: 0, icon: 'fa-save', bgColor: 'bg-indigo-600', link: '/dashboard/admin/licenses' },
-      { title: 'Accessories', value: 0, icon: 'fa-keyboard', bgColor: 'bg-vilcom-orange', link: '/dashboard/admin/accessories' },
-
-      { title: 'Tickets', value: 0, icon: 'fa-ticket-alt', bgColor: 'bg-purple-600', link: '/dashboard/admin/tickets' },
-      { title: 'Users', value: 0, icon: 'fa-users', bgColor: 'bg-slate-700', link: '/dashboard/admin/people' },
-      { title: 'Security', value: 0, icon: 'fa-lock', bgColor: 'bg-red-600', link: '/dashboard/admin/ssl-certificates' }
-    ])
-    const activities = ref([])
-    const statusDistribution = ref({
-      ready_to_deploy: 0,
-      deployed: 0,
-      archived: 0,
-    })
-
-    const fetchData = async () => {
-      try {
-        const [statsResponse, activityResponse] = await Promise.all([
-          axios.get('/api/stats'),
-          axios.get('/api/activity-logs')
-        ])
-
-        const data = statsResponse.data || {}
-
-        stats.value[0].value = data.assets || 0
-        stats.value[1].value = data.licenses || 0
-        stats.value[2].value = data.accessories || 0
-
-        stats.value[4].value = data.tickets || 0
-        stats.value[5].value = data.people || 0
-        stats.value[6].value = data.ssl_certificates || 0
-
-        statusDistribution.value = data.status_distribution || statusDistribution.value
-        activities.value = activityResponse.data || []
-
-      } catch (error) {
-        console.error("Admin dashboard error:", error)
-      }
-    }
-
-    watch(isFocused, (focused) => {
-      if (focused) {
-        fetchData()
-      }
-    })
-
-    onMounted(() => {
-      fetchData()
-      intervalId = setInterval(fetchData, REFRESH_INTERVAL)
-    })
-
-    onUnmounted(() => {
-      if (intervalId) clearInterval(intervalId)
-    })
-
+  data() {
     return {
-      stats,
-      activities,
-      statusDistribution,
-      fetchData
+      stats: [
+        { title: 'Assets', value: 0, icon: 'fa-barcode', bgColor: 'bg-vilcom-blue', link: '/dashboard/admin/assets' },
+        { title: 'Licenses', value: 0, icon: 'fa-save', bgColor: 'bg-indigo-600', link: '/dashboard/admin/licenses' },
+        { title: 'Accessories', value: 0, icon: 'fa-keyboard', bgColor: 'bg-vilcom-orange', link: '/dashboard/admin/accessories' },
+        { title: 'Tickets', value: 0, icon: 'fa-ticket-alt', bgColor: 'bg-purple-600', link: '/dashboard/admin/tickets' },
+        { title: 'Users', value: 0, icon: 'fa-users', bgColor: 'bg-slate-700', link: '/dashboard/admin/people' },
+        { title: 'SSL Certificates', value: 0, icon: 'fa-lock', bgColor: 'bg-red-600', link: '/dashboard/admin/ssl-certificates' }
+      ],
+      activities: [],
+      statusDistribution: {
+        ready_to_deploy: 0,
+        deployed: 0,
+        archived: 0,
+        out_for_repair: 0,
+      },
+    }
+  },
+
+  async mounted() {
+    try {
+      const { data } = await axios.get('/api/stats')
+
+      this.stats[0].value = data.assets || 0
+      this.stats[1].value = data.licenses || 0
+      this.stats[2].value = data.accessories || 0
+      this.stats[3].value = data.tickets || 0
+      this.stats[4].value = data.people || 0
+      this.stats[5].value = data.ssl_certificates || 0
+
+      this.statusDistribution = data.status_distribution || this.statusDistribution
+      
+      // Pass activity data directly to the component
+      if (data.recent_activity) {
+        this.activities = data.recent_activity.map(log => ({
+          ...log,
+          color: this.getStatusColor(log.action)
+        }))
+      }
+
+    } catch (error) {
+      console.error("Admin dashboard error:", error)
+    }
+  },
+
+  methods: {
+    getStatusColor(type) {
+      const action = (type || '').toLowerCase()
+      if (action.includes('resolved') || action.includes('closed') || action.includes('deployed')) return 'bg-green-500'
+      if (action.includes('pending') || action.includes('requested')) return 'bg-orange-500'
+      if (action.includes('created') || action.includes('updated')) return 'bg-blue-500'
+      if (action.includes('rejected') || action.includes('deleted')) return 'bg-red-500'
+      return 'bg-gray-400'
     }
   }
 }

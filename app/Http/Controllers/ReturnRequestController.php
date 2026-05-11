@@ -53,6 +53,7 @@ class ReturnRequestController extends Controller
     {
         $data = $request->validate([
             'asset_id' => 'nullable|integer|exists:assets,id',
+            'manual_asset_name' => 'nullable|string|max:255',
             'items' => 'nullable|array',
             'items.*.type' => 'required_with:items|string|in:asset,component,accessory,license,consumable',
             'items.*.id' => 'required_with:items|integer',
@@ -64,9 +65,16 @@ class ReturnRequestController extends Controller
             'reason' => 'nullable|string|max:2000',
         ]);
 
-        // A request must contain either a primary asset or at least one other item.
-        if (empty($data['asset_id']) && empty($data['items'])) {
-            return response()->json(['message' => 'You must select an asset or at least one component/accessory to return.'], 422);
+        // Standardize manual asset entry into notes for the UI mapping
+        if (!empty($data['manual_asset_name'])) {
+            $manualPrefix = "Manual Asset: " . $data['manual_asset_name'];
+            $existingNotes = $data['notes'] ?? '';
+            $data['notes'] = $existingNotes ? ($manualPrefix . " | " . $existingNotes) : $manualPrefix;
+        }
+
+        // A request must contain either a primary asset, manual name, or at least one other item.
+        if (empty($data['asset_id']) && empty($data['items']) && empty($data['manual_asset_name'])) {
+            return response()->json(['message' => 'You must select an asset or provide a name to return.'], 422);
         }
 
         $row = $this->service->createRequest($request->user(), $data);

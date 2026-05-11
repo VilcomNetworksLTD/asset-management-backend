@@ -2,7 +2,7 @@
   <div class="space-y-10">
     <div class="mb-10">
       <h1 class="text-3xl font-black text-slate-800 tracking-tight">Inventory <span class="text-vilcom-blue">Hub</span></h1>
-      <p class="text-sm text-gray-500 font-medium mt-1 uppercase tracking-widest leading-relaxed">Central nexus for all hardware, components, and enterprise software licenses.</p>
+      <p class="text-sm text-gray-500 font-medium mt-1 uppercase tracking-widest leading-relaxed">Home for all hardware, components, and enterprise software licenses.</p>
     </div>
 
     <!-- Hub Navigation Cards -->
@@ -80,7 +80,6 @@ const hubItems = [
     colorClass: 'bg-vilcom-blue',
     description: 'Hardware, laptops, and equipment'
   },
-
   { 
     name: 'Licenses', 
     routeName: 'licenses-list', 

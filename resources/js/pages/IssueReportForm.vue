@@ -30,9 +30,14 @@
             <option value="Accessory">Accessory</option>
             <option value="Other">Other</option>
           </select>
-        </div>
+         </div>
 
-        <div>
+         <div v-if="form.type === 'equipment_request' && form.requested_category === 'Other'">
+           <label class="block text-sm font-bold text-gray-700 mb-1">Specify Equipment</label>
+           <input v-model="form.other_asset_name" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Enter the equipment you need" required />
+         </div>
+
+         <div>
           <label class="block text-sm font-bold text-gray-700 mb-1">Priority</label>
           <select v-model="form.priority" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none">
             <option value="low">Low</option>
@@ -76,6 +81,7 @@ const myAssets = ref([]);
 const form = ref({
   type: 'equipment_request',
   requested_category: '',
+  other_asset_name: '',
   asset_id: '',
   description: '',
   priority: 'medium'
@@ -97,11 +103,19 @@ const submitTicket = async () => {
     priority: form.value.priority
   };
 
-  if (form.value.type === 'equipment_request') {
-    payload.requested_category = form.value.requested_category;
-  } else {
-    payload.asset_id = form.value.asset_id;
-  }
+   if (form.value.type === 'equipment_request') {
+     payload.requested_category = form.value.requested_category;
+     if (form.value.requested_category === 'Other') {
+       if (!form.value.other_asset_name?.trim()) {
+         alert('Please specify the equipment you need.');
+         submitting.value = false;
+         return;
+       }
+       payload.other_asset = form.value.other_asset_name.trim();
+     }
+   } else {
+     payload.asset_id = form.value.asset_id;
+   }
 
   try {
     await axios.post('/api/tickets', payload);

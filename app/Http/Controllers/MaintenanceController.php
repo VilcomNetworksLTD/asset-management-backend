@@ -9,11 +9,12 @@ use App\Services\MaintenanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
-use App\Mail\MaintenanceAlert;
+use App\Traits\SendsDetailedEmails;
 
 class MaintenanceController extends Controller
 {
+    use SendsDetailedEmails;
+
     protected $maintenanceService;
 
     /**
@@ -73,8 +74,7 @@ class MaintenanceController extends Controller
         // Provide sensible defaults for fields that might be omitted by a simple form.
         $data['Request_Date'] = $data['Request_Date'] ?? now();
         if (empty($data['Status_ID'])) {
-            // Find a generic "Pending" or "Open" status to assign.
-            $data['Status_ID'] = Status::firstOf(['Pending', 'New', 'Open']) ?? 1;
+            $data['Status_ID'] = Status::firstOf(['Out for Repair', 'Maintenance', 'Pending']) ?? 1;
         }
 
         $maintenance = DB::transaction(function () use ($data) {
@@ -95,21 +95,40 @@ class MaintenanceController extends Controller
 
         // notify relevant parties
         $admins = \App\Models\User::where('role', 'admin')->get()->filter(fn($u)=> $u->email);
-        $assetOwner = $maintenance->asset?->employee;
-        $subject = "Maintenance scheduled for asset #{$maintenance->Asset_ID}";
-        $details = "A maintenance task has been scheduled:\n" .
-            "Type: {$maintenance->Maintenance_Type}\n" .
-            "Asset ID: {$maintenance->Asset_ID}\n" .
-            "Description: {$maintenance->Description}\n" .
-            "Request Date: {$maintenance->Request_Date}";
-        foreach ($admins as $admin) {
-            Mail::to($admin->email)->send(new MaintenanceAlert($maintenance, $admin));
-        }
-        if ($assetOwner && $assetOwner->email) {
-            Mail::to($assetOwner->email)->send(new MaintenanceAlert($maintenance, $assetOwner));
+        $assetOwner = $maintenance->asset?->user; 
+
+        $this->sendDetailedEmail(
+            $admins,
+            "Maintenance Scheduled",
+            "Equipment Service Logged",
+            "A new maintenance task has been scheduled for an asset.",
+            [
+                "Asset" => $maintenance->asset?->Asset_Name ?? 'N/A',
+                "Service Type" => $maintenance->Maintenance_Type,
+                "Scheduled Date" => $maintenance->Maintenance_Date ?? $maintenance->Request_Date,
+                "Description" => $maintenance->Description ?? 'Routine Service',
+            ],
+            "Manage Maintenance",
+            config('app.url') . "/dashboard/operations/maintenance"
+        );
+
+        if ($assetOwner) {
+            $this->sendDetailedEmail(
+                $assetOwner,
+                "Asset Maintenance Scheduled",
+                "Operational Support",
+                "Your assigned asset has been scheduled for maintenance.",
+                [
+                    "Asset" => $maintenance->asset?->Asset_Name,
+                    "Maintenance Type" => $maintenance->Maintenance_Type,
+                    "Expected Date" => $maintenance->Maintenance_Date ?? $maintenance->Request_Date,
+                ],
+                "View My Assets",
+                config('app.url') . "/dashboard/user/workspace"
+            );
         }
 
-        return response()->json($maintenance, 201);
+        return response()->json(['success' => true, 'message' => 'Maintenance scheduled successfully.'], 201);
     }
 
     public function update(Request $request, int $id): JsonResponse
@@ -132,6 +151,12 @@ class MaintenanceController extends Controller
         $maintenance = DB::transaction(function () use ($maintenance, $data) {
             $workflowStatus = $data['Workflow_Status'] ?? null;
             
+            // Logic: If Completion_Date is being set for the first time, auto-complete
+            if (!empty($data['Completion_Date']) && empty($maintenance->Completion_Date)) {
+                $workflowStatus = Maintenance::WORKFLOW_COMPLETED;
+                $data['Status_ID'] = Status::where('Status_Name', 'Closed')->value('id') ?? Status::where('Status_Name', 'Completed')->value('id') ?? ($data['Status_ID'] ?? $maintenance->Status_ID);
+            }
+
             // If the status comes from the Status_ID, try to map it back to workflow if possible
             if (empty($workflowStatus) && !empty($data['Status_ID'])) {
                 $status = Status::find($data['Status_ID']);
@@ -149,7 +174,7 @@ class MaintenanceController extends Controller
             return $maintenance;
         });
 
-        return response()->json($maintenance->fresh()->load(['asset.status', 'status']));
+        return response()->json(['success' => true, 'message' => 'Maintenance record updated.']);
     }
 
     public function archive(int $id): JsonResponse
@@ -159,8 +184,7 @@ class MaintenanceController extends Controller
         $maintenance->transitionTo(Maintenance::WORKFLOW_ARCHIVED, auth()->user());
 
         return response()->json([
-            'message' => 'Asset archived successfully from maintenance',
-            'maintenance' => $maintenance->load(['asset.status', 'status'])
+            'success' => true, 'message' => 'Asset and record archived successfully.'
         ]);
     }
 

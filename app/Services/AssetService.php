@@ -34,7 +34,7 @@ class AssetService
 
             // 1. Default Status Logic
             $availableStatusId = Status::query()
-                ->whereIn('Status_Name', ['Available', 'Ready to Deploy'])
+                ->whereIn('Status_Name', ['Ready to Deploy', 'Available'])
                 ->value('id');
 
             $data['Status_ID'] = $data['Status_ID'] ?? $availableStatusId ?? 1;

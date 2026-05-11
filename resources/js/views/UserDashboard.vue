@@ -17,10 +17,9 @@
     </div>
 
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       <StatCard title="My Assets" :value="stats.assets" icon="fa-laptop" bgColor="bg-vilcom-blue" link="/dashboard/user/my-assets" />
       <StatCard title="Licenses" :value="stats.licenses" icon="fa-save" bgColor="bg-teal-500" link="/dashboard/user/my-licenses" />
-
       <StatCard title="Accessories" :value="stats.accessories" icon="fa-keyboard" bgColor="bg-vilcom-orange" link="/dashboard/user/my-accessories" />
       <StatCard title="Open Tickets" :value="stats.tickets" icon="fa-ticket-alt" bgColor="bg-red-500" link="/dashboard/user/my-tickets" />
     </div>
@@ -108,7 +107,6 @@
         </div>
       </div>
 
-
     </div>
 
   </div>
@@ -137,7 +135,6 @@ const userRole = ref('')
 const recentAssets = ref([])
 const recentLicenses = ref([])
 const recentAccessories = ref([])
-
 const loading = ref(true)
 
 const fetchDashboardData = async () => {
@@ -174,7 +171,6 @@ const fetchDashboardData = async () => {
     recentLicenses.value = (data.recent_licenses || []).slice(0, 5)
     recentAccessories.value = (data.recent_accessories || []).slice(0, 5)
 
-
   } catch (error) {
     console.error('User dashboard error:', error)
 
@@ -182,7 +178,6 @@ const fetchDashboardData = async () => {
     stats.value.tickets = 0
     stats.value.licenses = 0
     stats.value.accessories = 0
-
     recentAssets.value = []
 
   } finally {

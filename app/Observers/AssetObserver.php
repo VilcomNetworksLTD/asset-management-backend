@@ -14,6 +14,7 @@ class AssetObserver
     {
         if (empty($asset->Status_ID)) {
             $asset->Status_ID = Status::firstOf(['Ready to Deploy', 'Available', 'Ready']) ?? 1;
+            $asset->physical_condition = $asset->physical_condition ?? 'New';
         }
     }
 

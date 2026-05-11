@@ -17,10 +17,13 @@ class Accessory extends Model
         'name',
         'category',
         'model_number',
+        'serial_number',
         'serial_no',
         'total_qty',
         'remaining_qty',
-        'price', 
+        'price',
+        'asset_id',
+        'type',
     ];
 
     protected $casts = [
@@ -28,4 +31,9 @@ class Accessory extends Model
         'total_qty' => 'integer',
         'remaining_qty' => 'integer',
     ];
+
+    public function asset()
+    {
+        return $this->belongsTo(Asset::class);
+    }
 }

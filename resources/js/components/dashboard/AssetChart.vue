@@ -51,12 +51,14 @@ const props = defineProps({
 const available = computed(() => Number(props.statusDistribution?.ready_to_deploy || 0))
 const deployed = computed(() => Number(props.statusDistribution?.deployed || 0))
 const archived = computed(() => Number(props.statusDistribution?.archived || 0))
-const totalCount = computed(() => available.value + deployed.value + archived.value)
+const outForRepair = computed(() => Number(props.statusDistribution?.out_for_repair || 0))
+const totalCount = computed(() => available.value + deployed.value + archived.value + outForRepair.value)
 
 const legendItems = computed(() => [
   { label: 'Ready to Deploy', value: available.value, color: 'bg-green-500' },
   { label: 'Deployed', value: deployed.value, color: 'bg-vilcom-blue' },
   { label: 'Archived', value: archived.value, color: 'bg-vilcom-orange' },
+  { label: 'Out for Repair', value: outForRepair.value, color: 'bg-red-500' },
 ]);
 
 const innerChartBackground = computed(() => {
@@ -65,12 +67,14 @@ const innerChartBackground = computed(() => {
 
   const availablePct = (available.value / total) * 100
   const deployedPct = (deployed.value / total) * 100
-  const archivedPct = 100 - availablePct - deployedPct
+  const repairPct = (outForRepair.value / total) * 100
+  const archivedPct = 100 - availablePct - deployedPct - repairPct
 
   return `conic-gradient(
     #22c55e 0% ${availablePct}%,
     #1e40af ${availablePct}% ${availablePct + deployedPct}%,
-    #f97316 ${availablePct + deployedPct}% ${availablePct + deployedPct + archivedPct}%
+    #ef4444 ${availablePct + deployedPct}% ${availablePct + deployedPct + repairPct}%,
+    #f97316 ${availablePct + deployedPct + repairPct}% 100%
   )`
 })
 </script>

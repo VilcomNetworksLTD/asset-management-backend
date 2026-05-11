@@ -17,10 +17,10 @@ class Maintenance extends Model
     protected $table = 'maintenance';
 
     // 1. Define workflow statuses as constants.
-    public const WORKFLOW_SCHEDULED = 'Scheduled';
+    public const WORKFLOW_SCHEDULED = 'Out for Repair';
     public const WORKFLOW_IN_PROGRESS = 'In Progress';
     public const WORKFLOW_ON_HOLD = 'On Hold';
-    public const WORKFLOW_COMPLETED = 'Completed';
+    public const WORKFLOW_COMPLETED = 'Closed';
     public const WORKFLOW_CANCELLED = 'Cancelled';
     public const WORKFLOW_OUT_FOR_REPAIR = 'Out for Repair';
     public const WORKFLOW_UNDER_REPAIR = 'Under Repair';
@@ -59,7 +59,7 @@ class Maintenance extends Model
         static::creating(function ($maintenance) {
             // Set initial workflow status if it's not already set
             if (empty($maintenance->Workflow_Status)) {
-                $maintenance->Workflow_Status = self::WORKFLOW_UNDER_REPAIR;
+                $maintenance->Workflow_Status = self::WORKFLOW_OUT_FOR_REPAIR;
             }
 
             // Find and set the corresponding Status_ID from the statuses table
@@ -68,9 +68,9 @@ class Maintenance extends Model
                 $maintenance->Status_ID = $statusModel->id;
             }
 
-            // Automate Asset Status update to "Under Repair"
+            // Automate Asset Status update to "Out for Repair" as requested
             if ($maintenance->Asset_ID) {
-                $repairStatus = Status::where('Status_Name', self::WORKFLOW_UNDER_REPAIR)->first();
+                $repairStatus = Status::where('Status_Name', 'Out for Repair')->first() ?? Status::where('Status_Name', 'Maintenance')->first();
                 if ($repairStatus) {
                     Asset::where('id', $maintenance->Asset_ID)->update(['Status_ID' => $repairStatus->id]);
                 }
@@ -102,7 +102,7 @@ class Maintenance extends Model
             if ($newStatus === self::WORKFLOW_COMPLETED) {
                 $assetStatusName = 'Ready to Deploy';
             } elseif ($newStatus === self::WORKFLOW_CANCELLED) {
-                $assetStatusName = 'Available';
+                $assetStatusName = 'Ready to Deploy';
             } elseif ($newStatus === self::WORKFLOW_ARCHIVED) {
                 $assetStatusName = 'Archived';
             }

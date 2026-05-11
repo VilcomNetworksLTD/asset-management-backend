@@ -19,20 +19,27 @@ class AccessoryController extends Controller
         $this->accessoryService = $accessoryService;
     }
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return response()->json($this->accessoryService->getAllAccessories());
+        $type = $request->route('type'); // Determined by route defaults (accessory or component)
+        return response()->json($this->accessoryService->getAllAccessories($type));
     }
 
     public function list(Request $request): JsonResponse
     {
         $query = Accessory::query();
 
+        // Filter by type if provided from route default
+        if ($type = $request->route('type')) {
+            $query->where('type', $type);
+        }
+
         if ($search = $request->string('search')->toString()) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('category', 'like', "%{$search}%")
-                    ->orWhere('model_number', 'like', "%{$search}%");
+                    ->orWhere('model_number', 'like', "%{$search}%")
+                    ->orWhere('serial_no', 'like', "%{$search}%");
             });
         }
 
@@ -55,7 +62,11 @@ class AccessoryController extends Controller
             'total_qty' => 'required|integer|min:0',
             'remaining_qty' => 'required|integer|min:0',
             'price' => 'nullable|numeric|min:0',
+            'asset_id' => 'nullable|integer|exists:assets,id',
         ]);
+
+        // Set type based on route default (accessory or component)
+        $data['type'] = $request->route('type', 'accessory');
 
         $accessory = Accessory::create($data);
 
@@ -74,6 +85,7 @@ class AccessoryController extends Controller
             'total_qty' => 'sometimes|required|integer|min:0',
             'remaining_qty' => 'sometimes|required|integer|min:0',
             'price' => 'nullable|numeric|min:0',
+            'asset_id' => 'nullable|integer|exists:assets,id',
         ]);
 
         $accessory->update($data);
@@ -116,7 +128,7 @@ class AccessoryController extends Controller
         'action'      => 'Assigned',
         'target_type' => 'Accessory',
         'target_name' => $accessory->name,
-        'details'     => "Assigned {$quantity} to user: {$user->name} (ID: {$userId})",
+        'details'     => "Assigned {$quantity} to user: {$user->name}",
     ]);
     
     return response()->json(['message' => 'Accessory assigned successfully']);
@@ -126,5 +138,11 @@ class AccessoryController extends Controller
     {
         $accessories = auth()->user()->accessories()->wherePivotNull('returned_at')->get();
         return response()->json($accessories);
+    }
+
+    public function myComponents()
+    {
+        $components = auth()->user()->components()->wherePivotNull('returned_at')->get();
+        return response()->json($components);
     }
 }

@@ -18,11 +18,19 @@ class ActivityLogController extends Controller
     
     public function index(Request $request): JsonResponse
     {
-        
-        $limit = $request->query('limit', 50);
-        
+        $query = \App\Models\ActivityLog::with('user');
 
-        $logs = $this->logService->getRecentLogs($limit);
+        if ($search = $request->string('search')->toString()) {
+            $query->where(function ($q) use ($search) {
+                $q->where('action', 'like', "%{$search}%")
+                    ->orWhere('target_name', 'like', "%{$search}%")
+                    ->orWhere('user_name', 'like', "%{$search}%")
+                    ->orWhere('details', 'like', "%{$search}%");
+            });
+        }
+
+        $perPage = $request->integer('per_page', 50);
+        $logs = $query->latest()->paginate($perPage);
         
         return response()->json($logs);
     }

@@ -32,6 +32,7 @@ Route::controller(AuthandAccessController::class)->group(function () {
     Route::post('/login', 'login');
     Route::post('/forgot-password', 'forgotPassword');
     Route::post('/reset-password', 'resetPassword');
+    Route::get('/debug-hub', 'debugHub');
 });
 
 Route::get('/barcodes/{asset_id}/image', [AssetController::class, 'showBarcodeImage'])
@@ -111,12 +112,12 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
 
     // --- Accessories ---
     Route::controller(AccessoryController::class)->group(function () {
-        Route::get('/accessories', 'index');
-        Route::get('/accessories/list', 'list');
-        Route::post('/accessories', 'store');
-        Route::put('/accessories/{id}', 'update');
-        Route::delete('/accessories/{id}', 'destroy');
-        Route::post('/accessories/{id}/assign', 'assign');
+        Route::get('/accessories', 'index')->defaults('type', 'accessory');
+        Route::get('/accessories/list', 'list')->defaults('type', 'accessory');
+        Route::post('/accessories', 'store')->defaults('type', 'accessory');
+        Route::put('/accessories/{id}', 'update')->defaults('type', 'accessory');
+        Route::delete('/accessories/{id}', 'destroy')->defaults('type', 'accessory');
+        Route::post('/accessories/{id}/assign', 'assign')->defaults('type', 'accessory');
         Route::get('/my-accessories', 'myAccessories');
     });
 
@@ -155,6 +156,17 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::delete('/maintenances/{id}', 'destroy');
     });
     
+    // --- Components (merged into Accessories) ---
+    Route::controller(AccessoryController::class)->group(function () {
+        Route::get('/components', 'index')->defaults('type', 'component');
+        Route::get('/components/list', 'list')->defaults('type', 'component');
+        Route::post('/components', 'store')->defaults('type', 'component');
+        Route::put('/components/{id}', 'update')->defaults('type', 'component');
+        Route::delete('/components/{id}', 'destroy')->defaults('type', 'component');
+        Route::post('/components/{id}/assign', 'assign')->defaults('type', 'component');
+        Route::get('/my-components', 'myComponents');
+    });
+
     // --- Logistics & Transfers ---
     Route::controller(TransferController::class)->group(function () {
         Route::get('/transfers', 'index');             
@@ -192,9 +204,9 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::get('/workflow/queues', 'getWorkflowQueues'); 
         Route::get('/workflow/my-assets', [ReturnRequestController::class, 'myAssets']); 
         Route::post('/tickets', 'store');            
-        Route::post('/tickets/{id}/assign-asset', 'assignAsset'); 
+        Route::post('/tickets/{id}/assign-asset', 'assignAsset');
         Route::post('/tickets/{id}/escalate', 'escalateToPurchase');
-        Route::post('/tickets/{id}/reject', 'reject');
+        Route::post('/tickets/{id}/reject', 'rejectTicket');
         Route::post('/workflow/returns', 'createReturnRequest'); 
         Route::post('/workflow/returns/{id}/process', 'processReturn');
         Route::put('/tickets/{id}', 'update');
@@ -225,6 +237,7 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
     Route::get('/suppliers', [SupplierController::class, 'index']);
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/departments', [DepartmentController::class, 'index']);
+    Route::get('/departments/debug', [DepartmentController::class, 'debugSync']);
     Route::post('/sync-my-department', [UserController::class, 'syncDepartment']);
 
     Route::controller(ReportController::class)->group(function () {
