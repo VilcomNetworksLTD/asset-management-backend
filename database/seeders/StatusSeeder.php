@@ -7,29 +7,49 @@ use Illuminate\Database\Seeder;
 
 class StatusSeeder extends Seeder
 {
+    /**
+     * Run the database seeds.
+     */
     public function run(): void
     {
         $statuses = [
+            // General / Asset Statuses
             'Ready to Deploy',
             'Deployed',
             'Archived',
             'Out for Repair',
-            'Under Repair',
-            'Missing',
-            'Pending',
+            'Maintenance',
             'Available',
-            'Disposed',
-            'Open',
+            'Assigned',
+            'In Use',
+            'Broken',
+            'Lost',
+            'Stolen',
+            'Non-Deployable',
+            'Retired',
+            
+            // Ticket / Maintenance / Workflow Statuses
+            'Pending',
             'New',
+            'Open',
+            'Closed',
+            'Resolved',
+            'Completed',
+            'Rejected',
+            'Declined',
+            'Cancelled',
             'In Progress',
             'On Hold',
-            'Completed',
-            'Cancelled',
-            'Resolved',
-            'Closed',
+            'Scheduled',
+            'Under Repair',
+            'Awaiting Purchase',
+            'Approved',
+            'Pending Approval',
+            'In Transit',
+            'Received',
+            'Completed with Issues',
             'Active',
             'Deactivated',
-            'Under Repair',
         ];
 
         foreach ($statuses as $name) {

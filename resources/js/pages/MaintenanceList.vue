@@ -3,7 +3,8 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 import { useWindowFocus } from '@vueuse/core'
 import { useSettings } from '../composables/useSettings';
-import { Send, X, Eye } from 'lucide-vue-next';
+import { Send, X, Eye, Search, ChevronLeft, ChevronRight, Plus, Filter, Edit3, Trash2, UserPlus, Info, Save, Clock, AlertTriangle, Hammer, Archive, Ban, CheckCircle2 } from 'lucide-vue-next';
+
 
 const rows = ref([])
 const loading = ref(false)
@@ -36,8 +37,6 @@ const form = reactive({
   Maintenance_Type: '',
   Description: '',
   Cost: '',
-  Cost: '',
-  
 })
 
 const statuses = ref([])
@@ -79,6 +78,8 @@ const fetchRows = async (page = 1) => {
     pagination.current_page = data.current_page || 1
     pagination.last_page = data.last_page || 1
     pagination.total = data.total || 0
+  } catch (error) {
+    console.error('Failed to fetch maintenance logs', error)
   } finally {
     loading.value = false
   }
@@ -94,7 +95,6 @@ const openCreate = () => {
     Completion_Date: '',
     Maintenance_Type: '',
     Description: '',
-    Cost: '',
     Cost: '',
   })
   showForm.value = true
@@ -213,336 +213,256 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="p-6">
-
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-800">
-        Maintenance History
-      </h1>
-
-      <button
-        @click="openCreate"
-        class="bg-[#3c8dbc] hover:bg-[#367fa9] text-white px-4 py-2 rounded shadow flex items-center gap-2 text-sm font-medium transition-colors">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="16" y1="2" x2="16" y2="6"></line>
-          <line x1="8" y1="2" x2="8" y2="6"></line>
-          <line x1="3" y1="10" x2="21" y2="10"></line>
-          <line x1="12" y1="14" x2="12" y2="18"></line>
-          <line x1="10" y1="16" x2="14" y2="16"></line>
-        </svg>
-        Schedule Maintenance
-      </button>
-    </div>
-
-    <div class="bg-white p-3 rounded shadow-sm mb-3 flex gap-2 flex-wrap items-center">
-      <input
-        v-model="filters.search"
-        @keyup.enter="fetchRows(1)"
-        class="border px-3 py-2 rounded text-sm focus:ring-2 focus:ring-blue-400 outline-none"
-        placeholder="Search type/description..."
-      />
-
-      <select
-        v-model="filters.status_id"
-        class="border px-3 py-2 rounded text-sm">
-        <option value="">All Statuses</option>
-        <option v-for="s in statuses" :key="s.id" :value="s.id">
-          {{ s.Status_Name }}
-        </option>
-      </select>
-
-      <select
-        v-model.number="filters.per_page"
-        class="border px-3 py-2 rounded text-sm">
-        <option :value="10">10 per page</option>
-        <option :value="20">20 per page</option>
-        <option :value="50">50 per page</option>
-      </select>
-
-      <button
-        @click="fetchRows(1)"
-        class="px-4 py-2 bg-gray-800 hover:bg-black text-white rounded text-sm transition-colors">
-        Apply
-      </button>
-    </div>
-
-    <div v-if="showForm" class="bg-white p-4 rounded shadow-md border-t-4 border-[#3c8dbc] mb-4 grid grid-cols-2 gap-3">
+  <div class="max-w-7xl mx-auto space-y-10">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div>
+        <h1 class="text-4xl font-black text-slate-800 tracking-tight">Technical <span class="text-vilcom-blue">Maintenance</span></h1>
+        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+          <span class="size-1.5 bg-vilcom-orange rounded-full"></span>
+          Engineering & Asset Reliability Logs
+        </p>
+      </div>
       
-      <div class="flex flex-col">
-        <label class="text-xs font-bold text-gray-500 mb-1">Asset</label>
-        <select v-model="form.Asset_ID" class="border p-2 rounded focus:ring-2 focus:ring-blue-200 outline-none">
-          <option value="">Select Asset</option>
-          <option v-for="asset in assets" :key="asset.id" :value="asset.id">
-            {{ asset.Asset_Name }}
-          </option>
-        </select>
-      </div>
-
-
-
-      <div class="flex flex-col">
-        <label class="text-xs font-bold text-gray-500 mb-1">Maintenance Type</label>
-        <select v-model="form.Maintenance_Type" class="border p-2 rounded focus:ring-2 focus:ring-blue-200 outline-none">
-          <option value="">Select Type</option>
-          <option value="Preventive">Preventive</option>
-          <option value="Corrective">Corrective</option>
-          <option value="Inspection">Inspection</option>
-          <option value="Other">Other</option>
-        </select>
-      </div>
-
-      <div class="flex flex-col">
-        <label class="text-xs font-bold text-gray-500 mb-1">Cost</label>
-        <input v-model="form.Cost" type="number" class="border p-2 rounded focus:ring-2 focus:ring-blue-200 outline-none" placeholder="0.00" />
-      </div>
-
-      <div class="flex flex-col">
-        <label class="text-xs font-bold text-gray-500 mb-1">Request Date</label>
-        <input
-          v-model="form.Request_Date"
-          type="datetime-local"
-          class="border p-2 rounded focus:ring-2 focus:ring-blue-200 outline-none"
-        />
-      </div>
-
-      <div class="flex flex-col">
-        <label class="text-xs font-bold text-gray-500 mb-1">Completion Date</label>
-        <input
-          v-model="form.Completion_Date"
-          type="datetime-local"
-          class="border p-2 rounded focus:ring-2 focus:ring-blue-200 outline-none"
-        />
-      </div>
-
-      <div class="col-span-2 flex flex-col">
-        <label class="text-xs font-bold text-gray-500 mb-1">Description</label>
-        <textarea
-          v-model="form.Description"
-          class="border p-2 rounded focus:ring-2 focus:ring-blue-200 outline-none"
-          placeholder="Details about the maintenance work...">
-        </textarea>
-      </div>
-
-      <div class="col-span-2 flex gap-2 pt-2">
-        <button
-          :disabled="saving"
-          @click="save"
-          class="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 transition-colors">
-          {{ editingId ? 'Update Record' : 'Create Record' }}
-        </button>
-
-        <button
-          @click="showForm = false"
-          class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors">
-          Cancel
-        </button>
-      </div>
+      <button @click="openCreate" class="bg-vilcom-blue text-white px-8 py-4 rounded-2xl shadow-xl shadow-blue-900/10 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">
+        <Plus class="size-4" />
+        Schedule Intervention
+      </button>
     </div>
 
-    <!-- Escalation Modal for Maintenance Parts -->
-    <div v-if="showEscalateModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-bold text-gray-800">Escalate Part Purchase</h3>
-          <button @click="showEscalateModal = false" class="text-gray-400 hover:text-gray-600">
-            <X class="size-5" />
-          </button>
+    <div class="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
+      <!-- Search & Filters -->
+      <div class="p-8 border-b border-gray-50 flex flex-wrap gap-4 items-center bg-gray-50/30">
+        <div class="relative group">
+          <input 
+            v-model="filters.search" 
+            @keyup.enter="fetchRows(1)" 
+            class="bg-white border-none rounded-xl py-3 pl-10 pr-6 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue transition-all w-64 shadow-sm" 
+            placeholder="Search tasks or assets..." 
+          />
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-300 group-focus-within:text-vilcom-blue transition-colors" />
         </div>
-        
-        <div class="space-y-4">
-          <div class="bg-blue-50 p-3 rounded-lg">
-            <p class="text-xs text-gray-500">Asset</p>
-            <p class="font-bold text-gray-800">{{ activeMaintenance?.asset?.Asset_Name }}</p>
-          </div>
-          
-          <div>
-            <label class="block text-xs font-bold text-gray-500 mb-1">Part/Component Name *</label>
-            <input v-model="escalationForm.item_name" type="text" class="w-full border rounded p-2 text-sm" placeholder="e.g. RAM upgrade 16GB">
-          </div>
-          
-          <div>
-            <label class="block text-xs font-bold text-gray-500 mb-1">Estimated Cost</label>
-            <input v-model="escalationForm.estimated_cost" type="number" class="w-full border rounded p-2 text-sm" placeholder="0.00">
-          </div>
-          
-          <div>
-            <label class="block text-xs font-bold text-gray-500 mb-1">Reason *</label>
-            <textarea v-model="escalationForm.reason" rows="3" class="w-full border rounded p-2 text-sm" placeholder="Why is this part needed?"></textarea>
-          </div>
-        </div>
-        
-        <div class="mt-4 flex gap-2">
-          <button @click="submitMaintenanceEscalation" :disabled="escalating" class="flex-1 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 text-sm font-bold">
-            {{ escalating ? 'Escalating...' : 'Escalate to Management' }}
-          </button>
-          <button @click="showEscalateModal = false" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm">
-            Cancel
-          </button>
-        </div>
+
+        <select v-model="filters.status_id" class="bg-white border-none rounded-xl py-3 px-6 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue appearance-none min-w-[160px] shadow-sm text-slate-600">
+          <option value="">All Flow Statuses</option>
+          <option v-for="s in statuses" :key="s.id" :value="s.id">{{ s.Status_Name }}</option>
+        </select>
+
+        <button @click="fetchRows(1)" class="bg-slate-800 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-lg shadow-black/5">Apply Filter</button>
       </div>
-    </div>
 
-    <div class="bg-white border-t-4 border-[#3c8dbc] rounded shadow-md overflow-hidden">
-      <table class="w-full text-left border-collapse">
-
-        <thead>
-          <tr class="text-[11px] uppercase text-gray-600 font-bold border-b bg-gray-50">
-            <th class="p-4">Asset</th>
-            <th class="p-4">Type</th>
-            <th class="p-4">Request Date</th>
-            <th class="p-4">Completion</th>
-            <th class="p-4 text-right">Cost</th>
-            <th class="p-4 text-center">Status</th>
-            <th class="p-4 text-center">Actions</th>
-          </tr>
-        </thead>
-
-        <tbody class="text-[13px] divide-y">
-          <tr v-if="loading">
-            <td colspan="7" class="p-8 text-center text-gray-500 italic">
-              Loading maintenance records...
-            </td>
-          </tr>
-
-          <tr
-            v-for="item in rows"
-            :key="item.id"
-            class="hover:bg-gray-50 transition-colors">
-
-            <td class="p-4 font-bold text-[#3c8dbc]">
-              {{ item.asset?.Asset_Name || 'Unknown Asset' }}
-            </td>
-
-            <td class="p-4">
-              <span class="px-2 py-0.5 rounded bg-gray-100 text-[11px] font-medium text-gray-600">
-                {{ item.Maintenance_Type }}
-              </span>
-            </td>
-
-            <td class="p-4 text-gray-600">
-              {{ item.Request_Date }}
-            </td>
-
-            <td class="p-4 text-gray-600">
-              {{ item.Completion_Date || 'In Progress...' }}
-            </td>
-
-            <td class="p-4 text-right font-medium">
-              {{ item.Cost ? formatMoney(item.Cost) : '-' }}
-            </td>
-
-            <td class="p-4 text-center">
-              <div class="flex flex-col items-center gap-1">
-                <span 
-                  :class="[
-                    'px-2 py-0.5 rounded-full text-[10px] font-bold border',
-                    item.status?.Status_Name === 'Completed' ? 'bg-green-50 text-green-700 border-green-100' :
-                    item.status?.Status_Name === 'Cancelled' ? 'bg-red-50 text-red-700 border-red-100' :
-                    item.status?.Status_Name === 'Archived' ? 'bg-gray-100 text-gray-700 border-gray-200' :
-                    'bg-blue-50 text-[#3c8dbc] border-blue-100'
-                  ]"
-                >
-                  {{ item.status?.Status_Name || 'N/A' }}
-                </span>
-                
-                <!-- Quick Transitions -->
-                <div v-if="item.status?.Status_Name !== 'Completed' && item.status?.Status_Name !== 'Cancelled' && item.status?.Status_Name !== 'Archived'" class="flex gap-1">
-                   <button 
-                     v-if="item.status?.Status_Name === 'Scheduled' || item.status?.Status_Name === 'Out for Repair'"
-                     @click="transitionStatus(item, 'In Progress')"
-                     class="text-[9px] text-blue-500 hover:underline"
-                   >
-                     Start
-                   </button>
-                   <button 
-                     v-if="item.status?.Status_Name === 'In Progress'"
-                     @click="transitionStatus(item, 'Completed')"
-                     class="text-[10px] text-green-600 hover:underline font-bold"
-                   >
-                     Finish
-                   </button>
-                   <button 
-                     v-if="item.status?.Status_Name !== 'Cancelled'"
-                     @click="transitionStatus(item, 'Cancelled')"
-                     class="text-[9px] text-gray-400 hover:text-red-500"
-                   >
-                     Cancel
-                   </button>
+      <!-- Table View -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-50/50 border-b border-gray-50">
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Asset Identity</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Intervention Type</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Operational Timeline</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Resource Cost</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Lifecycle</th>
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            <tr v-if="loading">
+              <td colspan="6" class="p-20 text-center text-gray-400 font-bold uppercase text-[10px] tracking-widest">
+                Accessing Engineering Logs...
+              </td>
+            </tr>
+            <tr v-for="item in rows" :key="item.id" class="group hover:bg-blue-50/30 transition-all duration-300">
+              <td class="px-8 py-5">
+                <div class="flex items-center gap-4">
+                  <div class="size-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-vilcom-blue group-hover:text-white transition-all">
+                    <Hammer class="size-5" />
+                  </div>
+                  <div>
+                    <div class="font-black text-slate-800 text-sm group-hover:text-vilcom-blue transition-colors">
+                      {{ item.asset?.Asset_Name || 'Unknown Asset' }}
+                    </div>
+                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1 font-mono">
+                      {{ item.asset?.Serial_No || 'N/A' }}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </td>
-
-            <td class="p-4">
-              <div class="flex items-center justify-center gap-4">
-                <button 
-                  v-if="item.status?.Status_Name !== 'Archived'"
-                  class="text-amber-600 hover:text-amber-800 transition-colors" 
-                  @click="archiveRow(item.id)"
-                  title="Archive/Dispose Asset"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                  </svg>
-                </button>
-
-                <button 
-                  class="text-blue-500 hover:text-blue-700 transition-colors" 
-                  @click="openEdit(item)"
-                  title="Edit Maintenance"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                  </svg>
-                </button>
-
-                <button 
-                  class="text-purple-500 hover:text-purple-700 transition-colors" 
-                  @click="openEscalateModal(item)"
-                  title="Escalate Part Purchase to Management"
-                >
-                  <Send class="size-[18]" />
-                </button>
-
-                <button 
-                  class="text-red-500 hover:text-red-700 transition-colors" 
-                  @click="removeRow(item.id)"
-                  title="Delete Record"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="15" y1="9" x2="9" y2="15"></line>
-                    <line x1="9" y1="9" x2="15" y2="15"></line>
-                  </svg>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="mt-4 flex items-center justify-between text-sm text-gray-600">
-      <div class="flex items-center gap-2">
-        <button 
-          :disabled="pagination.current_page <= 1" 
-          @click="fetchRows(pagination.current_page - 1)" 
-          class="px-3 py-1 border rounded bg-white hover:bg-gray-50 disabled:opacity-50 transition-colors">
-          Prev
-        </button>
-        <button 
-          :disabled="pagination.current_page >= pagination.last_page" 
-          @click="fetchRows(pagination.current_page + 1)" 
-          class="px-3 py-1 border rounded bg-white hover:bg-gray-50 disabled:opacity-50 transition-colors">
-          Next
-        </button>
+              </td>
+              <td class="px-6 py-5">
+                <span class="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                   {{ item.Maintenance_Type }}
+                </span>
+              </td>
+              <td class="px-6 py-5">
+                 <div class="space-y-1">
+                   <div class="flex items-center gap-2 text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                     <Clock class="size-3 text-vilcom-blue" />
+                     {{ item.Request_Date }}
+                   </div>
+                   <div class="text-[8px] font-bold text-gray-400 uppercase tracking-[0.2em] italic">
+                     ETA: {{ item.Completion_Date || 'In Progress' }}
+                   </div>
+                 </div>
+              </td>
+              <td class="px-6 py-5 text-right font-black text-slate-700 text-sm">
+                {{ formatMoney(item.Cost) }}
+              </td>
+              <td class="px-6 py-5">
+                <div class="flex flex-col items-center gap-1">
+                  <span 
+                    :class="[
+                      'px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ring-1 ring-white/50',
+                      item.status?.Status_Name === 'Completed' ? 'bg-teal-50 text-teal-600 ring-teal-100' :
+                      item.status?.Status_Name === 'Cancelled' ? 'bg-red-50 text-red-600 ring-red-100' :
+                      item.status?.Status_Name === 'Archived' ? 'bg-gray-100 text-gray-400' :
+                      'bg-blue-50 text-vilcom-blue ring-blue-100'
+                    ]"
+                  >
+                    {{ item.status?.Status_Name || 'PENDING' }}
+                  </span>
+                  
+                  <div v-if="item.status?.Status_Name !== 'Completed' && item.status?.Status_Name !== 'Cancelled' && item.status?.Status_Name !== 'Archived'" class="flex gap-2 mt-1">
+                     <button @click="transitionStatus(item, 'In Progress')" v-if="['Scheduled', 'Out for Repair'].includes(item.status?.Status_Name)" class="text-[8px] font-black text-vilcom-blue uppercase hover:underline">Engage</button>
+                     <button @click="transitionStatus(item, 'Completed')" v-if="item.status?.Status_Name === 'In Progress'" class="text-[8px] font-black text-teal-600 uppercase hover:underline">Finalize</button>
+                  </div>
+                </div>
+              </td>
+              <td class="px-8 py-5 text-right">
+                <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button @click="openEscalateModal(item)" class="p-2.5 bg-white border border-gray-100 text-purple-500 rounded-xl hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all shadow-sm" title="Escalate Resources">
+                    <Send class="size-4" />
+                  </button>
+                  <button @click="openEdit(item)" class="p-2.5 bg-white border border-gray-100 text-vilcom-blue rounded-xl hover:bg-vilcom-blue hover:text-white hover:border-vilcom-blue transition-all shadow-sm" title="Update Log">
+                    <Edit3 class="size-4" />
+                  </button>
+                  <button v-if="item.status?.Status_Name !== 'Archived'" @click="archiveRow(item.id)" class="p-2.5 bg-white border border-gray-100 text-vilcom-orange rounded-xl hover:bg-vilcom-orange hover:text-white hover:border-vilcom-orange transition-all shadow-sm" title="Archive Asset">
+                    <Archive class="size-4" />
+                  </button>
+                  <button @click="removeRow(item.id)" class="p-2.5 bg-white border border-gray-100 text-red-500 rounded-xl hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm" title="Purge Record">
+                    <Trash2 class="size-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      <span>Page <b>{{ pagination.current_page }}</b> of {{ pagination.last_page }} <span class="mx-2 text-gray-300">|</span> {{ pagination.total }} records</span>
+
+      <!-- Pagination -->
+      <div v-if="pagination.last_page > 1" class="p-8 border-t border-gray-50 flex items-center justify-between bg-gray-50/20">
+        <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+          Quantum {{ pagination.current_page }} of {{ pagination.last_page }} <span class="mx-2 text-gray-200">|</span> Total Interventions: {{ pagination.total }}
+        </div>
+        <div class="flex items-center gap-3">
+          <button :disabled="pagination.current_page <= 1" @click="fetchRows(pagination.current_page - 1)" class="p-3 border border-gray-100 rounded-xl bg-white hover:bg-gray-50 disabled:opacity-20 transition-all font-black text-xs">
+            <ChevronLeft class="size-4" />
+          </button>
+          <button :disabled="pagination.current_page >= pagination.last_page" @click="fetchRows(pagination.current_page + 1)" class="p-3 border border-gray-100 rounded-xl bg-white hover:bg-gray-50 disabled:opacity-20 transition-all font-black text-xs">
+            <ChevronRight class="size-4" />
+          </button>
+        </div>
+      </div>
     </div>
 
+    <!-- Modals -->
+    <!-- Escalation Modal -->
+    <div v-if="showEscalateModal" class="fixed inset-0 z-[2000] flex items-center justify-center p-6">
+      <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showEscalateModal = false"></div>
+      <div class="relative bg-white w-full max-w-md rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+        <div class="p-10 space-y-8">
+          <div class="flex items-center gap-4">
+            <div class="p-3 bg-purple-50 text-purple-600 rounded-2xl">
+              <Send class="size-6" />
+            </div>
+            <div>
+              <h3 class="text-lg font-black text-slate-800 tracking-tight">Resource Escalation</h3>
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Procurement Protocol for Parts</p>
+            </div>
+          </div>
+
+          <div class="bg-purple-50/50 rounded-2xl p-6 border border-purple-100 space-y-1">
+             <div class="text-[9px] font-black text-purple-400 uppercase tracking-widest">Linked Asset</div>
+             <div class="text-sm font-black text-slate-800">{{ activeMaintenance?.asset?.Asset_Name }}</div>
+          </div>
+
+          <div class="space-y-6">
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Required Component</label>
+              <input v-model="escalationForm.item_name" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-purple-500/20 transition-all" placeholder="e.g. 512GB NVMe SSD">
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Estimated Budget (KSH)</label>
+              <input v-model="escalationForm.estimated_cost" type="number" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-purple-500/20 transition-all" placeholder="0.00">
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Technical Justification</label>
+              <textarea v-model="escalationForm.reason" rows="3" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-purple-500/20 transition-all" placeholder="Why is this required for maintenance?"></textarea>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-3">
+            <button @click="submitMaintenanceEscalation" :disabled="escalating" class="w-full py-4 bg-purple-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-purple-900/20 hover:scale-[1.02] active:scale-95 transition-all">
+              {{ escalating ? 'Transmitting...' : 'Submit to Management' }}
+            </button>
+            <button @click="showEscalateModal = false" class="w-full py-4 text-gray-400 text-xs font-black uppercase tracking-widest hover:text-red-500 transition-colors">Cancel Escalation</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create/Edit Modal -->
+    <div v-if="showForm" class="fixed inset-0 z-[2000] flex items-center justify-center p-6">
+      <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showForm = false"></div>
+      <div class="relative bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+        <div class="p-10 space-y-8">
+          <div class="flex items-center gap-4">
+            <div class="p-3 bg-vilcom-blue text-white rounded-2xl shadow-lg shadow-blue-900/20">
+              <Hammer class="size-6" />
+            </div>
+            <div>
+              <h3 class="text-lg font-black text-slate-800 tracking-tight">{{ editingId ? 'Update Log' : 'New Maintenance Protocol' }}</h3>
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Engineering Asset Management</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-2 md:col-span-1">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Asset Selection</label>
+              <select v-model="form.Asset_ID" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
+                <option value="">Select Asset Identity...</option>
+                <option v-for="asset in assets" :key="asset.id" :value="asset.id">{{ asset.Asset_Name }}</option>
+              </select>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Intervention Category</label>
+              <select v-model="form.Maintenance_Type" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
+                <option value="">Select Type...</option>
+                <option value="Preventive">Preventive</option>
+                <option value="Corrective">Corrective</option>
+                <option value="Inspection">Inspection</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Resource Allocation (KSH)</label>
+              <input v-model="form.Cost" type="number" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="0.00">
+            </div>
+            <div class="space-y-2">
+               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Protocol Initialization</label>
+               <input v-model="form.Request_Date" type="datetime-local" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
+            </div>
+            <div class="space-y-2 md:col-span-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Technical Description</label>
+              <textarea v-model="form.Description" rows="3" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="Detailed engineering report or task list..."></textarea>
+            </div>
+          </div>
+
+          <div class="flex gap-4 pt-4">
+            <button @click="save" :disabled="saving" class="flex-1 py-4 bg-vilcom-blue text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-900/20 hover:scale-[1.02] active:scale-95 transition-all">
+              {{ saving ? 'Syncing...' : (editingId ? 'Execute Update' : 'Initialize Protocol') }}
+            </button>
+            <button @click="showForm = false" class="px-8 py-4 bg-gray-100 text-gray-400 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-gray-200 transition-all">Abort</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

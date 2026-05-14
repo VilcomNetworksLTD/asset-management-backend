@@ -1,208 +1,218 @@
 <template>
-  <div>
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-semibold text-gray-800">{{ headingText }}</h1>
+  <div class="max-w-7xl mx-auto space-y-10">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div>
+        <h1 class="text-4xl font-black text-slate-800 tracking-tight">
+          {{ headingText.split(' ')[0] }} <span class="text-vilcom-blue">{{ headingText.split(' ').slice(1).join(' ') }}</span>
+        </h1>
+        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+          <span class="size-1.5 bg-vilcom-orange rounded-full"></span>
+          Monitoring asset mobility and chain of custody
+        </p>
+      </div>
     </div>
 
-    <div class="bg-white rounded shadow-sm overflow-hidden border">
-      <table class="w-full text-left">
-        <thead class="bg-gray-50 border-b">
-          <tr class="text-[11px] uppercase text-gray-500 font-bold">
-            <th class="p-4">Asset</th>
-            <th class="p-4">Type</th>
-            <th class="p-4">From</th>
-            <th v-if="!isReturnMode" class="p-4">To</th>
-            <th v-else class="p-4">Return Details</th>
-            <th class="p-4 text-center">Status</th>
-            <th class="p-4 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y text-sm">
-          <tr v-if="loading">
-            <td :colspan="isReturnMode || !isReturnMode ? 7 : 7" class="p-6 text-center">
-              <Loader />
-            </td>
-          </tr>
+    <div class="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
+      <!-- Search & Filters -->
+      <div class="p-8 border-b border-gray-50 flex flex-wrap gap-4 items-center bg-gray-50/30">
+        <div class="relative group">
+          <input 
+            v-model="filters.search" 
+            class="bg-white border-none rounded-xl py-3 pl-10 pr-6 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue transition-all w-64 shadow-sm" 
+            placeholder="Search movements..." 
+          />
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-300 group-focus-within:text-vilcom-blue transition-colors" />
+        </div>
 
-          <tr v-for="item in filteredTransfers" :key="item.id" class="hover:bg-gray-50">
-            <td class="p-4 font-medium">
-              <div>
-                <template v-if="item.asset">
-                  {{ item.asset.model }}
-                  <div class="text-[10px] text-gray-400 font-mono">{{ item.asset.serial }}</div>
-                </template>
-                <template v-else>
-                  <span class="italic text-gray-600">Mixed Items</span>
-                </template>
-              </div>
-              <div v-if="item.items && item.items.length" class="text-[10px] text-gray-500">
-                <div class="font-bold">Included items:</div>
-                <ul class="list-disc list-inside">
-                  <li v-for="itm in item.items" :key="itm.type + itm.id">
-                    <span class="capitalize">{{ itm.type }}:</span> {{ itm.name || itm.type }}
-                  </li>
-                </ul>
-              </div>
-            </td>
-            <td class="p-4">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                {{ item.type || 'Transfer' }}
-              </span>
-            </td>
-            <td class="p-4">{{ item.sender?.name }}</td>
-            <td v-if="!isReturnMode" class="p-4">{{ item.receiver?.name || 'Admin / Office' }}</td>
-            <td v-else class="p-4">
-              <div class="text-xs text-gray-700 mb-1">
-                <strong>Condition:</strong> {{ item.sender_condition || 'N/A' }}
-              </div>
-              <div class="text-xs text-gray-500 mb-1">
-                <strong>Missing:</strong>
-                {{ Array.isArray(item.missing_items) && item.missing_items.length ? item.missing_items.join(', ') : 'None' }}
-              </div>
-              <div v-if="item.items && item.items.length" class="mb-1">
-                <strong class="text-xs text-gray-500">Included:</strong>
-                <div class="ml-3 mt-1 space-y-1">
-                  <div v-for="itm in item.items" :key="itm.id || itm.type" class="text-xs text-gray-600">
-                    • <span class="font-medium text-gray-700 capitalize">{{ itm.type }}</span>: {{ itm.name || itm.type }}
+        <select v-model="filters.status" class="bg-white border-none rounded-xl py-3 px-6 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue appearance-none min-w-[140px] shadow-sm">
+          <option value="">All Statuses</option>
+          <option value="pending">Pending Approval</option>
+          <option value="pending_inspection">Pending Inspection</option>
+          <option value="inspected">Inspected</option>
+          <option value="accepted">Accepted / Done</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+
+      <!-- Table View -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-50/50 border-b border-gray-50">
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Asset Detail</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Flow Type</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Stakeholders</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Status</th>
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Protocol</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            <tr v-if="loading">
+              <td colspan="5" class="p-20 text-center text-gray-400 font-bold uppercase text-[10px] tracking-widest">
+                Scanning Movement Logs...
+              </td>
+            </tr>
+            <tr v-for="item in filteredTransfers" :key="item.id" class="group hover:bg-blue-50/30 transition-all duration-300">
+              <td class="px-8 py-5">
+                <div class="flex items-center gap-4">
+                  <div class="size-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-vilcom-blue group-hover:text-white transition-all">
+                    <ArrowLeftRight class="size-5" />
+                  </div>
+                  <div>
+                    <div class="font-black text-slate-800 text-sm group-hover:text-vilcom-blue transition-colors">
+                      {{ item.asset?.model || 'Mixed Batch' }}
+                    </div>
+                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1 font-mono">
+                      {{ item.asset?.serial || 'VARIOUS' }}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div class="text-xs text-gray-500 italic" v-if="item.reason">
-                <strong>Reason:</strong> {{ item.reason }}
-              </div>
-              <div class="text-xs text-gray-400 italic" v-if="item.issue_notes || item.notes">
-                {{ item.issue_notes || item.notes }}
-              </div>
-            </td>
-            <td class="p-4 text-center">
-              <span :class="statusClass(item.status)" class="px-2 py-1 rounded-full text-[10px] font-bold uppercase">
-                {{ item.status.replace('_', ' ') }}
-              </span>
-            </td>
-            <td class="p-4 text-right space-x-2">
-              <template v-if="item.status === 'pending_inspection'">
-                <button @click="openInspectionModal(item)" :disabled="processing" class="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-blue-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                  CHECK
-                </button>
-              </template>
+              </td>
+              <td class="px-6 py-5">
+                <span class="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest">{{ item.type || 'Transfer' }}</span>
+              </td>
+              <td class="px-6 py-5">
+                <div class="flex flex-col gap-1">
+                  <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <span class="text-slate-600 font-black">FROM:</span> {{ item.sender?.name }}
+                  </div>
+                  <div v-if="!isReturnMode" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <span class="text-vilcom-blue font-black">TO:</span> {{ item.receiver?.name || 'ADMIN' }}
+                  </div>
+                  <div v-else class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                     <span class="text-vilcom-orange font-black">REASON:</span> {{ item.reason || 'N/A' }}
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-5 text-center">
+                <span :class="statusClass(item.status)" class="px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ring-1 ring-white/50">
+                  {{ item.status.replace('_', ' ') }}
+                </span>
+              </td>
+              <td class="px-8 py-5 text-right">
+                <div class="flex justify-end gap-2">
+                  <template v-if="item.status === 'pending_inspection'">
+                    <button @click="openInspectionModal(item)" :disabled="processing" class="px-4 py-2 bg-vilcom-blue text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-blue-900/10 hover:scale-105 active:scale-95 transition-all">
+                      INSPECT
+                    </button>
+                  </template>
 
-              <template v-else-if="item.status === 'inspected'">
-                <template v-if="item.receiver && item.type === 'transfer'">
-                  <span class="text-blue-600 italic text-xs">Waiting for receiver to confirm</span>
-                </template>
-                <template v-else>
-                  <button @click="updateStatus(item.id, 'accepted')" :disabled="processing" class="text-green-600 hover:text-green-800 font-bold disabled:opacity-50 disabled:cursor-not-allowed">Accept</button>
-                  <button @click="updateStatus(item.id, 'rejected')" :disabled="processing" class="text-red-600 hover:text-red-800 font-bold disabled:opacity-50 disabled:cursor-not-allowed">Reject</button>
-                </template>
-              </template>
+                  <template v-else-if="item.status === 'inspected'">
+                    <button v-if="!item.receiver || item.type !== 'transfer'" @click="updateStatus(item.id, 'accepted')" :disabled="processing" class="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-all">
+                      <CheckCircle2 class="size-4" />
+                    </button>
+                    <button v-if="!item.receiver || item.type !== 'transfer'" @click="updateStatus(item.id, 'rejected')" :disabled="processing" class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all">
+                      <XCircle class="size-4" />
+                    </button>
+                    <span v-else class="text-[9px] font-black text-blue-400 uppercase italic">Awaiting Recipient</span>
+                  </template>
 
-              <template v-else-if="item.status === 'pending'">
-                <button @click="updateStatus(item.id, 'approved')" :disabled="processing" class="text-green-600 hover:text-green-800 font-bold disabled:opacity-50 disabled:cursor-not-allowed">Approve</button>
-                <button @click="updateStatus(item.id, 'rejected')" :disabled="processing" class="text-red-600 hover:text-red-800 font-bold disabled:opacity-50 disabled:cursor-not-allowed">Reject</button>
-              </template>
+                  <template v-else-if="item.status === 'pending'">
+                    <button @click="updateStatus(item.id, 'approved')" :disabled="processing" class="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-all">
+                      <CheckCircle2 class="size-4" />
+                    </button>
+                    <button @click="updateStatus(item.id, 'rejected')" :disabled="processing" class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all">
+                      <XCircle class="size-4" />
+                    </button>
+                  </template>
+                  
+                  <span v-else class="text-[9px] font-black text-gray-300 uppercase">Processed</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-              <template v-else-if="item.status === 'rejected'">
-                <span class="text-gray-500 italic text-xs mr-2">Rejected</span>
-              </template>
-
-              <template v-else>
-                <template v-if="item.status === 'pending_verification'">
-                  <span class="text-blue-600 italic text-xs mr-2">Waiting for receiver</span>
-                </template>
-                <template v-else>
-                  <span class="text-gray-400 italic text-xs mr-2">Done</span>
-                </template>
-              </template>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      
-      <div v-if="filteredTransfers.length === 0" class="p-10 text-center text-gray-400">
-        No movement requests found.
+      <!-- Pagination -->
+      <div v-if="pagination && pagination.last_page > 1" class="p-8 border-t border-gray-50 flex items-center justify-between bg-gray-50/20">
+        <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+          Sector {{ pagination.current_page }} of {{ pagination.last_page }} <span class="mx-2 text-gray-200">|</span> Total Events: {{ pagination.total }}
+        </div>
+        <div class="flex items-center gap-3">
+          <button :disabled="pagination.current_page <= 1" @click="fetchTransfers(pagination.current_page - 1)" class="p-3 border border-gray-100 rounded-xl bg-white hover:bg-gray-50 disabled:opacity-20 transition-all font-black text-xs">
+            <ChevronLeft class="size-4" />
+          </button>
+          <button :disabled="pagination.current_page >= pagination.last_page" @click="fetchTransfers(pagination.current_page + 1)" class="p-3 border border-gray-100 rounded-xl bg-white hover:bg-gray-50 disabled:opacity-20 transition-all font-black text-xs">
+            <ChevronRight class="size-4" />
+          </button>
+        </div>
       </div>
     </div>
 
-    <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
-        <div class="bg-indigo-600 p-4 text-white flex justify-between items-center">
-          <h2 class="font-bold uppercase tracking-tight text-sm">Check Item Condition</h2>
-          <button @click="showModal = false" class="text-white hover:text-gray-200">
-            <i class="fa fa-times"></i>
-          </button>
-        </div>
-
-        <div class="p-6">
-          <div class="mb-4 p-3 bg-gray-50 rounded border text-xs">
-            <p class="text-gray-500 font-bold uppercase">Item being returned:</p>
-            <p class="text-indigo-700 font-bold text-sm">{{ selectedItem.asset?.model }}</p>
-            <p class="text-gray-400">Serial: {{ selectedItem.asset?.serial }} | Tag: {{ selectedItem.asset?.asset_tag }}</p>
-            <p class="text-gray-400">User Report: <span class="italic">"{{ selectedItem.sender_condition || 'No notes' }}"</span></p>
-          </div>
-          <div v-if="selectedItem.items && selectedItem.items.length" class="mb-4 p-3 bg-gray-50 rounded border text-xs">
-            <p class="text-gray-500 font-bold uppercase">Components / Accessories Included:</p>
-            <ul class="list-disc list-inside mt-1 text-gray-700">
-              <li v-for="itm in selectedItem.items" :key="itm.type + itm.id">
-                <strong class="capitalize">{{ itm.type }}</strong>: {{ itm.name }}
-                <template v-if="itm.details">
-                  <div class="text-[10px] text-gray-500 ml-4">
-                    <span v-if="itm.details.serial_no">Serial: {{ itm.details.serial_no }}</span>
-                    <span v-if="itm.details.model_number">Model: {{ itm.details.model_number }}</span>
-                    <span v-if="itm.details.category">Category: {{ itm.details.category }}</span>
-                    <span v-if="itm.details.remaining_qty !== undefined">Qty left: {{ itm.details.remaining_qty }}</span>
-                    <span v-if="itm.details.in_stock !== undefined">In stock: {{ itm.details.in_stock }}</span>
-                  </div>
-                </template>
-              </li>
-            </ul>
-          </div>
-
-          <div class="space-y-4">
+    <!-- Inspection Modal -->
+    <div v-if="showModal" class="fixed inset-0 z-[2000] flex items-center justify-center p-6">
+      <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showModal = false"></div>
+      <div class="relative bg-white w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+        <div class="p-10 space-y-8">
+          <div class="flex items-center gap-4">
+            <div class="p-3 bg-vilcom-orange text-white rounded-2xl shadow-lg shadow-orange-900/20">
+              <Search class="size-6" />
+            </div>
             <div>
-              <label class="block text-xs font-black uppercase text-gray-500 mb-1">Official Physical Condition</label>
-              <select v-model="inspectionForm.condition" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-indigo-500">
+              <h3 class="text-lg font-black text-slate-800 tracking-tight">Asset Verification</h3>
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Post-Movement Inspection Protocol</p>
+            </div>
+          </div>
+
+          <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100 space-y-2">
+            <div class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Target Unit</div>
+            <div class="text-sm font-black text-slate-800">{{ selectedItem.asset?.model }}</div>
+            <div class="text-[10px] font-bold text-slate-500 font-mono">{{ selectedItem.asset?.serial }}</div>
+          </div>
+
+          <div class="space-y-6">
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Physical Integrity</label>
+              <select v-model="inspectionForm.condition" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
                 <option value="New">New / Mint</option>
-                <option value="Good">Good (Fully Functional)</option>
-                <option value="Fair">Fair (Noticeable Wear)</option>
-                <option value="Damaged">Damaged (Needs Repair)</option>
-                <option value="Broken">Broken (Non-Functional)</option>
+                <option value="Good">Good (Functional)</option>
+                <option value="Fair">Fair (Wear/Tear)</option>
+                <option value="Damaged">Damaged (Repair Required)</option>
+                <option value="Broken">Broken (Critical Failure)</option>
               </select>
             </div>
 
-            <div>
-              <label class="block text-xs font-black uppercase text-gray-500 mb-1">Final Destination</label>
-              <select v-model="inspectionForm.disposition" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-indigo-500">
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Deployment Readiness</label>
+              <select v-model="inspectionForm.disposition" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
                 <option value="ready_to_deploy">Ready to Deploy</option>
                 <option value="non_deployable">Non-Deployable</option>
-                <option value="maintenance">Taken for Maintenance</option>
+                <option value="maintenance">Maintenance Queue</option>
               </select>
             </div>
 
-            <div>
-              <label class="block text-xs font-black uppercase text-gray-500 mb-1">Missing Items (Admin Confirmation)</label>
-              <input v-model="inspectionForm.missing_items_text" class="w-full border rounded p-2 text-sm" placeholder="e.g Charger, Dock, Mouse" />
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Technical Findings</label>
+              <textarea v-model="inspectionForm.admin_notes" rows="3" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="Enter inspection notes..."></textarea>
             </div>
+          </div>
 
-            <div>
-              <label class="block text-xs font-black uppercase text-gray-500 mb-1">Notes / Findings</label>
-              <textarea v-model="inspectionForm.admin_notes" class="w-full border rounded p-2 text-sm" rows="3" placeholder="e.g Hinge broken, screen scratches, keyboard missing keys"></textarea>
-            </div>
-
-            <button @click="submitInspection" class="w-full bg-indigo-600 text-white py-2 rounded font-bold text-xs hover:bg-indigo-700">
-              SAVE CHANGES
+          <div class="flex gap-4">
+            <button @click="submitInspection" :disabled="processing" class="flex-1 py-4 bg-vilcom-blue text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-900/20 hover:scale-[1.02] active:scale-95 transition-all">
+              {{ processing ? 'Syncing...' : 'Certify Inspection' }}
             </button>
-            </div>
+            <button @click="showModal = false" class="px-8 py-4 bg-gray-100 text-gray-400 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-gray-200 transition-all">Cancel</button>
           </div>
         </div>
       </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, reactive } from 'vue';
 import axios from 'axios';
 import Loader from '@/components/Loader.vue';
 import eventBus from '@/eventBus';
+import { Search, ChevronLeft, ChevronRight, Plus, Filter, Edit3, Trash2, UserPlus, Info, ArrowLeftRight, CheckCircle2, XCircle } from 'lucide-vue-next';
+
+const filters = reactive({
+  search: '',
+  status: '',
+});
+
 
 const props = defineProps({
   mode: {
@@ -240,14 +250,31 @@ const isTransferMode = computed(() => props.mode === 'transfer');
 const isReturnMode = computed(() => props.mode === 'return');
 
 const filteredTransfers = computed(() => {
+  let items = transfers.value;
+
   if (props.mode === 'transfer') {
-    return transfers.value.filter((item) => normalizeType(item.type) !== 'return');
+    items = items.filter((item) => normalizeType(item.type) !== 'return');
+  } else if (props.mode === 'return') {
+    items = items.filter((item) => normalizeType(item.type) === 'return');
   }
-  if (props.mode === 'return') {
-    return transfers.value.filter((item) => normalizeType(item.type) === 'return');
+
+  if (filters.search) {
+    const s = filters.search.toLowerCase();
+    items = items.filter(i => 
+      (i.asset?.model?.toLowerCase().includes(s)) ||
+      (i.asset?.serial?.toLowerCase().includes(s)) ||
+      (i.sender?.name?.toLowerCase().includes(s)) ||
+      (i.receiver?.name?.toLowerCase().includes(s))
+    );
   }
-  return transfers.value;
+
+  if (filters.status) {
+    items = items.filter(i => i.status === filters.status);
+  }
+
+  return items;
 });
+
 
 const fetchTransfers = async (page = 1) => {
   loading.value = true;
@@ -263,6 +290,8 @@ const fetchTransfers = async (page = 1) => {
     const res = await axios.get(endpoint);
     transfers.value = res.data.data || res.data;
     pagination.value = res.data;
+  } catch (error) {
+    console.error('Failed to fetch transfers', error);
   } finally {
     loading.value = false;
   }

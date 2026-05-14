@@ -1,4 +1,6 @@
 <script setup>
+import { Plus } from 'lucide-vue-next';
+
 defineProps({
   title: {
     type: String,
@@ -30,7 +32,8 @@ defineEmits(['button-click']);
       @click="$emit('button-click')" 
       class="px-6 py-2.5 bg-vilcom-blue text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-blue-900/20 hover:scale-105 transition-transform flex items-center gap-2"
     >
-      <i class="fa fa-plus text-[10px]"></i> {{ buttonText }}
+      <Plus class="size-4" /> {{ buttonText }}
     </button>
   </div>
 </template>
+

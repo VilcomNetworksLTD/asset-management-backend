@@ -14,7 +14,7 @@ class MaintenanceObserver
     public function creating(Maintenance $maintenance): void
     {
         if (empty($maintenance->Status_ID)) {
-            $maintenance->Status_ID = Status::firstOf(['Requested', 'New', 'Pending']) ?? 1;
+            $maintenance->Status_ID = Status::whereRaw('LOWER(Status_Name) IN ("requested", "new", "pending", "out for repair")')->value('id') ?? 1;
         }
     }
 
@@ -25,7 +25,7 @@ class MaintenanceObserver
     public function saving(Maintenance $maintenance): void
     {
         if (!empty($maintenance->Completion_Date)) {
-            $maintenance->Status_ID = Status::firstOf(['Completed', 'Closed', 'Resolved']) ?? $maintenance->Status_ID;
+            $maintenance->Status_ID = Status::whereRaw('LOWER(Status_Name) IN ("completed", "closed", "resolved")')->value('id') ?? $maintenance->Status_ID;
         }
     }
 
@@ -38,9 +38,9 @@ class MaintenanceObserver
         $asset = $maintenance->asset;
         if ($asset) {
             // Only set to Out for Repair if it's not already completed
-            $completedStatusId = Status::firstOf(['Completed', 'Closed', 'Resolved']);
+            $completedStatusId = Status::whereRaw('LOWER(Status_Name) IN ("completed", "closed", "resolved")')->value('id');
             if ($maintenance->Status_ID != $completedStatusId) {
-                $statusId = Status::firstOf(['Out for Repair', 'Maintenance']);
+                $statusId = Status::whereRaw('LOWER(Status_Name) IN ("out for repair", "maintenance")')->value('id');
                 if ($statusId) {
                     $asset->update(['Status_ID' => $statusId]);
                 }

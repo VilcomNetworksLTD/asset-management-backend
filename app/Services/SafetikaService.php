@@ -160,7 +160,11 @@ Log::info('Raw Hub Department Data', ['data' => $hubDepartments]);
                 $deptId = null;
                 $deptName = $hu['department']['name'] ?? $hu['department'] ?? $hu['department_name'] ?? null;
                 if ($deptName) {
-                    $deptId = \App\Models\Department::updateOrCreate(['name' => $deptName])->id;
+                    // Always try to match or create by name to ensure consistency
+                    $deptId = \App\Models\Department::updateOrCreate(
+                        ['name' => $deptName],
+                        ['description' => 'Synced from Safetika Hub']
+                    )->id;
                 }
 
                 \App\Models\User::updateOrCreate(

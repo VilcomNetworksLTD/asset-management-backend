@@ -1,32 +1,34 @@
 <script setup>
 import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { Eye, Printer, Loader2, Box } from 'lucide-vue-next';
 
 const props = defineProps({
   assets: { type: Array, default: () => [] },
-  loading: { type: Boolean, default: false }
+  loading: { type: Boolean, default: false },
+  selectedIds: { type: Array, default: () => [] }
 });
+
+const emit = defineEmits(['update:selectedIds', 'select-all']);
 
 const router = useRouter();
 const route = useRoute();
 
-// Fix 1: Determine the correct detail route based on the current URL path
+// Determine the correct detail route based on the current URL path
 const goToDetail = (id) => {
-  // If the current path contains '/user', we use the HOD/User route name
   const isUserDash = route.path.includes('/dashboard/user') || route.path.includes('/hod');
   const routeName = isUserDash ? 'user-asset-detail' : 'asset-detail';
   
   router.push({ name: routeName, params: { id } });
 };
 
-// Fix 2: Updated print function to use the actual Barcode Image from the API
+// Updated print function to use the actual Barcode Image from the API
 const printBarcode = async (asset) => {
   if (!asset || !asset.id) return;
   
   const baseUrl = window.location.origin;
   const barcodeImageUrl = `${baseUrl}/api/barcodes/${asset.barcode || asset.id}/image`;
   
-  // Verify barcode image is accessible before opening print window
   try {
     const response = await fetch(barcodeImageUrl);
     if (!response.ok) {
@@ -97,12 +99,22 @@ const printBarcode = async (asset) => {
     <div class="overflow-x-auto custom-scrollbar">
       <table class="w-full text-sm text-left">
         <thead>
-          <tr class="bg-slate-50/50">
-            <th class="px-8 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Asset Tag</th>
-            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Model Name</th>
-            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Category</th>
-            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Location</th>
-            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Status</th>
+          <tr class="bg-slate-50/80 border-b border-gray-100">
+            <th class="px-6 py-5 w-12">
+              <div class="flex items-center justify-center">
+                 <input 
+                   type="checkbox" 
+                   :checked="assets.length > 0 && selectedIds.length === assets.length"
+                   @change="$emit('select-all')"
+                   class="size-4 rounded-md border-gray-200 text-vilcom-blue focus:ring-vilcom-blue transition-all cursor-pointer"
+                 />
+              </div>
+            </th>
+            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-left">Asset Tag</th>
+            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-left">Model Name</th>
+            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-left">Category</th>
+            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-left">Location</th>
+            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-center">Protocol Status</th>
             <th class="px-8 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-right">Actions</th>
           </tr>
         </thead>
@@ -110,21 +122,46 @@ const printBarcode = async (asset) => {
           <tr v-if="loading">
             <td colspan="6" class="p-12 text-center">
                <div class="flex flex-col items-center gap-3 opacity-40">
-                 <i class="fa fa-spinner fa-spin text-2xl"></i>
-                 <span class="font-bold text-xs uppercase tracking-widest">Loading specialized inventory...</span>
+                 <Loader2 class="size-8 animate-spin text-vilcom-blue" />
+                 <span class="font-bold text-xs uppercase tracking-widest text-slate-500">Loading specialized inventory...</span>
                </div>
             </td>
           </tr>
           <tr v-else-if="assets.length === 0">
             <td colspan="6" class="p-12 text-center">
-               <div class="flex flex-col items-center gap-2 opacity-20">
-                 <i class="fa fa-box-open text-3xl"></i>
-                 <span class="font-bold">No assets found in target sector.</span>
+               <div class="flex flex-col items-center gap-4 opacity-20">
+                 <Box class="size-12 text-slate-400" />
+                 <span class="font-bold text-slate-500 uppercase tracking-widest text-xs">No assets found in target sector.</span>
                </div>
             </td>
           </tr>
-          <tr v-for="asset in (assets || []).filter(a => a !== null)" :key="asset.id" class="hover:bg-blue-50/30 transition-colors group/row">
-            <td class="px-8 py-5">
+          <tr 
+            v-for="asset in (assets || []).filter(a => a !== null)" 
+            :key="asset.id" 
+            :class="[
+              'group/row transition-all relative border-l-4',
+              selectedIds.includes(asset.id) ? 'bg-blue-50/50 border-vilcom-blue' : 'hover:bg-gray-50/50 border-transparent'
+            ]"
+          >
+            <td class="px-6 py-5">
+              <div class="flex items-center justify-center">
+                 <input 
+                   type="checkbox" 
+                   :checked="selectedIds.includes(asset.id)"
+                   @change="(e) => {
+                     const newSelected = [...selectedIds];
+                     if (e.target.checked) newSelected.push(asset.id);
+                     else {
+                       const idx = newSelected.indexOf(asset.id);
+                       if (idx > -1) newSelected.splice(idx, 1);
+                     }
+                     $emit('update:selectedIds', newSelected);
+                   }"
+                   class="size-4 rounded-md border-gray-200 text-vilcom-blue focus:ring-vilcom-blue transition-all cursor-pointer"
+                 />
+              </div>
+            </td>
+            <td class="px-6 py-5">
               <span class="font-mono text-xs font-black text-vilcom-blue bg-blue-50 px-3 py-1 rounded-lg border border-blue-100/50">
                 {{ asset.barcode }}
               </span>
@@ -158,14 +195,14 @@ const printBarcode = async (asset) => {
                   class="bg-vilcom-blue text-white px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest hover:shadow-lg transition-all active:scale-95 flex items-center gap-2"
                   title="View Details"
                 >
-                  <i class="fa fa-eye"></i> Details
+                  <Eye class="size-3" /> Details
                 </button>
                 <button 
                   @click="printBarcode(asset)" 
                   class="p-2 border border-blue-100 text-slate-400 hover:text-vilcom-orange hover:border-vilcom-orange hover:bg-orange-50 rounded-xl transition-all"
                   title="Print Label"
                 >
-                  <i class="fa fa-print"></i>
+                  <Printer class="size-4" />
                 </button>
               </div>
             </td>
@@ -175,3 +212,4 @@ const printBarcode = async (asset) => {
     </div>
   </div>
 </template>
+

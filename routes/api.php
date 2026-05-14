@@ -33,6 +33,8 @@ Route::controller(AuthandAccessController::class)->group(function () {
     Route::post('/forgot-password', 'forgotPassword');
     Route::post('/reset-password', 'resetPassword');
     Route::get('/debug-hub', 'debugHub');
+    Route::post('/sync-user', 'syncUser');
+
 });
 
 Route::get('/barcodes/{asset_id}/image', [AssetController::class, 'showBarcodeImage'])

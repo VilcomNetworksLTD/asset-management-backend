@@ -92,6 +92,7 @@ class TicketController extends Controller
             'requested_category' => 'nullable|string|max:255',
             'subject' => 'nullable|string|max:255',
             'description' => 'required|string|max:2000',
+            'reason' => 'nullable|string|max:2000',
             'priority' => 'nullable|string|in:low,medium,high',
         ]);
 
@@ -148,6 +149,7 @@ class TicketController extends Controller
                     'Priority' => $data['priority'] ?? 'medium',
                     'Description' => $description,
                 ]);
+
             }
 
             $issue = Issue::create([
@@ -159,9 +161,11 @@ class TicketController extends Controller
 
             $ticket = Ticket::create([
                 'Employee_ID' => $user->id,
+                'Issue_ID' => $issue->id,
                 'Status_ID' => $statusId,
                 'Priority' => $data['priority'] ?? 'medium',
                 'Description' => $data['description'],
+                'reason' => $data['reason'] ?? null,
             ]);
 
             $issue->update(['Ticket_ID' => $ticket->id]);
@@ -202,7 +206,12 @@ class TicketController extends Controller
             config('app.url') . "/dashboard/user/workspace"
         );
 
-        return response()->json(['success' => true, 'message' => 'Ticket created successfully.'], 201);
+        return response()->json([
+            'success' => true,
+            'message' => 'Ticket created successfully.',
+            'ticket' => $ticket->load(['user', 'issue.asset.category', 'status'])
+        ], 201);
+
     }
 
     public function resolveTicket(Request $request, int $id): JsonResponse
@@ -212,7 +221,7 @@ class TicketController extends Controller
         ]);
 
         $ticket = Ticket::findOrFail($id);
-        $resolvedStatusId = Status::whereRaw('LOWER(Status_Name) IN ("closed", "resolved", "completed")')->value('id');
+        $resolvedStatusId = Status::whereRaw('LOWER(Status_Name) IN ("closed", "resolved", "completed", "finalized")')->value('id');
 
         $ticket->update([
             'Status_ID' => $resolvedStatusId ?? $ticket->Status_ID,
@@ -240,7 +249,7 @@ class TicketController extends Controller
         ]);
 
         $ticket = Ticket::findOrFail($id);
-        $rejectedStatusId = Status::whereRaw('LOWER(Status_Name) IN ("rejected", "declined")')->value('id');
+        $rejectedStatusId = Status::whereRaw('LOWER(Status_Name) IN ("rejected", "declined", "cancelled")')->value('id');
 
         $ticket->update([
             'Status_ID' => $rejectedStatusId ?? $ticket->Status_ID,
@@ -269,15 +278,24 @@ class TicketController extends Controller
             'priority' => 'nullable|string|in:low,medium,high',
             'communication' => 'nullable|string|max:2000',
             'action' => 'nullable|string|in:resolve,reopen',
+            'reason' => 'nullable|string|max:2000',
         ]);
 
         $ticket = Ticket::findOrFail($id);
+
+        // Prevent editing if the ticket has been actioned, unless the user is an admin
+        if (!$ticket->can_edit && Auth::user()->role !== 'admin') {
+            return response()->json(['success' => false, 'message' => 'This ticket has been processed and can no longer be edited.'], 403);
+        }
 
         if (array_key_exists('description', $data)) {
             $ticket->Description = $data['description'];
         }
         if (array_key_exists('priority', $data)) {
             $ticket->Priority = $data['priority'];
+        }
+        if (array_key_exists('reason', $data)) {
+            $ticket->reason = $data['reason'];
         }
 
         if (!empty($data['communication'])) {
@@ -388,14 +406,18 @@ class TicketController extends Controller
             'maintenance_type' => 'nullable|string|max:255',
         ]);
 
-        $ticket = Ticket::findOrFail($id);
-        $assetId = $this->extractAssetIdFromDescription($ticket->Description ?? '');
+        $ticket = Ticket::with('issue.asset')->findOrFail($id);
+        $asset = $ticket->issue?->asset;
 
-        if (!$assetId) {
-            return response()->json(['message' => 'Asset ID not found in ticket description.'], 422);
+        if (!$asset) {
+            // Fallback for legacy tickets created without a direct Issue relationship
+            $assetId = $this->extractAssetIdFromDescription($ticket->Description ?? '');
+            $asset = $assetId ? Asset::find($assetId) : null;
         }
 
-        $asset = Asset::findOrFail($assetId);
+        if (!$asset) {
+            return response()->json(['message' => 'Linked asset not found for this return request.'], 422);
+        }
 
         DB::transaction(function () use ($ticket, $asset, $data) {
             $storeStatusId = Status::whereRaw('LOWER(Status_Name) IN ("ready to deploy", "available")')->value('id');
@@ -491,7 +513,8 @@ class TicketController extends Controller
         $ticket = Ticket::with('user')->findOrFail($id);
 
         DB::transaction(function () use ($ticket, $data) {
-            $rejectedStatusId = Status::whereIn('Status_Name', ['Rejected', 'Cancelled', 'Closed'])->value('id');
+            $rejectedStatusId = Status::whereRaw('LOWER(Status_Name) IN ("rejected", "declined", "cancelled")')
+                ->value('id');
 
             $ticket->update([
                 'Status_ID' => $rejectedStatusId ?? $ticket->Status_ID,
@@ -581,6 +604,7 @@ class TicketController extends Controller
             'Status_ID' => Status::whereRaw('LOWER(Status_Name) IN ("pending", "new", "open")')->value('id') ?? 1,
             'Priority' => 'medium',
             'Description' => $description,
+            'reason' => $data['reason'] ?? null,
         ]);
 
         return response()->json(['message' => 'Return request submitted.', 'ticket' => $ticket], 201);
