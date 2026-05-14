@@ -3,6 +3,8 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 import { useWindowFocus } from '@vueuse/core'
 import { useSettings } from '../composables/useSettings';
+import { Search, ChevronLeft, ChevronRight, Plus, Filter, Edit3, Trash2, UserPlus, Info } from 'lucide-vue-next';
+
 
 const rows = ref([])
 const users = ref([])
@@ -128,185 +130,227 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6">
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-800">Accessories</h1>
-      <button @click="openCreate" class="bg-[#3c8dbc] hover:bg-[#367fa9] text-white px-4 py-2 rounded shadow flex items-center gap-2 text-sm font-medium transition-colors">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+  <div class="max-w-7xl mx-auto space-y-10">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div>
+        <h1 class="text-4xl font-black text-slate-800 tracking-tight">Accessory <span class="text-vilcom-blue">Inventory</span></h1>
+        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+          <span class="size-1.5 bg-vilcom-orange rounded-full"></span>
+          Peripherals & Consumables Management
+        </p>
+      </div>
+      
+      <button @click="openCreate" class="bg-vilcom-blue text-white px-8 py-4 rounded-2xl shadow-xl shadow-blue-900/10 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">
+        <Plus class="size-4" />
         New Accessory
       </button>
     </div>
 
-    <div class="bg-white p-3 rounded shadow-sm mb-3 flex gap-2 flex-wrap items-center">
-      <input v-model="filters.search" @keyup.enter="fetchRows(1)" class="border px-3 py-2 rounded text-sm focus:ring-2 focus:ring-blue-400 outline-none" placeholder="Search accessories..." />
-      
-      <select v-model="filters.category" class="border px-3 py-2 rounded text-sm">
-        <option value="">All categories</option>
-        <option value="USB Drive">USB Drive</option>
-        <option value="Headset">Headset</option>
-        <option value="Printer">Printer</option>
-        <option value="Webcam">Webcam</option>
-        <option value="Charger">Charger</option>
-        <option value="Cables">Cables</option>
-        <option value="Adapters">Adapters</option>
-        <option value="">Select Category</option>
-        <option value="Motherboard">Motherboard</option>
-        <option value="CPU">CPU</option>
-        <option value="RAM">RAM</option>
-        <option value="GPU">GPU</option>
-        <option value="Hard Drive">Hard Drive</option>
-        <option value="Power Supply">Power Supply</option>
-        <option value="Keyboard">Keyboard</option>
-        <option value="Mouse">Mouse</option>
-        <option value="Network Card">Network Card</option>
-      </select>
-      
-      <select v-model.number="filters.per_page" class="border px-3 py-2 rounded text-sm">
-        <option :value="10">10 per page</option>
-        <option :value="20">20 per page</option>
-        <option :value="50">50 per page</option>
-      </select>
-      
-      <button @click="fetchRows(1)" class="px-4 py-2 bg-gray-800 hover:bg-black text-white rounded text-sm transition-colors">Apply</button>
-    </div>
+    <div class="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
+      <!-- Search & Filters -->
+      <div class="p-8 border-b border-gray-50 flex flex-wrap gap-4 items-center bg-gray-50/30">
+        <div class="relative group">
+          <input 
+            v-model="filters.search" 
+            @keyup.enter="fetchRows(1)" 
+            class="bg-white border-none rounded-xl py-3 pl-10 pr-6 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue transition-all w-64 shadow-sm" 
+            placeholder="Search peripherals..." 
+          />
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-300 group-focus-within:text-vilcom-blue transition-colors" />
+        </div>
 
-    <div v-if="showForm" class="bg-white p-4 rounded shadow-sm mb-3 grid grid-cols-2 gap-3 border-t-4 border-[#3c8dbc]">
-      <input v-model="form.name" class="border p-2 rounded" placeholder="Name" />
+        <select v-model="filters.category" class="bg-white border-none rounded-xl py-3 px-6 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue appearance-none min-w-[140px] shadow-sm">
+          <option value="">All Categories</option>
+          <option v-for="opt in categoryOptions" :key="opt" :value="opt">{{ opt }}</option>
+        </select>
 
-      <select v-model="form.category" class="border p-2 rounded">
-        <option value="">Select Category</option>
-        <option value="USB Drive">USB Drive</option>
-        <option value="Headset">Headset</option>
-        <option value="Printer">Printer</option>
-        <option value="Webcam">Webcam</option>
-        <option value="Charger">Charger</option>
-        <option value="Cables">Cables</option>
-        <option value="Adapters">Adapters</option>
-        <option value="">Select Category</option>
-        <option value="Motherboard">Motherboard</option>
-        <option value="CPU">CPU</option>
-        <option value="RAM">RAM</option>
-        <option value="GPU">GPU</option>
-        <option value="Hard Drive">Hard Drive</option>
-        <option value="Power Supply">Power Supply</option>
-        <option value="Keyboard">Keyboard</option>
-        <option value="Mouse">Mouse</option>
-        <option value="Network Card">Network Card</option>
-      </select>
+        <button @click="fetchRows(1)" class="bg-slate-800 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-lg shadow-black/5">Apply Filter</button>
+      </div>
 
-      <input v-model="form.model_number" class="border p-2 rounded" placeholder="Model Number" />
-      <input v-model="form.serial_no" class="border p-2 rounded" placeholder="Serial Number" />
-      <input v-model="form.serial_no" class="border p-2 rounded" placeholder="Serial Number" />
-      <input v-model="form.total_qty" type="number" class="border p-2 rounded" placeholder="Total Qty" />
-      <input v-model="form.remaining_qty" type="number" class="border p-2 rounded" placeholder="Remaining Qty" />
-      <input v-model="form.price" type="number" class="border p-2 rounded" placeholder="Price" />
+      <!-- Table View -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-50/50 border-b border-gray-50">
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Asset Identity</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Category</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Availability</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Unit Price</th>
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            <tr v-if="loading">
+              <td colspan="5" class="p-20 text-center text-gray-400 font-bold uppercase text-[10px] tracking-widest">
+                Scanning Stock Level...
+              </td>
+            </tr>
+            <tr v-for="item in rows" :key="item.id" class="group hover:bg-blue-50/30 transition-all duration-300">
+              <td class="px-8 py-5">
+                <div>
+                  <div class="font-black text-slate-800 text-sm group-hover:text-vilcom-blue transition-colors">{{ item.name }}</div>
+                  <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1 font-mono">
+                    {{ item.model_number || 'STK' }} | {{ item.serial_no || item.id }}
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-5">
+                <span class="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest">{{ item.category }}</span>
+              </td>
+              <td class="px-6 py-5">
+                <div class="flex flex-col items-center">
+                  <div class="w-32 h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
+                    <div 
+                      class="h-full transition-all duration-1000" 
+                      :class="item.remaining_qty < 5 ? 'bg-vilcom-orange' : 'bg-vilcom-blue'"
+                      :style="{ width: (item.remaining_qty / item.total_qty * 100) + '%' }"
+                    ></div>
+                  </div>
+                  <span class="text-[10px] font-black" :class="item.remaining_qty < 1 ? 'text-red-600' : 'text-slate-600'">
+                    {{ item.remaining_qty }} <span class="text-gray-300 mx-1">/</span> {{ item.total_qty }} <span class="ml-1 uppercase text-gray-400">In Stock</span>
+                  </span>
+                </div>
+              </td>
+              <td class="px-6 py-5 text-right font-black text-slate-700 text-sm">
+                {{ formatMoney(item.price) }}
+              </td>
+              <td class="px-8 py-5 text-right">
+                <div class="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button @click="openAssign(item)" :disabled="item.remaining_qty < 1" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all disabled:opacity-20" title="Assign to User">
+                    <UserPlus class="size-4" />
+                  </button>
+                  <button @click="openEdit(item)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-blue hover:border-vilcom-blue hover:shadow-lg transition-all" title="Edit Metadata">
+                    <Edit3 class="size-4" />
+                  </button>
+                  <button @click="removeRow(item.id)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-red-500 hover:border-red-500 hover:shadow-lg transition-all" title="Delete Permanent">
+                    <Trash2 class="size-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-      <div class="col-span-2 flex gap-2 pt-2">
-        <button :disabled="saving" @click="save" class="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 transition-colors">
-          {{ editingId ? 'Update' : 'Create' }}
-        </button>
-        <button @click="showForm = false" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors">Cancel</button>
+      <!-- Pagination -->
+      <div v-if="pagination.last_page > 1" class="p-8 border-t border-gray-50 flex items-center justify-between bg-gray-50/20">
+        <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+          Quantum {{ pagination.current_page }} of {{ pagination.last_page }} <span class="mx-2 text-gray-200">|</span> Total Items: {{ pagination.total }}
+        </div>
+        <div class="flex items-center gap-3">
+          <button :disabled="pagination.current_page <= 1" @click="fetchRows(pagination.current_page - 1)" class="p-3 border border-gray-100 rounded-xl bg-white hover:bg-gray-50 disabled:opacity-20 transition-all font-black text-xs">
+            <ChevronLeft class="size-4" />
+          </button>
+          <button :disabled="pagination.current_page >= pagination.last_page" @click="fetchRows(pagination.current_page + 1)" class="p-3 border border-gray-100 rounded-xl bg-white hover:bg-gray-50 disabled:opacity-20 transition-all font-black text-xs">
+            <ChevronRight class="size-4" />
+          </button>
+        </div>
       </div>
     </div>
 
-    <div v-if="showAssignForm" class="fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center backdrop-blur-sm">
-      <div class="relative p-6 border w-96 shadow-2xl rounded-lg bg-white">
-        <div class="text-center">
-          <h3 class="text-lg font-bold text-gray-900 border-b pb-2">Assign Accessory</h3>
-          <p class="text-sm text-[#3c8dbc] mt-2 font-medium italic">{{ assignForm.item?.name }}</p>
-          
-          <div class="mt-4 space-y-4 text-left">
-            <div>
-              <label class="text-xs font-bold uppercase text-gray-500">Assign to User</label>
-              <select v-model="assignForm.user_id" class="w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-green-500 outline-none">
-                <option value="" disabled>Select a user</option>
-                <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
-              </select>
+    <!-- Modals (Simplified Design) -->
+    <!-- Assign Modal -->
+    <div v-if="showAssignForm" class="fixed inset-0 z-[2000] flex items-center justify-center p-6">
+      <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showAssignForm = false"></div>
+      <div class="relative bg-white w-full max-w-md rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+        <div class="p-10 space-y-8">
+          <div class="flex items-center gap-4">
+            <div class="p-3 bg-green-50 text-green-600 rounded-2xl">
+              <UserPlus class="size-6" />
             </div>
             <div>
-              <label class="text-xs font-bold uppercase text-gray-500">Quantity</label>
-              <input v-model.number="assignForm.quantity" type="number" min="1" :max="assignForm.item?.remaining_qty" class="w-full border p-2 rounded mt-1 outline-none focus:ring-2 focus:ring-green-500" />
-              <p class="text-[11px] text-gray-500 mt-1 italic font-medium">Available in stock: {{ assignForm.item?.remaining_qty }}</p>
+              <h3 class="text-lg font-black text-slate-800 tracking-tight">Assign </h3>
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{{ assignForm.item?.name }}</p>
             </div>
           </div>
 
-          <div class="flex flex-col gap-2 mt-6">
-            <button @click="submitAssignment" :disabled="saving || !assignForm.user_id || assignForm.quantity < 1" class="px-4 py-2 bg-green-600 text-white font-medium rounded-md shadow hover:bg-green-700 disabled:opacity-50 transition-colors">
-              {{ saving ? 'Processing...' : 'Confirm Assignment' }}
+          <div class="space-y-6">
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Select User</label>
+              <select v-model="assignForm.user_id" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-green-500/20 transition-all cursor-pointer">
+                <option value="" disabled>Awaiting Selection...</option>
+                <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
+              </select>
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Quantity Transfer</label>
+              <input v-model.number="assignForm.quantity" type="number" min="1" :max="assignForm.item?.remaining_qty" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-green-500/20 transition-all" />
+              <div class="flex items-center gap-2 mt-2 ml-1">
+                <Info class="size-3 text-blue-500" />
+                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Stock remaining: {{ assignForm.item?.remaining_qty }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-3">
+            <button @click="submitAssignment" :disabled="saving || !assignForm.user_id" class="w-full py-4 bg-green-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-green-900/20 hover:scale-[1.02] active:scale-95 transition-all">
+              {{ saving ? 'Syncing...' : 'Authorize Transfer' }}
             </button>
-            <button @click="showAssignForm = false" class="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-md hover:bg-gray-200 transition-colors">
-              Cancel
-            </button>
+            <button @click="showAssignForm = false" class="w-full py-4 text-gray-400 text-xs font-black uppercase tracking-widest hover:text-red-500 transition-colors">Cancel Allocation</button>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="bg-white border-t-4 border-[#00c0ef] rounded shadow-md overflow-hidden">
-      <table class="w-full text-left border-collapse">
-        <thead class="bg-gray-50 border-b">
-          <tr class="text-[11px] uppercase text-gray-600 font-bold">
-            <th class="p-4">Name</th>
-            <th class="p-4">Category</th>
-            <th class="p-4">Model No.</th>
-            <th class="p-4">Serial No.</th>
-            <th class="p-4 text-center">Availability</th>
-            <th class="p-4 text-right">Price</th>
-            <th class="p-4 text-center">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="text-[13px] divide-y">
-          <tr v-if="loading"><td colspan="7" class="p-8 text-center text-gray-500 italic">Loading accessories...</td></tr>
-          <tr v-for="item in rows" :key="item.id" class="hover:bg-gray-50 transition-colors">
-            <td class="p-4 font-bold text-[#3c8dbc]">{{ item.name }}</td>
-            <td class="p-4">{{ item.category }}</td>
-            <td class="p-4 font-mono text-[11px] text-gray-500">{{ item.model_number || 'N/A' }}</td>
-            <td class="p-3 border-r font-mono text-[11px] text-gray-500">{{ item.serial_no || 'N/A' }}</td>
-            <td class="p-4 text-center">
-              <span class="px-2 py-0.5 rounded-full bg-gray-100 text-[11px] font-bold" :class="item.remaining_qty < 1 ? 'text-red-600' : 'text-gray-700'">
-                {{ item.remaining_qty }} / {{ item.total_qty }}
-              </span>
-            </td>
-            <td class="p-4 text-right font-medium">{{ formatMoney(item.price) }}</td>
-            <td class="p-4">
-              <div class="flex items-center justify-center gap-4">
-                <button 
-                  class="text-green-600 hover:text-green-800 disabled:opacity-30 transition-colors" 
-                  @click="openAssign(item)"
-                  :disabled="item.remaining_qty < 1"
-                  title="Assign to User"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
-                </button>
+    <!-- Create/Edit Form -->
+    <div v-if="showForm" class="fixed inset-0 z-[2000] flex items-center justify-center p-6">
+      <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showForm = false"></div>
+      <div class="relative bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+        <div class="p-10 space-y-8">
+          <div class="flex items-center gap-4">
+            <div class="p-3 bg-vilcom-blue text-white rounded-2xl shadow-lg shadow-blue-900/20">
+              <Edit3 class="size-6" />
+            </div>
+            <div>
+              <h3 class="text-lg font-black text-slate-800 tracking-tight">{{ editingId ? 'Update Metadata' : 'New Stock Entry' }}</h3>
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Inventory Management Protocol</p>
+            </div>
+          </div>
 
-                <button 
-                  class="text-blue-500 hover:text-blue-700 transition-colors" 
-                  @click="openEdit(item)"
-                  title="Edit Accessory"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                </button>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Item Descriptor</label>
+              <input v-model="form.name" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="e.g. Logitech MX Master 3S">
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Sector Class</label>
+              <select v-model="form.category" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
+                <option value="">Select Category...</option>
+                <option v-for="opt in ['USB Drive','Headset','Printer','Webcam','Charger','Cables','Adapters','Motherboard','CPU','RAM','GPU','Hard Drive','Power Supply','Keyboard','Mouse','Network Card']" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Model Architecture</label>
+              <input v-model="form.model_number" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="M/N: 910-006557">
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Identity/Serial</label>
+              <input v-model="form.serial_no" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="S/N: 2228LZ03G688">
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Total Stock</label>
+              <input v-model.number="form.total_qty" type="number" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Available Stock</label>
+              <input v-model.number="form.remaining_qty" type="number" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
+            </div>
+            <div class="space-y-2 md:col-span-2">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Valuation (KSh)</label>
+              <input v-model.number="form.price" type="number" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="0.00">
+            </div>
+          </div>
 
-                <button 
-                  class="text-red-500 hover:text-red-700 transition-colors" 
-                  @click="removeRow(item.id)"
-                  title="Delete Accessory"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="mt-4 flex items-center justify-between text-sm text-gray-600">
-      <div class="flex items-center gap-2">
-        <button :disabled="pagination.current_page <= 1" @click="fetchRows(pagination.current_page - 1)" class="px-3 py-1 border rounded bg-white hover:bg-gray-50 disabled:opacity-50 transition-colors">Prev</button>
-        <button :disabled="pagination.current_page >= pagination.last_page" @click="fetchRows(pagination.current_page + 1)" class="px-3 py-1 border rounded bg-white hover:bg-gray-50 disabled:opacity-50 transition-colors">Next</button>
+          <div class="flex gap-4">
+            <button @click="save" :disabled="saving" class="flex-1 py-4 bg-vilcom-blue text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-900/20 hover:scale-[1.02] active:scale-95 transition-all">
+              {{ saving ? 'Synchronizing...' : (editingId ? 'Commit Changes' : 'Add') }}
+            </button>
+            <button @click="showForm = false" class="px-8 py-4 bg-gray-100 text-gray-400 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-gray-200 hover:text-slate-600 transition-all">Cancel</button>
+          </div>
+        </div>
       </div>
-      <span>Page <b>{{ pagination.current_page }}</b> of {{ pagination.last_page }} <span class="mx-2 text-gray-300">|</span> {{ pagination.total }} records</span>
     </div>
   </div>
 </template>

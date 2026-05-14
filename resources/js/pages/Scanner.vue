@@ -3,6 +3,8 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { Html5Qrcode, Html5QrcodeScanner } from "html5-qrcode";
+import { QrCode, CheckCircle2, ScanLine, XCircle, Info, ChevronLeft, ArrowRight, RefreshCw, Smartphone } from 'lucide-vue-next';
+
 
 const props = defineProps({
   targetRoute: {
@@ -132,54 +134,116 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="p-6 max-w-2xl mx-auto">
-    
-    <!-- Scanner View -->
-    <div v-if="!scannedAsset" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <div class="mb-4 text-center">
-        <h1 class="text-2xl font-bold text-gray-800">Quick Scan</h1>
-        <p class="text-gray-500">Point your camera at the asset tag</p>
-      </div>
-
-      <div id="reader" class="overflow-hidden rounded-lg bg-black"></div>
-      <div v-if="loadingDetails" class="text-center mt-4 text-blue-600 font-bold animate-pulse">Fetching Asset Details...</div>
-
-      <div v-if="errorMsg" class="mt-4 p-3 bg-red-100 text-red-700 rounded text-center font-medium">{{ errorMsg }}</div>
-    </div>
-
-    <!-- Result View (No Redirect) -->
-    <div v-else class="bg-white rounded-xl shadow-lg border border-indigo-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4">
-      <div class="bg-green-600 p-4 text-center text-white">
-        <i class="fa fa-check-circle text-4xl mb-2 block"></i>
-        <h2 class="text-xl font-bold">Scan Successful</h2>
+  <div class="max-w-3xl mx-auto space-y-10">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div>
+        <h1 class="text-4xl font-black text-slate-800 tracking-tight">Rapid <span class="text-vilcom-blue">Scanner</span></h1>
+        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+          <span class="size-1.5 bg-vilcom-orange rounded-full animate-ping"></span>
+          Asset Tag Recognition Protocol
+        </p>
       </div>
       
-      <div class="p-6 text-center space-y-4">
-        <div>
-          <p class="text-xs font-bold text-gray-400 uppercase">Asset Name</p>
-          <p class="text-2xl font-bold text-gray-800">{{ scannedAsset.Asset_Name }}</p>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <p class="text-xs font-bold text-gray-400 uppercase">Asset Tag</p>
-            <p class="font-mono text-gray-700 font-medium">{{ scannedAsset.barcode }}</p>
+      <button @click="router.back()" class="p-4 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 transition-all">
+        <ChevronLeft class="size-5" />
+      </button>
+    </div>
+
+    <!-- Scanner View -->
+    <div v-if="!scannedAsset" class="bg-white rounded-[3.5rem] shadow-sm border border-gray-100 overflow-hidden relative">
+      <div class="p-12 space-y-10">
+        <div class="flex items-center gap-5">
+          <div class="p-4 bg-vilcom-blue text-white rounded-[1.5rem] shadow-xl shadow-blue-900/20">
+            <ScanLine class="size-6" />
           </div>
           <div>
-            <p class="text-xs font-bold text-gray-400 uppercase">Serial</p>
-            <p class="font-mono text-gray-700 font-medium">{{ scannedAsset.Serial_No || 'N/A' }}</p>
+            <h3 class="text-2xl font-black text-slate-800 tracking-tighter">Initialize Lens</h3>
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">QR & Barcode Acquisition</p>
+          </div>
+        </div>
+
+        <div class="relative rounded-[2.5rem] overflow-hidden bg-slate-900 border-[8px] border-slate-50 shadow-inner group">
+          <div id="reader" class="w-full aspect-square md:aspect-video object-cover opacity-90 group-hover:opacity-100 transition-opacity"></div>
+          
+          <!-- Scanner Overlay Guide -->
+          <div class="absolute inset-0 pointer-events-none flex items-center justify-center">
+            <div class="size-48 border-2 border-vilcom-orange/50 rounded-3xl relative">
+              <div class="absolute -top-1 -left-1 size-6 border-t-4 border-l-4 border-vilcom-orange rounded-tl-xl"></div>
+              <div class="absolute -top-1 -right-1 size-6 border-t-4 border-r-4 border-vilcom-orange rounded-tr-xl"></div>
+              <div class="absolute -bottom-1 -left-1 size-6 border-b-4 border-l-4 border-vilcom-orange rounded-bl-xl"></div>
+              <div class="absolute -bottom-1 -right-1 size-6 border-b-4 border-r-4 border-vilcom-orange rounded-br-xl"></div>
+              <div class="absolute inset-0 bg-vilcom-orange/5 animate-pulse rounded-3xl"></div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="loadingDetails" class="flex items-center justify-center gap-3 py-4">
+          <RefreshCw class="size-5 text-vilcom-blue animate-spin" />
+          <span class="text-[10px] font-black text-vilcom-blue uppercase tracking-widest">Decoding Stream...</span>
+        </div>
+
+        <div v-if="errorMsg" class="flex items-center gap-3 p-6 bg-red-50 border border-red-100 rounded-2xl animate-in slide-in-from-top-2">
+          <XCircle class="size-5 text-red-500" />
+          <span class="text-[10px] font-black text-red-600 uppercase tracking-widest">{{ errorMsg }}</span>
+        </div>
+
+        <div class="flex items-center justify-center gap-8 pt-4">
+           <div class="flex flex-col items-center gap-2">
+             <div class="size-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300">
+               <Smartphone class="size-5" />
+             </div>
+             <span class="text-[8px] font-black text-gray-400 uppercase tracking-widest">Mobile Optimized</span>
+           </div>
+           <div class="flex flex-col items-center gap-2">
+             <div class="size-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300">
+               <QrCode class="size-5" />
+             </div>
+             <span class="text-[8px] font-black text-gray-400 uppercase tracking-widest">High Definition</span>
+           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result View -->
+    <div v-else class="bg-white rounded-[3.5rem] shadow-sm border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-500">
+      <div class="bg-gradient-to-br from-green-500 to-emerald-600 p-12 text-center text-white relative">
+        <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIgZmlsbD0iI2ZmZiIgZmlsbC1vcGFjaXR5PSIwLjEifS8+PC9zdmc+')] opacity-20"></div>
+        <div class="size-24 bg-white/20 backdrop-blur-md rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl">
+          <CheckCircle2 class="size-12 text-white" />
+        </div>
+        <h2 class="text-3xl font-black tracking-tight mb-2">Identification <span class="opacity-70">Complete</span></h2>
+        <p class="text-[10px] font-bold text-white/70 uppercase tracking-widest">Registry Match Found</p>
+      </div>
+      
+      <div class="p-12 space-y-10">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="col-span-2 space-y-2 text-center md:text-left bg-slate-50 p-8 rounded-3xl border border-gray-100">
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">System Identity</label>
+            <p class="text-3xl font-black text-slate-800 tracking-tighter">{{ scannedAsset.Asset_Name }}</p>
+          </div>
+          
+          <div class="space-y-2 bg-slate-50 p-6 rounded-3xl border border-gray-100">
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Asset Tag</label>
+            <p class="text-lg font-black text-vilcom-blue font-mono tracking-tighter">{{ scannedAsset.barcode }}</p>
+          </div>
+
+          <div class="space-y-2 bg-slate-50 p-6 rounded-3xl border border-gray-100">
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Serial Reference</label>
+            <p class="text-lg font-black text-slate-700 font-mono tracking-tighter">{{ scannedAsset.Serial_No || 'N/A' }}</p>
           </div>
         </div>
         
-        <div class="pt-6 flex flex-col gap-3">
-          <button @click="viewAssetDetails" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition">
-            View Full Details
+        <div class="flex flex-col md:flex-row gap-4 pt-6">
+          <button @click="viewAssetDetails" class="flex-1 bg-vilcom-blue text-white py-5 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-blue-900/30 hover:bg-blue-700 transition-all flex items-center justify-center gap-3">
+            Interface Detail
+            <ArrowRight class="size-4" />
           </button>
-          <button @click="resetScanner" class="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200 transition">
-            Scan Another
+          <button @click="resetScanner" class="px-10 bg-slate-50 text-slate-400 py-5 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.2em] hover:bg-slate-100 transition-all">
+            Recapture
           </button>
         </div>
       </div>
     </div>
-
   </div>
 </template>

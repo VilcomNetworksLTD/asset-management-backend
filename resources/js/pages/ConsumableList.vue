@@ -3,6 +3,8 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import { useWindowFocus } from '@vueuse/core';
 import Loader from '@/components/Loader.vue';
+import { RefreshCcw, Printer, Droplets, Clock, CheckCircle2, XCircle, Search, ChevronLeft, ChevronRight, Plus, Activity } from 'lucide-vue-next';
+
 
 const isFocused = useWindowFocus()
 const REFRESH_INTERVAL = 30000
@@ -86,126 +88,167 @@ const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-GB', {
 </script>
 
 <template>
-  <div class="p-6">
-    <h1 class="text-2xl font-bold text-gray-800 mb-6">Consumables / Toner Lifecycle</h1>
+  <div class="max-w-7xl mx-auto space-y-10">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div>
+        <h1 class="text-4xl font-black text-slate-800 tracking-tight">Consumable <span class="text-vilcom-blue">Lifecycle</span></h1>
+        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+          <span class="size-1.5 bg-vilcom-orange rounded-full"></span>
+          Monitoring Ink & Toner Depletion Rates
+        </p>
+      </div>
+    </div>
 
-    <div class="bg-white p-6 rounded-lg shadow-sm border border-indigo-100 mb-8">
-      <h3 class="text-sm font-black text-indigo-700 uppercase mb-4 flex items-center gap-2">
-        <i class="fa fa-sync"></i> Record Replacement / Usage
-      </h3>
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Select Printer</label>
-          <select v-model="form.asset_id" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-            <option value="">Which Printer?</option>
-            <option v-for="p in printers" :key="p.id" :value="p.id">
-              {{ p.Asset_Name || p.name }} ({{ p.Serial_No || p.serial }})
-            </option>
-          </select>
+    <!-- Action Card -->
+    <div class="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
+      <div class="p-10 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+        <div class="flex items-center gap-4">
+          <div class="p-3 bg-vilcom-orange text-white rounded-2xl shadow-lg shadow-orange-900/10">
+             <Droplets class="size-6" />
+          </div>
+          <div>
+            <h3 class="text-lg font-black text-slate-800 tracking-tight">Record Replacement</h3>
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Update Cartridge Status</p>
+          </div>
         </div>
+      </div>
 
-        <div class="md:col-span-2">
-          <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">New Cartridge Model</label>
-          <select v-model="form.consumable_id" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-            <option value="">Select from Stock...</option>
-            <option v-for="c in consumablesStock" :key="c.id" :value="c.id">
-              {{ c.item_name }}
-            </option>
-          </select>
-        </div>
-
-        <div>
-          <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Select Color from Stock</label>
-          <select v-model="form.color" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none" :disabled="!form.consumable_id">
-            <option value="">Which Color?</option>
-            <template v-if="form.consumable_id">
-              <option 
-                v-for="cs in (consumablesStock.find(c => c.id === form.consumable_id)?.color_stocks || [])" 
-                :key="cs.id" 
-                :value="cs.color"
-                :disabled="cs.in_stock <= 0"
-              >
-                {{ cs.color }} (Available: {{ cs.in_stock }})
+      <div class="p-10">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div class="space-y-2">
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Target Printer</label>
+            <select v-model="form.asset_id" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all cursor-pointer">
+              <option value="">Select Device...</option>
+              <option v-for="p in printers" :key="p.id" :value="p.id">
+                {{ p.Asset_Name || p.name }}
               </option>
-            </template>
-          </select>
-        </div>
+            </select>
+          </div>
 
-        <div class="flex items-end">
-          <button 
-            @click="handleReplace" 
-            :disabled="submitting || !form.asset_id"
-            class="w-full bg-indigo-600 text-white py-2 rounded font-bold text-xs hover:bg-indigo-700 disabled:opacity-50 h-[38px] transition-all shadow-md"
-          >
-            {{ submitting ? 'Updating...' : 'RECORD REPLACEMENT' }}
-          </button>
+          <div class="space-y-2 md:col-span-1">
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Cartridge Unit</label>
+            <select v-model="form.consumable_id" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all cursor-pointer">
+              <option value="">Select Stock...</option>
+              <option v-for="c in consumablesStock" :key="c.id" :value="c.id">
+                {{ c.item_name }}
+              </option>
+            </select>
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Color Variant</label>
+            <select v-model="form.color" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all cursor-pointer" :disabled="!form.consumable_id">
+              <option value="">Select Color...</option>
+              <template v-if="form.consumable_id">
+                <option 
+                  v-for="cs in (consumablesStock.find(c => c.id === form.consumable_id)?.color_stocks || [])" 
+                  :key="cs.id" 
+                  :value="cs.color"
+                  :disabled="cs.in_stock <= 0"
+                >
+                  {{ cs.color }} ({{ cs.in_stock }} units left)
+                </option>
+              </template>
+            </select>
+          </div>
+
+          <div class="flex items-end">
+            <button 
+              @click="handleReplace" 
+              :disabled="submitting || !form.asset_id || !form.color"
+              class="w-full py-4 bg-vilcom-blue text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-900/10 hover:scale-105 active:scale-95 transition-all disabled:opacity-30"
+            >
+              {{ submitting ? 'Updating...' : 'Certify Replacement' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="bg-white border rounded-xl overflow-hidden shadow-md">
-      <div class="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
-        <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest">Usage History & Active Cycles</h2>
-        <button @click="fetchAllHistory" class="text-indigo-600 hover:text-indigo-800">
-          <i class="fa fa-refresh" :class="{'fa-spin': loading}"></i>
+    <!-- Usage History -->
+    <div class="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
+      <div class="p-8 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+        <h2 class="text-sm font-black text-slate-800 uppercase tracking-[0.2em] flex items-center gap-3">
+          <Activity class="size-4 text-vilcom-blue" />
+          Active Cycles & Depletion History
+        </h2>
+        <button @click="fetchAllHistory" class="p-3 bg-white border border-gray-100 rounded-xl text-slate-400 hover:text-vilcom-blue hover:border-vilcom-blue transition-all">
+          <RefreshCcw class="size-4" :class="{'animate-spin': loading}" />
         </button>
       </div>
-      <table class="w-full text-left text-sm border-collapse">
-        <thead class="bg-white text-gray-400 font-bold uppercase text-[10px] border-b">
-          <tr>
-            <th class="p-4">Printer (Asset)</th>
-            <th class="p-4">Color</th>
-            <th class="p-4">Ink Model Used</th>
-            <th class="p-4">Started</th>
-            <th class="p-4">Finished</th>
-            <th class="p-4 text-center">Current Status</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y">
-          <tr v-if="loading"><td colspan="6" class="p-10 text-center text-gray-400 italic">Fetching cycle data...</td></tr>
-          
-          <tr v-for="log in history" :key="log.id" :class="!log.depleted_at ? 'bg-green-50/50' : 'bg-white'">
-            <td class="p-4">
-              <div class="font-bold text-gray-700">{{ log.asset?.Asset_Name || log.asset?.name || 'Unknown Asset' }}</div>
-              <div class="text-[10px] text-gray-400 font-mono">{{ log.asset?.Serial_No || log.asset?.serial || 'N/A' }}</div>
-            </td>
-            <td class="p-4">
-              <span class="flex items-center gap-2 font-bold uppercase text-xs">
-                 <div :class="{
-                   'bg-black': (log.color || '').toLowerCase() === 'black',
-                   'bg-cyan-400': (log.color || '').toLowerCase() === 'cyan',
-                   'bg-pink-500': (log.color || '').toLowerCase() === 'magenta',
-                   'bg-yellow-400': (log.color || '').toLowerCase() === 'yellow',
-                   'bg-gray-300': !['black','cyan','magenta','yellow'].includes((log.color || '').toLowerCase())
-                 }" class="w-3 h-3 rounded-full border border-gray-200 shadow-sm"></div>
-                 {{ log.color || 'Unknown' }}
-              </span>
-            </td>
-            <td class="p-4 text-gray-600 font-medium">
-              {{ log.consumable?.item_name || log.consumable?.name || 'Generic Cartridge' }}
-            </td>
-            <td class="p-4 text-gray-500">
-              {{ formatDate(log.installed_at) }}
-            </td>
-            <td class="p-4 text-gray-500">
-              <span v-if="log.depleted_at">{{ formatDate(log.depleted_at) }}</span>
-              <span v-else class="italic text-indigo-400">In Use</span>
-            </td>
-            <td class="p-4 text-center">
-              <span v-if="!log.depleted_at" class="px-3 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-black uppercase tracking-tighter animate-pulse">
-                Running
-              </span>
-              <span v-else class="px-3 py-1 rounded-full bg-gray-100 text-gray-400 text-[10px] font-bold uppercase tracking-tighter">
-                Empty
-              </span>
-            </td>
-          </tr>
 
-          <tr v-if="history.length === 0 && !loading">
-            <td colspan="6" class="p-12 text-center text-gray-400 italic">No usage history found. Use the form above to record the first toner installation.</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-50/50 border-b border-gray-50">
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Printer Instance</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Color Profile</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Consumable Model</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Timeline</th>
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            <tr v-if="loading">
+              <td colspan="5" class="p-20 text-center text-gray-400 font-bold uppercase text-[10px] tracking-widest">
+                Scanning usage logs...
+              </td>
+            </tr>
+            <tr v-for="log in history" :key="log.id" :class="!log.depleted_at ? 'bg-blue-50/30 group' : 'bg-white group'" class="hover:bg-slate-50 transition-colors">
+              <td class="px-8 py-5">
+                <div class="flex items-center gap-4">
+                  <div class="size-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-vilcom-blue group-hover:text-white transition-all">
+                    <Printer class="size-5" />
+                  </div>
+                  <div>
+                    <div class="font-black text-slate-800 text-sm group-hover:text-vilcom-blue transition-colors">
+                      {{ log.asset?.Asset_Name || log.asset?.name || 'Independent Unit' }}
+                    </div>
+                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1 font-mono">
+                      {{ log.asset?.Serial_No || log.asset?.serial || 'SER-ID-UNKNOWN' }}
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-5">
+                <div class="flex items-center gap-3">
+                  <div :class="{
+                    'bg-slate-900 shadow-lg shadow-black/20': (log.color || '').toLowerCase() === 'black',
+                    'bg-cyan-400 shadow-lg shadow-cyan-400/20': (log.color || '').toLowerCase() === 'cyan',
+                    'bg-pink-500 shadow-lg shadow-pink-500/20': (log.color || '').toLowerCase() === 'magenta',
+                    'bg-yellow-400 shadow-lg shadow-yellow-400/20': (log.color || '').toLowerCase() === 'yellow',
+                    'bg-gray-300': !['black','cyan','magenta','yellow'].includes((log.color || '').toLowerCase())
+                  }" class="size-4 rounded-full border border-white/50"></div>
+                  <span class="text-[10px] font-black text-slate-600 uppercase tracking-widest">{{ log.color || 'Unknown' }}</span>
+                </div>
+              </td>
+              <td class="px-6 py-5">
+                <div class="text-xs font-black text-slate-700">{{ log.consumable?.item_name || 'Generic Cartridge' }}</div>
+              </td>
+              <td class="px-6 py-5">
+                <div class="flex flex-col gap-1">
+                  <div class="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <span class="text-teal-600">IN:</span> {{ formatDate(log.installed_at) }}
+                  </div>
+                  <div class="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <span class="text-vilcom-orange">OUT:</span> {{ log.depleted_at ? formatDate(log.depleted_at) : '---' }}
+                  </div>
+                </div>
+              </td>
+              <td class="px-8 py-5 text-center">
+                <span v-if="!log.depleted_at" class="px-4 py-1.5 rounded-xl bg-teal-50 text-teal-600 text-[9px] font-black uppercase tracking-widest ring-1 ring-teal-100 flex items-center justify-center gap-2">
+                  <span class="size-1.5 bg-teal-500 rounded-full animate-pulse"></span>
+                  Active Cycle
+                </span>
+                <span v-else class="px-4 py-1.5 rounded-xl bg-gray-100 text-gray-400 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
+                  Depleted
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </template>

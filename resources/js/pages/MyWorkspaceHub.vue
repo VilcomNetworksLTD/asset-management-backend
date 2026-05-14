@@ -73,13 +73,13 @@ const allSecondSection = [
     routeName: 'user.request-return', 
     description: 'Initiate a request for returning an asset or equipment.' 
   },
-  { 
+  /*{ 
     name: 'Asset Transfer Request', 
     icon: ArrowLeftRight, 
     iconColor: 'text-teal-600', 
     routeName: 'user.request-transfer', 
     description: 'Transition an existing asset to another user or sector.' 
-  },
+  },*/
   { 
     name: 'Purchase Escalations', 
     icon: ShoppingCart, 

@@ -63,14 +63,20 @@ class Maintenance extends Model
             }
 
             // Find and set the corresponding Status_ID from the statuses table
-            $statusModel = Status::where('Status_Name', $maintenance->Workflow_Status)->first();
+            $statusModel = Status::whereRaw('LOWER(Status_Name) = ?', [strtolower($maintenance->Workflow_Status)])
+                ->orWhereRaw('LOWER(Status_Name) = ?', [strtolower(str_replace(' ', '', $maintenance->Workflow_Status))])
+                ->first();
+                
             if ($statusModel) {
                 $maintenance->Status_ID = $statusModel->id;
             }
 
             // Automate Asset Status update to "Out for Repair" as requested
             if ($maintenance->Asset_ID) {
-                $repairStatus = Status::where('Status_Name', 'Out for Repair')->first() ?? Status::where('Status_Name', 'Maintenance')->first();
+                $repairStatus = Status::whereRaw('LOWER(Status_Name) IN ("out for repair", "maintenance", "under repair")')
+                    ->orderByRaw("CASE WHEN LOWER(Status_Name) = 'out for repair' THEN 1 ELSE 2 END")
+                    ->first();
+
                 if ($repairStatus) {
                     Asset::where('id', $maintenance->Asset_ID)->update(['Status_ID' => $repairStatus->id]);
                 }
@@ -91,7 +97,9 @@ class Maintenance extends Model
         $this->Workflow_Status = $newStatus;
 
         // Find and set the corresponding Status_ID
-        $statusModel = Status::where('Status_Name', $newStatus)->first();
+        $statusModel = Status::whereRaw('LOWER(Status_Name) = ?', [strtolower($newStatus)])
+            ->orWhereRaw('LOWER(Status_Name) = ?', [strtolower(str_replace(' ', '', $newStatus))])
+            ->first();
         if ($statusModel) {
             $this->Status_ID = $statusModel->id;
         }
@@ -108,7 +116,9 @@ class Maintenance extends Model
             }
 
             if ($assetStatusName) {
-                $assetStatus = Status::where('Status_Name', $assetStatusName)->first();
+                $assetStatus = Status::whereRaw('LOWER(Status_Name) = ?', [strtolower($assetStatusName)])
+                    ->orWhereRaw('LOWER(Status_Name) = ?', [strtolower($assetStatusName . 's')])
+                    ->first();
                 if ($assetStatus) {
                     Asset::where('id', $this->Asset_ID)->update(['Status_ID' => $assetStatus->id]);
                 }

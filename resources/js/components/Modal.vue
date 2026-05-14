@@ -1,4 +1,6 @@
 <script setup>
+import { X } from 'lucide-vue-next';
+
 defineProps({
   show: Boolean,
   title: String,
@@ -21,15 +23,15 @@ defineEmits(['close']);
       <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" @click="$emit('close')"></div>
       
       <!-- Modal container -->
-      <div class="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden z-10 flex flex-col max-h-[90vh]">
+      <div class="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden z-10 flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-300">
         <!-- Header -->
         <div class="px-10 py-8 border-b border-gray-50 flex items-center justify-between bg-slate-50/50">
           <div>
              <h3 class="text-xl font-black text-slate-800 tracking-tight">{{ title }}</h3>
-             <div class="h-1 w-8 bg-vilcom-orange mt-1 rounded-full"></div>
+             <div class="h-1 w-8 bg-vilcom-orange mt-2 rounded-full"></div>
           </div>
           <button @click="$emit('close')" class="p-2 text-gray-400 hover:bg-white hover:text-red-500 rounded-xl transition-all">
-            <i class="fa fa-times text-lg"></i>
+            <X class="size-6" />
           </button>
         </div>
 

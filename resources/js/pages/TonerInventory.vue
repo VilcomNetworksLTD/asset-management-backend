@@ -2,6 +2,8 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import Loader from '@/components/Loader.vue';
+import { Printer, Plus, Search, Layers, Activity, AlertCircle, Edit3, Trash2, ChevronLeft, ChevronRight, X, Droplets, Package } from 'lucide-vue-next';
+
 
 const toners = ref([]);
 const loading = ref(false);
@@ -31,6 +33,8 @@ const fetchToners = async () => {
     toners.value = (data.data || data).filter(c => 
       ['Toner', 'Ink'].includes(c.category)
     );
+  } catch (error) {
+    console.error('Failed to fetch toners', error);
   } finally {
     loading.value = false;
   }
@@ -92,163 +96,204 @@ onMounted(fetchToners);
 </script>
 
 <template>
-  <div>
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-800">Toner Inventory Management</h1>
-      <button 
-        @click="openModal()" 
-        class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-700 transition shadow-md flex items-center gap-2"
-      >
-        <i class="fa fa-plus"></i> ADD NEW TONER TYPE
+  <div class="max-w-7xl mx-auto space-y-10">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div>
+        <h1 class="text-4xl font-black text-slate-800 tracking-tight">Supply <span class="text-vilcom-blue">Inventory</span></h1>
+        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+          <span class="size-1.5 bg-vilcom-orange rounded-full"></span>
+          Managed Printing & Consumables
+        </p>
+      </div>
+      
+      <button @click="openModal()" class="bg-vilcom-blue text-white px-8 py-4 rounded-2xl shadow-xl shadow-blue-900/10 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">
+        <Plus class="size-4" />
+        New Consumable Type
       </button>
     </div>
 
-    <div v-if="loading" class="flex justify-center p-12">
-      <Loader />
-    </div>
+    <!-- Table View -->
+    <div class="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden relative">
+      <div v-if="loading" class="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex items-center justify-center p-20">
+        <Loader />
+      </div>
 
-    <div v-else class="bg-white border rounded-xl overflow-hidden shadow-md">
-      <table class="w-full text-left text-sm border-collapse">
-        <thead class="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] border-b">
-          <tr>
-            <th class="p-4">Toner / Ink Model</th>
-            <th class="p-4">Stock Breakdown (Color: Amt)</th>
-            <th class="p-4">Total Stock</th>
-            <th class="p-4">Price (KES)</th>
-            <th class="p-4">Status</th>
-            <th class="p-4 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y">
-          <tr v-for="toner in toners" :key="toner.id" class="hover:bg-gray-50 transition">
-            <td class="p-4">
-              <div class="font-bold text-gray-700">{{ toner.item_name }}</div>
-              <div class="text-[10px] text-gray-400 uppercase font-bold">{{ toner.category }}</div>
-            </td>
-            <td class="p-4">
-              <div class="flex flex-wrap gap-2">
-                <span v-for="cs in toner.color_stocks" :key="cs.id" class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-xs">
-                  <span :style="{ backgroundColor: (cs.color || 'gray').toLowerCase() }" class="w-2 h-2 rounded-full border border-gray-300"></span>
-                  <span class="font-bold">{{ cs.color }}:</span>
-                  <span :class="cs.in_stock <= cs.min_amt ? 'text-red-600 font-black' : 'text-gray-600'">{{ cs.in_stock }}</span>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-50/50 border-b border-gray-50">
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Consumable Identity</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Chromatic Allocation</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Aggregate Stock</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Valuation</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Status</th>
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Operations</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            <tr v-for="toner in toners" :key="toner.id" class="group hover:bg-blue-50/30 transition-all duration-300">
+              <td class="px-8 py-5">
+                <div class="flex items-center gap-4">
+                  <div class="size-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-vilcom-blue group-hover:text-white transition-all">
+                    <Droplets class="size-5" />
+                  </div>
+                  <div>
+                    <div class="font-black text-slate-800 text-sm group-hover:text-vilcom-blue transition-colors">
+                      {{ toner.item_name }}
+                    </div>
+                    <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{{ toner.category }}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-5">
+                <div class="flex flex-wrap gap-2 max-w-[240px]">
+                  <div v-for="cs in toner.color_stocks" :key="cs.id" 
+                       class="flex items-center gap-2 bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-xl transition-all group/stock">
+                    <div :style="{ backgroundColor: (cs.color || 'gray').toLowerCase() }" 
+                         class="size-2 rounded-full border border-gray-200 shadow-sm"></div>
+                    <span class="text-[10px] font-black text-slate-600 uppercase tracking-tight">{{ cs.color }}</span>
+                    <span :class="cs.in_stock <= cs.min_amt ? 'text-red-600 animate-pulse' : 'text-vilcom-blue'" class="text-[10px] font-black">
+                      {{ cs.in_stock }}
+                    </span>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-5">
+                <div class="flex items-center gap-2">
+                  <Layers class="size-4 text-gray-300" />
+                  <span class="text-sm font-black text-slate-800">
+                    {{ toner.color_stocks?.reduce((acc, curr) => acc + curr.in_stock, 0) || 0 }}
+                  </span>
+                </div>
+              </td>
+              <td class="px-6 py-5">
+                <div class="text-[11px] font-black text-slate-600">
+                  <span class="text-[9px] text-gray-400 mr-1">KSh</span>
+                  {{ toner.price }}
+                </div>
+              </td>
+              <td class="px-6 py-5 text-center">
+                <span v-if="toner.status === 'Out of Stock'" class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-red-50 text-red-600 ring-1 ring-red-100">
+                  Depleted
                 </span>
-              </div>
-            </td>
-            <td class="p-4 font-mono font-bold">{{ toner.color_stocks?.reduce((acc, curr) => acc + curr.in_stock, 0) || 0 }}</td>
-            <td class="p-4 text-gray-600 font-medium">{{ toner.price }}</td>
-            <td class="p-4">
-              <span 
-                v-if="toner.status === 'Out of Stock'" 
-                class="px-2 py-1 rounded bg-red-100 text-red-700 text-[10px] font-black uppercase"
-              >
-                Out of Stock
-              </span>
-              <span 
-                v-else-if="toner.status === 'Low Stock'" 
-                class="px-2 py-1 rounded bg-yellow-100 text-yellow-700 text-[10px] font-black uppercase"
-              >
-                Low Stock
-              </span>
-              <span 
-                v-else 
-                class="px-2 py-1 rounded bg-green-100 text-green-700 text-[10px] font-black uppercase"
-              >
-                Healthy
-              </span>
-            </td>
-            <td class="p-4 text-right flex justify-end gap-2">
-              <button @click="openModal(toner)" class="text-blue-600 hover:text-blue-800 p-1">
-                <i class="fa fa-edit text-lg"></i>
-              </button>
-              <button @click="deleteToner(toner.id)" class="text-red-600 hover:text-red-800 p-1">
-                <i class="fa fa-trash text-lg"></i>
-              </button>
-            </td>
-          </tr>
-          <tr v-if="toners.length === 0">
-            <td colspan="7" class="p-12 text-center text-gray-400 italic">No toner inventory found. Add your first item above.</td>
-          </tr>
-        </tbody>
-      </table>
+                <span v-else-if="toner.status === 'Low Stock'" class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-orange-50 text-vilcom-orange ring-1 ring-orange-100 animate-pulse">
+                  Reorder
+                </span>
+                <span v-else class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-green-50 text-green-700 ring-1 ring-green-100">
+                  Optimal
+                </span>
+              </td>
+              <td class="px-8 py-5 text-right">
+                <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button @click="openModal(toner)" class="p-2.5 bg-white border border-gray-100 text-vilcom-blue rounded-xl hover:bg-vilcom-blue hover:text-white hover:border-vilcom-blue transition-all shadow-sm">
+                    <Edit3 class="size-4" />
+                  </button>
+                  <button @click="deleteToner(toner.id)" class="p-2.5 bg-white border border-gray-100 text-red-500 rounded-xl hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm">
+                    <Trash2 class="size-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!loading && toners.length === 0">
+              <td colspan="6" class="p-20 text-center text-gray-400 font-bold uppercase text-[10px] tracking-widest">
+                Inventory baseline not established.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Modal -->
-    <div v-if="showModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-        <div class="bg-indigo-600 p-4 text-white flex justify-between items-center">
-          <h3 class="font-bold uppercase text-sm tracking-widest">{{ editingToner ? 'Edit Inventory Item' : 'Register New Toner/Ink' }}</h3>
-          <button @click="showModal = false" class="hover:opacity-70"><i class="fa fa-times text-xl"></i></button>
-        </div>
-        <div class="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-          <div class="grid grid-cols-2 gap-4">
-            <div class="col-span-2">
-              <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Model Name / Description</label>
-              <input v-model="form.item_name" type="text" class="w-full border p-2 rounded focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm" placeholder="e.g. HP 123A Multi-Pack">
+    <transition name="modal">
+      <div v-if="showModal" class="fixed inset-0 z-[3000] flex items-center justify-center p-6">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showModal = false"></div>
+        <div class="relative bg-white w-full max-w-xl rounded-[3.5rem] shadow-2xl p-12 overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-300">
+          <div class="absolute top-0 right-0 p-10">
+            <button @click="showModal = false" class="text-slate-300 hover:text-red-500 transition-colors">
+              <X class="size-6" />
+            </button>
+          </div>
+
+          <div class="flex items-center gap-5 mb-10">
+            <div class="p-4 bg-vilcom-blue text-white rounded-[1.5rem] shadow-xl shadow-blue-900/20">
+              <Package class="size-6" />
             </div>
             <div>
-              <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Category</label>
-              <select v-model="form.category" class="w-full border p-2 rounded focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm">
-                <option value="Toner">Toner</option>
-                <option value="Ink">Ink</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Unit Price (KES)</label>
-              <input v-model="form.price" type="number" class="w-full border p-2 rounded focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm">
+              <h3 class="text-2xl font-black text-slate-800 tracking-tighter">{{ editingToner ? 'Update Registry' : 'New System Entry' }}</h3>
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Inventory Configuration Profile</p>
             </div>
           </div>
 
-          <div class="border-t pt-4">
-            <div class="flex justify-between items-center mb-3">
-              <label class="text-[10px] font-bold text-gray-400 uppercase">Manage Color Stocks</label>
-              <button @click="addColor" class="text-indigo-600 text-[10px] font-bold hover:underline">
-                <i class="fa fa-plus-circle"></i> ADD COLOR
-              </button>
+          <div class="space-y-8 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div class="col-span-2 space-y-3">
+                <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Consumable Name</label>
+                <input v-model="form.item_name" class="w-full bg-slate-50 border-none rounded-2xl p-5 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue transition-all" placeholder="e.g. HP 123A Multi-Pack">
+              </div>
+              <div class="space-y-3">
+                <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Category</label>
+                <select v-model="form.category" class="w-full bg-slate-50 border-none rounded-2xl p-5 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue appearance-none">
+                  <option value="Toner">Toner Unit</option>
+                  <option value="Ink">Ink Reservoir</option>
+                </select>
+              </div>
+              <div class="space-y-3">
+                <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Unit Valuation (KSh)</label>
+                <input v-model="form.price" type="number" class="w-full bg-slate-50 border-none rounded-2xl p-5 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue transition-all">
+              </div>
             </div>
 
-            <div v-for="(cs, index) in form.color_stocks" :key="index" class="bg-gray-50 p-3 rounded-lg border border-dashed border-gray-200 mb-3 relative group">
-              <button 
-                v-if="form.color_stocks.length > 1"
-                @click="removeColor(index)" 
-                class="absolute -top-2 -right-2 bg-red-500 text-white w-5 h-5 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <i class="fa fa-times"></i>
-              </button>
-              
-              <div class="grid grid-cols-3 gap-2">
-                <div>
-                  <label class="text-[9px] font-bold text-gray-400 uppercase block mb-1">Color</label>
-                  <select v-model="cs.color" class="w-full border p-1 rounded text-xs outline-none">
-                    <option value="Black">Black</option>
-                    <option value="Cyan">Cyan</option>
-                    <option value="Magenta">Magenta</option>
-                    <option value="Yellow">Yellow</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="text-[9px] font-bold text-gray-400 uppercase block mb-1">Stock</label>
-                  <input v-model="cs.in_stock" type="number" class="w-full border p-1 rounded text-xs outline-none">
-                </div>
-                <div>
-                  <label class="text-[9px] font-bold text-gray-400 uppercase block mb-1">Alert Level</label>
-                  <input v-model="cs.min_amt" type="number" class="w-full border p-1 rounded text-xs outline-none">
+            <div class="space-y-6 pt-4">
+              <div class="flex items-center justify-between">
+                <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Chromatic Stock Management</label>
+                <button @click="addColor" class="flex items-center gap-2 text-vilcom-blue text-[10px] font-black uppercase tracking-widest hover:opacity-70 transition-all">
+                  <Plus class="size-3" />
+                  Append Channel
+                </button>
+              </div>
+
+              <div class="space-y-4">
+                <div v-for="(cs, index) in form.color_stocks" :key="index" class="relative bg-slate-50 p-6 rounded-3xl border border-gray-100 group/item">
+                  <button v-if="form.color_stocks.length > 1" @click="removeColor(index)" class="absolute -top-2 -right-2 size-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-all shadow-lg">
+                    <X class="size-3" />
+                  </button>
+                  
+                  <div class="grid grid-cols-3 gap-4">
+                    <div class="space-y-2">
+                      <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Color</label>
+                      <select v-model="cs.color" class="w-full bg-white border-none rounded-xl p-3 text-[11px] font-black shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue appearance-none">
+                        <option value="Black">Black</option>
+                        <option value="Cyan">Cyan</option>
+                        <option value="Magenta">Magenta</option>
+                        <option value="Yellow">Yellow</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div class="space-y-2">
+                      <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Stock</label>
+                      <input v-model="cs.in_stock" type="number" class="w-full bg-white border-none rounded-xl p-3 text-[11px] font-black shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue">
+                    </div>
+                    <div class="space-y-2">
+                      <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Alert @</label>
+                      <input v-model="cs.min_amt" type="number" class="w-full bg-white border-none rounded-xl p-3 text-[11px] font-black shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue">
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="pt-4 border-t">
-            <button 
-              @click="saveToner" 
-              :disabled="submitting || !form.item_name || form.color_stocks.length === 0"
-              class="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50 transition shadow-lg"
-            >
-              {{ submitting ? 'SAVING...' : 'UPDATE INVENTORY' }}
+          <div class="mt-12">
+            <button @click="saveToner" :disabled="submitting || !form.item_name || form.color_stocks.length === 0" 
+                    class="w-full bg-vilcom-blue text-white py-5 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-blue-900/30 hover:bg-blue-700 disabled:opacity-30 transition-all active:scale-95">
+              {{ submitting ? 'Transmitting Data...' : 'Commit to Inventory' }}
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </transition>
   </div>
 </template>
+
