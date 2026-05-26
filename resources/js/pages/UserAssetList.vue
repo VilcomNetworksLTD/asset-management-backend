@@ -8,7 +8,7 @@
           <thead>
             <tr class="bg-slate-50/50">
               <th class="px-8 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Asset Tag</th>
-              <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Model Name</th>
+              <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">System Name</th>
               <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Category</th>
               <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Location</th>
               <th class="px-8 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-right">Status</th>
@@ -28,7 +28,7 @@
                   {{ asset.asset_tag }}
                 </span>
               </td>
-              <td class="px-6 py-5 font-black text-slate-800">{{ asset.model }}</td>
+              <td class="px-6 py-5 font-black text-slate-800">{{ asset.system_name }}</td>
               <td class="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-wider">{{ asset.category }}</td>
               <td class="px-6 py-5 font-mono text-xs text-gray-400">{{ asset.location }}</td>
               <td class="px-8 py-5 text-right">
@@ -80,7 +80,8 @@ const fetchAssets = async () => {
     assets.value = (data || []).map(a => ({
       id: a.id,
       asset_tag: a.asset_tag || a.barcode || a.Asset_Name || 'Asset',
-      model: a.model || a.Asset_Name || '',
+      system_name: a.system_name || a.System_Name || a.Asset_Name || '',
+      model: a.model || a.system_name || a.Asset_Name || '',
       serial: a.serial || a.Serial_No || '',
       category: a.category?.name || a.category || a.Asset_Category || '',
       location: a.location?.name || a.location || a.Location || 'N/A',

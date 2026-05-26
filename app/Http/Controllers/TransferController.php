@@ -122,7 +122,8 @@ class TransferController extends Controller
         $assets = $query->with(['status', 'category', 'locationModel'])->get()
             ->map(fn ($a) => [
                 'id' => $a->id,
-                'model' => $a->Asset_Name,
+                'system_name' => $a->system_name,
+                'model' => $a->system_name ?? $a->Asset_Name,
                 'serial' => $a->Serial_No,
                 'asset_tag' => 'AST-' . str_pad((string) $a->id, 4, '0', STR_PAD_LEFT),
                 'category' => $a->category?->name ?? 'Uncategorized',

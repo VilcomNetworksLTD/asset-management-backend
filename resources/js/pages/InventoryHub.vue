@@ -69,7 +69,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { Barcode, HardDrive, Save, Keyboard, ChevronRight } from 'lucide-vue-next';
+import { Barcode, Save, Keyboard, ChevronRight } from 'lucide-vue-next';
 import axios from 'axios';
 
 const hubItems = [

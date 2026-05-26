@@ -1,10 +1,11 @@
 <script setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { useWindowFocus } from '@vueuse/core';
 import Modal from '@/components/Modal.vue';
-import PageHeader from '@/components/PageHeader.vue';
 import AssetTable from '@/components/AssetTable.vue';
+import { Plus, UploadCloud } from 'lucide-vue-next';
 
 const assets = ref([]);
 const categories = ref([]);
@@ -14,6 +15,7 @@ const showAddModal = ref(false);
 const showBarcodePreviewModal = ref(false);
 const assetForPreview = ref(null);
 const loading = ref(true);
+const router = useRouter();
 
 const isFocused = useWindowFocus();
 const REFRESH_INTERVAL = 20000;
@@ -275,7 +277,28 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-10">
-    <PageHeader title="Asset" highlight="Inventory" @button-click="openAddModal" button-text="Add Asset" />
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div>
+        <h1 class="text-3xl font-black text-slate-800 tracking-tight">
+          Asset <span class="text-vilcom-blue">Inventory</span>
+        </h1>
+        <div class="h-1 w-12 bg-vilcom-orange mt-2 rounded-full"></div>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <button
+          @click="openAddModal"
+          class="px-6 py-2.5 bg-vilcom-blue text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-blue-900/20 hover:scale-105 transition-transform flex items-center justify-center gap-2"
+        >
+          <Plus class="size-4" /> Add Asset
+        </button>
+        <button
+          @click="router.push({ name: 'assets-import' })"
+          class="px-6 py-2.5 bg-slate-800 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-slate-900/20 hover:scale-105 transition-transform flex items-center justify-center gap-2"
+        >
+          <UploadCloud class="size-4" /> Import
+        </button>
+      </div>
+    </div>
     
     <div class="mt-4">
       <AssetTable :assets="assets" :loading="loading" />

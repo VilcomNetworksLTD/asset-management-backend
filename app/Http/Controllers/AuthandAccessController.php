@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -56,9 +57,27 @@ class AuthandAccessController extends Controller
                 ], 500);
             }
 
+            $hubUrl = rtrim((string) $hubConfig['url'], '/');
+            $isPlaceholderHub = str_contains($hubUrl, 'your-hub-domain.com');
+
+            if ($isPlaceholderHub) {
+                Log::warning('Safetika hub URL is still using the placeholder value', [
+                    'hub_url' => $hubConfig['url'],
+                    'local_fallback_enabled' => app()->environment('local'),
+                ]);
+
+                if (app()->environment('local')) {
+                    return $this->localLogin($request);
+                }
+
+                return response()->json([
+                    'message' => 'Authentication server is not configured. Set AUTH_HUB_URL to the real Safetika Hub URL.',
+                ], 500);
+            }
+
             // TEMP DEBUG: Verify exactly what is being sent (Remove after fixing)
             Log::debug('OAuth Request Details', [
-                'target_url' => rtrim($hubConfig['url'], '/').'/api/oauth/token',
+                'target_url' => $hubUrl.'/api/oauth/token',
                 'client_id' => $hubConfig['client_id'],
                 'secret_length' => strlen($hubConfig['client_secret'] ?? ''),
             ]);
@@ -66,7 +85,7 @@ class AuthandAccessController extends Controller
             // 2. Request token from HUB
             $response = Http::withHeaders(['Accept' => 'application/json'])
                 ->asForm()
-                ->post(rtrim($hubConfig['url'], '/').'/api/oauth/token', [
+                ->post($hubUrl.'/api/oauth/token', [
                     'grant_type' => 'password',
                     'client_id' => $hubConfig['client_id'],
                     'client_secret' => $hubConfig['client_secret'],
@@ -111,7 +130,7 @@ class AuthandAccessController extends Controller
             // 3. Fetch user profile
             $userResponse = Http::withHeaders(['Accept' => 'application/json'])
                 ->withToken($accessToken)
-                ->get(rtrim($hubConfig['url'], '/').'/api/asset/me');
+                ->get($hubUrl.'/api/asset/me');
 
             if ($userResponse->failed()) {
                 Log::error('Failed to fetch profile from HUB', [
@@ -327,6 +346,35 @@ Log::info('Final department assignment', [
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    protected function localLogin(Request $request): JsonResponse
+    {
+        $user = User::withTrashed()->where('email', $request->email)->first();
+
+        if (! $user || ! Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => 'Invalid local login credentials',
+            ], 401);
+        }
+
+        if ($user->trashed()) {
+            $user->restore();
+        }
+
+        $token = $user->createToken('ams_auth_token')->plainTextToken;
+        $user->load('department:id,name');
+
+        Log::info('Local development login successful', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+        ]);
+
+        return response()->json([
+            'message' => 'Login successful',
+            'token' => $token,
+            'user' => $user,
+        ]);
     }
 
     /**

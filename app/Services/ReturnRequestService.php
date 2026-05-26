@@ -46,7 +46,8 @@ class ReturnRequestService
             ->get()
             ->map(fn ($a) => [
                 'id' => $a->id,
-                'model' => $a->Asset_Name,
+                'system_name' => $a->system_name,
+                'model' => $a->system_name ?? $a->Asset_Name,
                 'serial' => $a->Serial_No,
                 'barcode' => $a->barcode,
                 'category' => $a->category?->name ?? $a->Asset_Category,

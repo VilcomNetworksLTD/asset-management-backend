@@ -393,10 +393,6 @@ const assignForm = reactive({ asset_id: '', communication: '', accessory_allocat
 const assignOptions = ref([])
 const accessoryOptions = ref([])
 
-const showReject = ref(false)
-const rejectTicket = ref(null)
-const rejectForm = reactive({ reason: '' })
-
 const statuses = ref([])
 const assignSearch = ref('')
 
@@ -584,12 +580,6 @@ const openAssign = async (ticket) => {
   accessoryOptions.value = (data?.data || []).filter((a) => Number(a.remaining_qty) > 0)
 }
 
-const openReject = (ticket) => {
-  rejectTicket.value = ticket
-  rejectForm.reason = ''
-  showReject.value = true
-}
-
 const submitEscalation = async () => {
   if (!escalateTicket.value) return
   if (!escalateForm.item_name || !escalateForm.reason) {
@@ -598,8 +588,10 @@ const submitEscalation = async () => {
   }
   
   try {
-    await axios.post(`/api/tickets/${rejectTicket.value.id}/reject`, {
-      reason: rejectForm.reason
+    await axios.post(`/api/tickets/${escalateTicket.value.id}/escalate`, {
+      item_name: escalateForm.item_name,
+      estimated_cost: escalateForm.estimated_cost || null,
+      reason: escalateForm.reason
     })
     showEscalate.value = false
     window.vnlNotify.success('Ticket escalated to management for approval.');

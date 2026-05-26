@@ -111,7 +111,7 @@ const printBarcode = async (asset) => {
               </div>
             </th>
             <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-left">Asset Tag</th>
-            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-left">Model Name</th>
+            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-left">System Name</th>
             <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-left">Category</th>
             <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-left">Location</th>
             <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-center">Protocol Status</th>
@@ -168,7 +168,7 @@ const printBarcode = async (asset) => {
             </td>
             <td class="px-6 py-5">
               <div class="flex flex-col">
-                <span class="font-black text-slate-800 text-sm tracking-tight">{{ asset.Asset_Name }}</span>
+                <span class="font-black text-slate-800 text-sm tracking-tight">{{ asset.system_name || asset.Asset_Name }}</span>
               </div>
             </td>
             <td class="px-6 py-5">
@@ -212,4 +212,3 @@ const printBarcode = async (asset) => {
     </div>
   </div>
 </template>
-

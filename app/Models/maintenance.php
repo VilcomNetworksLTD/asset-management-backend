@@ -43,9 +43,9 @@ class Maintenance extends Model
     ];
 
     protected $casts = [
-        'Request_Date' => 'date',
-        'Completion_Date' => 'date',
-        'Maintenance_Date' => 'date',
+        'Request_Date' => 'datetime',
+        'Completion_Date' => 'datetime',
+        'Maintenance_Date' => 'datetime',
         'Actioned_At' => 'datetime',
     ];
 

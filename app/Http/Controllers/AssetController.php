@@ -10,6 +10,7 @@ use App\Models\Department;
 use App\Models\Location;
 use App\Models\User;
 use App\Services\AssetService;
+use App\Services\AssetImportService;
 use App\Services\BarcodeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,11 +23,13 @@ class AssetController extends Controller
     protected $assetService;
 
     protected $barcodeService;
+    protected $assetImportService;
 
-    public function __construct(AssetService $assetService, BarcodeService $barcodeService)
+    public function __construct(AssetService $assetService, BarcodeService $barcodeService, AssetImportService $assetImportService)
     {
         $this->assetService = $assetService;
         $this->barcodeService = $barcodeService;
+        $this->assetImportService = $assetImportService;
     }
 
     /**
@@ -362,6 +365,28 @@ class AssetController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    public function import(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,csv,txt|max:20480',
+            'category_id' => 'required|integer|exists:categories,id',
+        ]);
+
+        try {
+            $category = Category::findOrFail($request->integer('category_id'));
+            $summary = $this->assetImportService->import($request->file('file'), $category);
+
+            return response()->json([
+                'message' => "Imported {$summary['imported']} assets.",
+                'summary' => $summary,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     public function update(Request $request, int $id): JsonResponse

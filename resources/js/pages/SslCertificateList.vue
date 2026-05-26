@@ -42,10 +42,10 @@
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-gray-50/50 border-b border-gray-50">
-              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Domain Topology</th>
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Domain</th>
               <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">CA Authority</th>
               <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Timeline</th>
-              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Protocol Integrity</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Protocol</th>
               <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Actions</th>
             </tr>
           </thead>

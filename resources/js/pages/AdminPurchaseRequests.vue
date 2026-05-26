@@ -52,7 +52,7 @@
     <!-- Pending Staff Requests -->
     <div class="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
       <div class="p-8 border-b border-slate-100 bg-slate-50/30">
-        <h2 class="text-lg font-black text-slate-800 tracking-tight">Staff Acquisition Requests</h2>
+        <h2 class="text-lg font-black text-slate-800 tracking-tight">Staff Requests</h2>
         <p class="text-xs text-gray-400 mt-1">Requests from staff members that need admin review before escalation to management</p>
       </div>
 

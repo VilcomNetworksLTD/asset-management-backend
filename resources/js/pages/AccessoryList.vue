@@ -322,11 +322,11 @@ onMounted(() => {
               </select>
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Model Architecture</label>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Model</label>
               <input v-model="form.model_number" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="M/N: 910-006557">
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Identity/Serial</label>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Serial Number</label>
               <input v-model="form.serial_no" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="S/N: 2228LZ03G688">
             </div>
             <div class="space-y-2">

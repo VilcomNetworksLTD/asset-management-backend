@@ -13,13 +13,13 @@
 
       <form @submit.prevent="submit" class="space-y-6">
         <div class="space-y-2">
-          <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Domain Topology (Common Name)</label>
+          <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Domain (Common Name)</label>
           <div class="flex gap-3">
             <input v-model="form.common_name" class="flex-1 bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="e.g. security.vilcom.co" required>
             <button type="button" @click="scanDomain" class="px-6 py-4 bg-slate-800 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all flex items-center gap-2" :disabled="scanning || !form.common_name">
               <RefreshCw v-if="scanning" class="size-4 animate-spin" />
               <Search v-else class="size-4" />
-              {{ scanning ? 'Scanning...' : 'Auto-Scan' }}
+              {{ scanning ? 'Scanning...' : 'Scan' }}
             </button>
           </div>
           <p v-if="errors.common_name" class="text-red-500 text-[10px] font-bold uppercase tracking-widest mt-1 ml-1">{{ errors.common_name[0] }}</p>
@@ -37,18 +37,18 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-2">
-            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Communication Port</label>
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Port</label>
             <input v-model="form.port" type="number" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
           </div>
 
           <div class="space-y-2">
-            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Lifecycle Termination (Expiry)</label>
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">(Expiry Date)</label>
             <input v-model="form.expiry_date" type="date" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" required>
             <p v-if="errors.expiry_date" class="text-red-500 text-[10px] font-bold uppercase tracking-widest mt-1 ml-1">{{ errors.expiry_date[0] }}</p>
           </div>
 
           <div class="space-y-2">
-            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Root Authority (Vendor)</label>
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">(Vendor)</label>
             <input v-model="form.ca_vendor" type="text" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="e.g. DigiCert, Let's Encrypt">
           </div>
 
@@ -64,7 +64,7 @@
           </div>
 
           <div class="space-y-2 md:col-span-2">
-            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Host Deployment Identifier</label>
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Host Deployment Identifier (deployment ID)</label>
             <input v-model="form.installed_on" type="text" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="e.g. production-api-01">
           </div>
 
@@ -79,7 +79,7 @@
 
         <div class="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-50">
           <button @click="submit" type="button" class="flex-1 py-4 bg-vilcom-blue text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-900/20 hover:scale-[1.02] active:scale-95 transition-all">
-            Execute Protocol Save
+            Save
           </button>
           <button @click="close" type="button" class="px-10 py-4 bg-gray-100 text-gray-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 hover:text-slate-600 transition-all">
             Cancel
