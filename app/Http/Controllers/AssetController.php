@@ -46,6 +46,8 @@ class AssetController extends Controller
         try {
             $data = $request->validate([
                 'Asset_Name' => 'required|string|max:255',
+                'system_name' => 'nullable|string|max:255',
+                'Serial_No' => 'nullable|string|max:255|unique:assets,Serial_No',
                 'category_id' => 'required|exists:categories,id',
                 'location_id' => 'nullable|exists:locations,id',
                 'Supplier_ID' => 'nullable|integer|exists:suppliers,id',
@@ -311,14 +313,28 @@ class AssetController extends Controller
         }
 
         if ($search = $request->string('search')->toString()) {
-            $query->where(function ($q) use ($search) {
+            $assetTagId = null;
+            if (preg_match('/^AST-?0*(\d+)$/i', $search, $matches)) {
+                $assetTagId = (int) $matches[1];
+            }
+
+            $query->where(function ($q) use ($search, $assetTagId) {
                 $q->where('Asset_Name', 'like', "%{$search}%")
+                    ->orWhere('system_name', 'like', "%{$search}%")
                     ->orWhere('barcode', 'like', "%{$search}%")
                     ->orWhere('Serial_No', 'like', "%{$search}%")
                     ->orWhere('Asset_Category', 'like', "%{$search}%") // Link legacy string categories
                     ->orWhereHas('category', function ($cq) use ($search) {
                         $cq->where('name', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('user', function ($uq) use ($search) {
+                        $uq->where('name', 'like', "%{$search}%")
+                           ->orWhere('email', 'like', "%{$search}%");
                     });
+
+                if ($assetTagId) {
+                    $q->orWhere('id', $assetTagId);
+                }
             });
         }
 
@@ -342,6 +358,10 @@ class AssetController extends Controller
 
         if ($locationId = $request->input('location')) {
             $query->where('location_id', $locationId);
+        }
+
+        if ($statusId = $request->input('status')) {
+            $query->where('Status_ID', $statusId);
         }
 
         $perPage = $request->integer('per_page', 15);
@@ -397,6 +417,8 @@ class AssetController extends Controller
 
         $data = $request->validate([
             'Asset_Name' => 'sometimes|required|string|max:255',
+            'system_name' => 'nullable|string|max:255',
+            'Serial_No' => 'nullable|string|max:255|unique:assets,Serial_No,'.$id,
             'category_id' => 'sometimes|required|exists:categories,id',
             'location_id' => 'nullable|exists:locations,id',
             'Supplier_ID' => 'sometimes|required|integer|exists:suppliers,id',
@@ -404,10 +426,19 @@ class AssetController extends Controller
             'Purchase_Date' => 'nullable|date',
             'warranty_image' => 'nullable|image|max:10240',
             'custom_attributes' => 'nullable|array',
+            'accessories' => 'nullable|array',
+            'accessories.*.pivot_id' => 'nullable|integer',
+            'accessories.*.accessory_id' => 'required|integer|exists:accessories,id',
+            'accessories.*.new_accessory_id' => 'required|integer|exists:accessories,id',
+            'accessories.*.quantity' => 'required|integer|min:1',
         ]);
 
         if ($request->hasFile('warranty_image')) {
             $data['warranty_image_path'] = $request->file('warranty_image')->store('warranty_images', 'public');
+        }
+
+        if (array_key_exists('system_name', $data) && filled($data['system_name'])) {
+            $data['Asset_Name'] = $data['system_name'];
         }
 
         $currentAsset = Asset::findOrFail($id);
@@ -415,6 +446,99 @@ class AssetController extends Controller
 
         if ($categoryId && isset($data['custom_attributes'])) {
             $this->validateCategoryFields($request, $categoryId);
+        }
+
+        // Handle accessory change logic — use pivot_id for precision (fixes duplicate accessory bug)
+        if (isset($data['accessories']) && $currentAsset->Employee_ID) {
+            $user = User::find($currentAsset->Employee_ID);
+            if ($user) {
+                foreach ($data['accessories'] as $accData) {
+                    $pivotId      = $accData['pivot_id'] ?? null;
+                    $oldAccId     = $accData['accessory_id'];
+                    $newAccId     = $accData['new_accessory_id'];
+                    $quantity     = intval($accData['quantity']);
+
+                    // Look up the SPECIFIC pivot row by its id
+                    $pivotQuery = DB::table('accessory_user')
+                        ->where('user_id', $user->id)
+                        ->where('accessory_id', $oldAccId)
+                        ->where('asset_id', $currentAsset->id)
+                        ->whereNull('returned_at');
+
+                    // If we have a precise pivot id, target only that row
+                    if ($pivotId) {
+                        $pivotQuery->where('id', $pivotId);
+                    }
+
+                    $oldPivot = $pivotQuery->first();
+
+                    if (!$oldPivot) {
+                        continue;
+                    }
+
+                    if ($oldAccId != $newAccId) {
+                        // ── SWAP: different accessory chosen ──────────────────────────
+                        $oldAccessory = \App\Models\Accessory::find($oldAccId);
+                        if ($oldAccessory) {
+                            $oldAccessory->increment('remaining_qty', $oldPivot->quantity);
+                        }
+
+                        $newAccessory = \App\Models\Accessory::findOrFail($newAccId);
+                        if ($newAccessory->remaining_qty < $quantity) {
+                            return response()->json(['message' => "Not enough stock for {$newAccessory->name}"], 400);
+                        }
+                        $newAccessory->decrement('remaining_qty', $quantity);
+
+                        // Delete ONLY the specific pivot row
+                        DB::table('accessory_user')->where('id', $oldPivot->id)->delete();
+
+                        // Attach the new accessory
+                        $user->accessories()->attach($newAccId, [
+                            'quantity' => $quantity,
+                            'asset_id' => $currentAsset->id
+                        ]);
+
+                        \App\Models\ActivityLog::create([
+                            'Employee_ID' => Auth::id(),
+                            'user_name'   => Auth::user()->name ?? 'System',
+                            'action'      => 'Changed Accessory',
+                            'target_type' => 'Accessory',
+                            'target_name' => $newAccessory->name,
+                            'details'     => "Swapped accessory for user {$user->name} on Asset ID {$currentAsset->id} from {$oldAccessory->name} to {$newAccessory->name} with quantity {$quantity}.",
+                            'asset_id'    => $currentAsset->id,
+                        ]);
+                    } else {
+                        // ── SAME ACCESSORY: quantity-only change ──────────────────────
+                        $diff = $quantity - $oldPivot->quantity;
+                        if ($diff !== 0) {
+                            $accessory = \App\Models\Accessory::findOrFail($oldAccId);
+                            if ($diff > 0) {
+                                if ($accessory->remaining_qty < $diff) {
+                                    return response()->json(['message' => "Not enough stock for {$accessory->name}"], 400);
+                                }
+                                $accessory->decrement('remaining_qty', $diff);
+                            } else {
+                                $accessory->increment('remaining_qty', abs($diff));
+                            }
+
+                            // Update ONLY the specific pivot row by its id
+                            DB::table('accessory_user')
+                                ->where('id', $oldPivot->id)
+                                ->update(['quantity' => $quantity]);
+
+                            \App\Models\ActivityLog::create([
+                                'Employee_ID' => Auth::id(),
+                                'user_name'   => Auth::user()->name ?? 'System',
+                                'action'      => 'Changed Accessory Qty',
+                                'target_type' => 'Accessory',
+                                'target_name' => $accessory->name,
+                                'details'     => "Changed qty for user {$user->name} on Asset ID {$currentAsset->id} for {$accessory->name} from {$oldPivot->quantity} to {$quantity}.",
+                                'asset_id'    => $currentAsset->id,
+                            ]);
+                        }
+                    }
+                }
+            }
         }
 
         $asset = $this->assetService->updateAsset($id, $data);
@@ -425,7 +549,7 @@ class AssetController extends Controller
     public function show($id): JsonResponse
     {
         $asset = Asset::with([
-            'user',
+            'user' => fn ($q) => $q->with(['accessories' => fn ($aq) => $aq->wherePivotNull('returned_at')->wherePivot('asset_id', $id)]),
             'supplier',
             'status',
             'category',

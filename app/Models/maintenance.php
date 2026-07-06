@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 // ADDED: For status automation
 use App\Models\Status;
 use App\Models\User;
+use App\Models\Ticket;
 
 class Maintenance extends Model
 {
@@ -25,6 +26,8 @@ class Maintenance extends Model
     public const WORKFLOW_OUT_FOR_REPAIR = 'Out for Repair';
     public const WORKFLOW_UNDER_REPAIR = 'Under Repair';
     public const WORKFLOW_ARCHIVED = 'Archived';
+    public const WORKFLOW_SOLVED = 'Solved';
+    public const WORKFLOW_ESCALATED = 'Escalated';
 
     protected $fillable = [
         'Asset_ID',         
@@ -107,10 +110,11 @@ class Maintenance extends Model
         // Automate Asset Status updates based on Maintenance transition
         if ($this->Asset_ID) {
             $assetStatusName = null;
-            if ($newStatus === self::WORKFLOW_COMPLETED) {
-                $assetStatusName = 'Ready to Deploy';
+            if ($newStatus === self::WORKFLOW_COMPLETED || $newStatus === self::WORKFLOW_SOLVED || $newStatus === 'Solved') {
+                $this->Completion_Date = $this->Completion_Date ?? now();
+                $assetStatusName = 'Available';
             } elseif ($newStatus === self::WORKFLOW_CANCELLED) {
-                $assetStatusName = 'Ready to Deploy';
+                $assetStatusName = 'Available';
             } elseif ($newStatus === self::WORKFLOW_ARCHIVED) {
                 $assetStatusName = 'Archived';
             }
@@ -121,6 +125,19 @@ class Maintenance extends Model
                     ->first();
                 if ($assetStatus) {
                     Asset::where('id', $this->Asset_ID)->update(['Status_ID' => $assetStatus->id]);
+                }
+            }
+
+            // Automate Ticket Status updates if a support ticket is linked to this maintenance
+            if (($newStatus === self::WORKFLOW_COMPLETED || $newStatus === self::WORKFLOW_SOLVED || $newStatus === 'Solved') && $this->Ticket_ID) {
+                $ticket = Ticket::find($this->Ticket_ID);
+                if ($ticket) {
+                    $solvedStatusId = Status::where('Status_Name', 'Solved')->value('id')
+                        ?? Status::firstOrCreate(['Status_Name' => 'Solved'])->id;
+                    $ticket->update([
+                        'Status_ID' => $solvedStatusId,
+                        'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . now()->format('Y-m-d H:i:s') . " - Repair completed successfully. Ticket resolved.")
+                    ]);
                 }
             }
         }
@@ -143,6 +160,11 @@ class Maintenance extends Model
 
     public function status() {
         return $this->belongsTo(Status::class, 'Status_ID');
+    }
+
+    public function ticket(): BelongsTo
+    {
+        return $this->belongsTo(Ticket::class, 'Ticket_ID');
     }
 
     public function actionedBy(): BelongsTo

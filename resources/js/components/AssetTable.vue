@@ -92,6 +92,22 @@ const printBarcode = async (asset) => {
   `);
   printWindow.document.close();
 };
+
+const displayStatusName = (statusName) => {
+  if (!statusName) return 'Available';
+  const s = statusName.toLowerCase();
+  if (s === 'ready to deploy') return 'Available';
+  if (s === 'deployed') return 'Assigned';
+  if (s === 'under repair' || s === 'out for repair' || s === 'maintenance') return 'Under Repairs';
+  if (s === 'non-deployable' || s === 'non_deployable' || s === 'retired' || s === 'broken') return 'End of Life';
+  return statusName;
+};
+
+const isEndOfLife = (statusName) => {
+  if (!statusName) return false;
+  const s = statusName.toLowerCase();
+  return s === 'non-deployable' || s === 'non_deployable' || s === 'retired' || s === 'broken';
+};
 </script>
 
 <template>
@@ -114,7 +130,7 @@ const printBarcode = async (asset) => {
             <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-left">System Name</th>
             <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-left">Category</th>
             <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-left">Location</th>
-            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-center">Protocol Status</th>
+            <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-center">Status</th>
             <th class="px-8 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-right">Actions</th>
           </tr>
         </thead>
@@ -180,12 +196,17 @@ const printBarcode = async (asset) => {
                 <span class="text-xs font-medium text-slate-500">{{ asset.location_model?.name || '-' }}</span>
               </div>
             </td>
-            <td class="px-6 py-5">
+            <td class="px-6 py-5 text-center">
               <span :class="[
-                'px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm',
-                asset.status?.Status_Name?.toLowerCase() === 'deployed' ? 'bg-vilcom-blue text-white' : 'bg-green-100 text-green-700'
+                'px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm inline-block',
+                isEndOfLife(asset.status?.Status_Name)
+                  ? 'bg-red-100 text-red-700 ring-1 ring-red-200'
+                  : ['deployed', 'assigned'].includes(asset.status?.Status_Name?.toLowerCase())
+                    ? 'bg-vilcom-blue text-white'
+                    : 'bg-green-100 text-green-700'
               ]">
-                {{ asset.status?.Status_Name || 'Ready' }}
+                <span v-if="isEndOfLife(asset.status?.Status_Name)" class="mr-1">⚠</span>
+                {{ displayStatusName(asset.status?.Status_Name) }}
               </span>
             </td>
             <td class="px-8 py-5 text-right">

@@ -37,6 +37,7 @@ class ReturnRequest extends Model
         'Actioned_By',
         'Actioned_At',
         'Ticket_ID',
+        'disposition',
     ];
 
     protected $casts = [

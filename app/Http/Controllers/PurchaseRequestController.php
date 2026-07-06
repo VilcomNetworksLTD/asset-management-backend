@@ -170,7 +170,7 @@ class PurchaseRequestController extends Controller
 
     public function approve(Request $request, int $id): JsonResponse
     {
-        $purchase = PurchaseRequest::with(['requester', 'initiator'])->findOrFail($id);
+        $purchase = PurchaseRequest::with(['requester', 'initiator', 'ticket'])->findOrFail($id);
         
         DB::transaction(function () use ($purchase) {
             $purchase->update([
@@ -178,6 +178,16 @@ class PurchaseRequestController extends Controller
                 'approver_id' => Auth::id(),
                 'approved_at' => now()
             ]);
+
+            // If linked to a ticket, update the ticket status as well
+            if ($purchase->ticket_id && $purchase->ticket) {
+                $approvedStatusId = Status::where('Status_Name', 'Approved')->value('id')
+                    ?? Status::firstOrCreate(['Status_Name' => 'Approved'])->id;
+                $purchase->ticket->update([
+                    'Status_ID' => $approvedStatusId,
+                    'Communication_log' => trim(($purchase->ticket->Communication_log ? $purchase->ticket->Communication_log . "\n" : '') . now()->format('Y-m-d H:i:s') . " - Approved by management.")
+                ]);
+            }
 
             ActivityLog::create([
                 'Employee_ID' => Auth::id(),

@@ -92,7 +92,10 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
+import { useRouter } from 'vue-router';
 import eventBus from '@/eventBus';
+
+const router = useRouter();
 
 const pendingAssignments = ref([]);
 const loading = ref(true); // Added loading state
@@ -126,6 +129,7 @@ const confirmAssignment = async (id, status) => {
     await axios.post(`/api/assignments/${id}/verify`, { status });
     alert(status === 'accepted' ? 'Asset verified and added to your inventory.' : 'Discrepancy reported to Admin.');
     fetchPending();
+    router.push({ name: 'dashboard-user' });
   } catch (err) {
     alert('Failed to process verification.');
   }

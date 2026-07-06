@@ -79,7 +79,7 @@ class User extends Authenticatable
     public function accessories()
     {
         return $this->belongsToMany(Accessory::class, 'accessory_user')
-                    ->withPivot('quantity', 'returned_at')
+                    ->withPivot('id', 'quantity', 'returned_at', 'asset_id')
                     ->withTimestamps();
     }
 

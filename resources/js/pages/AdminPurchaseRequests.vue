@@ -119,10 +119,13 @@
               </td>
               <td class="p-8 text-right">
                 <div class="flex items-center justify-end gap-3">
-                   <button v-if="req.status === 'pending'" @click="openEscalateModal(req)" class="p-3 bg-vilcom-blue text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm" title="Escalate to Management">
+                   <button v-if="req.status === 'pending'" @click="openEscalateModal(req)" class="p-3 bg-vilcom-blue text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm flex items-center justify-center animate-pulse" title="Escalate to Management">
                      <Send class="size-4" />
                    </button>
-                   <button @click="viewDetails(req)" class="p-3 bg-slate-100 text-slate-500 rounded-xl hover:bg-slate-200 transition-all shadow-sm" title="View Details">
+                   <button v-if="req.status === 'approved'" @click="markAsPurchased(req)" class="p-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all shadow-sm flex items-center justify-center" title="Mark as Purchased">
+                     <CheckCircle class="size-4" />
+                   </button>
+                   <button @click="viewDetails(req)" class="p-3 bg-slate-100 text-slate-500 rounded-xl hover:bg-slate-200 transition-all shadow-sm flex items-center justify-center" title="View Details">
                      <Eye class="size-4" />
                    </button>
                 </div>
@@ -136,7 +139,7 @@
       </div>
     </div>
 
-    <!-- Escalation Modal -->
+    Escalation Modal
     <transition name="modal">
       <div v-if="showEscalateModal" class="fixed inset-0 z-[3000] flex items-center justify-center p-6">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showEscalateModal = false"></div>
@@ -145,7 +148,7 @@
               <button @click="showEscalateModal = false" class="text-slate-300 hover:text-red-500 transition-colors"><X class="size-6" /></button>
            </div>
            
-           <div class="flex items-center gap-4 mb-8">
+           <!-- <div class="flex items-center gap-4 mb-8">
               <div class="p-4 bg-vilcom-blue rounded-2xl text-white">
                  <Send class="size-6" />
               </div>
@@ -153,7 +156,7 @@
                 <h3 class="text-2xl font-black text-slate-800 tracking-tighter">Escalate to Management</h3>
                 <p class="text-xs text-gray-400">Forward this request for budget approval</p>
               </div>
-           </div>
+           </div> -->
            
            <div class="space-y-6">
               <div class="bg-slate-50 p-6 rounded-2xl border border-slate-100">
@@ -176,11 +179,11 @@
               </div>
            </div>
 
-           <div class="mt-10 flex gap-4">
+           <!-- <div class="mt-10 flex gap-4">
               <button @click="submitEscalation" :disabled="escalating" class="flex-1 py-4 bg-vilcom-blue text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-900/20 hover:bg-blue-700 transition-all disabled:opacity-50">
                 {{ escalating ? 'Escalating...' : 'Escalate to Management' }}
               </button>
-           </div>
+           </div> -->
         </div>
       </div>
     </transition>
@@ -332,6 +335,18 @@ const submitEscalation = async () => {
     alert('Failed to escalate request. Please try again.');
   } finally {
     escalating.value = false;
+  }
+};
+
+const markAsPurchased = async (req) => {
+  if (!confirm(`Mark "${req.item_name}" as purchased?`)) return;
+  try {
+    await axios.post(`/api/purchase-requests/${req.id}/mark-purchased`);
+    fetchRequests();
+    alert('Item marked as purchased.');
+  } catch (err) {
+    console.error('Failed to mark as purchased:', err);
+    alert('Failed to mark as purchased. Please try again.');
   }
 };
 

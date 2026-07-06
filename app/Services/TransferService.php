@@ -122,7 +122,14 @@ class TransferService
                 ]);
             } else {
                 $transfer->update(['status' => 'disputed']);
-                // Asset remains with Admin/In Office status
+                
+                $nonDeployableStatusId = Status::whereRaw('LOWER(Status_Name) = "non-deployable"')->first()?->id
+                    ?? Status::firstOrCreate(['Status_Name' => 'Non-Deployable'])->id;
+
+                $asset->update([
+                    'Status_ID' => $nonDeployableStatusId,
+                    'Employee_ID' => null, // Unassign since it is disputed/rejected
+                ]);
             }
 
             return $transfer;

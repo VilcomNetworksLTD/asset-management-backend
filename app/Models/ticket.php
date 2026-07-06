@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 
@@ -16,7 +17,6 @@ class Ticket extends Model
 
     protected $fillable = [
         'Employee_ID',
-        'Issue_ID',
         'Status_ID',
         'Priority',
         'Description',
@@ -37,9 +37,9 @@ class Ticket extends Model
     }
 
    
-    public function issue(): BelongsTo
+    public function issue(): HasOne
     {
-        return $this->belongsTo(Issue::class, 'Issue_ID', 'id');
+        return $this->hasOne(Issue::class, 'Ticket_ID', 'id');
     }
 
     

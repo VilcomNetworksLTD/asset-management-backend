@@ -32,8 +32,8 @@
               <td class="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-wider">{{ asset.category }}</td>
               <td class="px-6 py-5 font-mono text-xs text-gray-400">{{ asset.location }}</td>
               <td class="px-8 py-5 text-right">
-                <span class="px-3 py-1 rounded-lg text-[10px] font-black bg-green-100 text-green-700 uppercase">
-                  {{ asset.status_name || asset.status?.Status_Name || (typeof asset.status === 'string' ? asset.status : 'Assigned') }}
+                <span :class="['px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest', ['deployed', 'assigned'].includes((asset.status_name || asset.status?.Status_Name || '').toLowerCase()) ? 'bg-blue-100 text-vilcom-blue' : 'bg-green-100 text-green-700']">
+                  {{ displayStatusName(asset.status_name || asset.status?.Status_Name || asset.status) }}
                 </span>
               </td>
               <td class="px-8 py-5 text-right flex justify-end gap-3">
@@ -97,6 +97,15 @@ const fetchAssets = async () => {
 }
 
 onMounted(fetchAssets)
+
+const displayStatusName = (statusName) => {
+  if (!statusName) return 'Assigned';
+  const s = typeof statusName === 'string' ? statusName.toLowerCase() : '';
+  if (s === 'ready to deploy') return 'Available';
+  if (s === 'deployed') return 'Assigned';
+  if (s === 'under repair' || s === 'out for repair' || s === 'maintenance') return 'Under Repairs';
+  return statusName;
+};
 
 // expose loader component so template can use it
 const components = { Loader }

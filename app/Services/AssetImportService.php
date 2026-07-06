@@ -43,7 +43,16 @@ class AssetImportService
         'status_id',
         'status',
         'price',
+        'acquisition_value',
+        'acquisition_cost',
+        'purchase_value',
+        'purchase_cost',
+        'cost',
+        'value',
         'purchase_date',
+        'date_purchased',
+        'purchased_date',
+        'acquisition_date',
         'location_id',
         'location',
     ];
@@ -95,6 +104,12 @@ class AssetImportService
                     $assetName = $systemName ?: ($serialNo ?: "{$selectedCategory->name} row {$rowNumber}");
                 }
 
+                if ($serialNo !== null && $serialNo !== '') {
+                    if (Asset::where('Serial_No', $serialNo)->exists()) {
+                        throw new RuntimeException("Serial number '{$serialNo}' is already in use.");
+                    }
+                }
+
                 $data = [
                     'Asset_Name' => $assetName,
                     'system_name' => $systemName,
@@ -103,8 +118,8 @@ class AssetImportService
                     'Asset_Category' => $selectedCategory->name,
                     'Supplier_ID' => $this->resolveSupplierId($this->firstValue($row, $normalizedHeaders, ['supplier_id', 'supplier', 'supplier_name'])),
                     'Status_ID' => $this->resolveStatusId($this->firstValue($row, $normalizedHeaders, ['status_id', 'status'])),
-                    'Price' => $this->normalizeMoney($this->firstValue($row, $normalizedHeaders, ['price'])),
-                    'Purchase_Date' => $this->normalizeDate($this->firstValue($row, $normalizedHeaders, ['purchase_date'])),
+                    'Price' => $this->normalizeMoney($this->firstValue($row, $normalizedHeaders, ['price', 'acquisition_value', 'acquisition_cost', 'purchase_value', 'purchase_cost', 'cost', 'value'])),
+                    'Purchase_Date' => $this->normalizeDate($this->firstValue($row, $normalizedHeaders, ['purchase_date', 'date_purchased', 'purchased_date', 'acquisition_date'])),
                     'location_id' => $this->resolveLocationId($this->firstValue($row, $normalizedHeaders, ['location_id', 'location'])),
                     'custom_attributes' => $customAttributes,
                     'created_by' => Auth::id(),
@@ -116,7 +131,23 @@ class AssetImportService
                 $summary['imported']++;
             } catch (\Throwable $e) {
                 $summary['skipped']++;
-                $summary['errors'][] = "Row {$rowNumber}: {$e->getMessage()}";
+                $message = $e->getMessage();
+                if ($e instanceof \Illuminate\Database\QueryException) {
+                    if ($e->getCode() == 23000 || str_contains($message, 'Duplicate entry') || str_contains($message, 'Integrity constraint violation')) {
+                        if (str_contains($message, 'Serial_No') || str_contains($message, 'serial_no') || str_contains($message, 'assets_serial_no_unique')) {
+                            preg_match("/Duplicate entry '(.*)' for key/", $message, $matches);
+                            $duplicateVal = $matches[1] ?? 'specified value';
+                            $message = "Serial number '{$duplicateVal}' is already in use.";
+                        } elseif (str_contains($message, 'barcode') || str_contains($message, 'assets_barcode_unique')) {
+                            $message = "Asset barcode generated is already in use.";
+                        } else {
+                            $message = "A duplicate entry already exists in the database.";
+                        }
+                    } else {
+                        $message = "Database error occurred during import.";
+                    }
+                }
+                $summary['errors'][] = "Row {$rowNumber}: {$message}";
             }
         }
 
@@ -299,8 +330,8 @@ class AssetImportService
                 continue;
             }
 
-            $fieldName = $fieldMap[$normalized] ?? $fieldMap[$this->attributeKey($header)] ?? null;
-            if (! $fieldName) {
+            $field = $fieldMap[$normalized] ?? $fieldMap[$this->attributeKey($header)] ?? null;
+            if (! $field) {
                 if (($row[$index] ?? null) !== null && ($row[$index] ?? '') !== '') {
                     $ignoredColumns[] = $header;
                 }
@@ -312,7 +343,9 @@ class AssetImportService
                 continue;
             }
 
-            $attributes[$fieldName] = $value;
+            $attributes[$field['name']] = ($field['type'] ?? 'text') === 'date'
+                ? $this->normalizeDate($value)
+                : $value;
         }
 
         return [$attributes, $ignoredColumns];
@@ -328,9 +361,14 @@ class AssetImportService
                 continue;
             }
 
-            $map[$this->normalizeHeader($name)] = $name;
+            $fieldConfig = [
+                'name' => $name,
+                'type' => $field['type'] ?? 'text',
+            ];
+
+            $map[$this->normalizeHeader($name)] = $fieldConfig;
             if (! empty($field['label'])) {
-                $map[$this->normalizeHeader($field['label'])] = $name;
+                $map[$this->normalizeHeader($field['label'])] = $fieldConfig;
             }
         }
 
@@ -429,7 +467,7 @@ class AssetImportService
         }
 
         if (is_numeric($value)) {
-            return Carbon::create(1899, 12, 30)->addDays((int) $value)->toDateString();
+            return Carbon::create(1899, 12, 30)->addDays((int) floor((float) $value))->toDateString();
         }
 
         try {

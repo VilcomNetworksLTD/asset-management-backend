@@ -45,11 +45,9 @@ class DashboardService
             'people'            => $users,
 
             'status_distribution' => [
-                'ready_to_deploy' => Asset::whereNotIn('id', function($query) {
-                        $query->select('Asset_ID')->from('maintenance')->where('Workflow_Status', '!=', 'Completed');
-                    })->whereNotIn('Status_ID', function($query) {
+                'ready_to_deploy' => Asset::whereNotIn('Status_ID', function($query) {
                         $query->select('id')->from('statuses')
-                            ->whereRaw('LOWER(Status_Name) IN ("deployed", "assigned", "in use", "checked out", "archived", "archive", "broken", "lost", "stolen")');
+                            ->whereRaw('LOWER(Status_Name) IN ("deployed", "assigned", "in use", "checked out", "archived", "archive", "broken", "lost", "stolen", "out for repair", "maintenance", "under repair", "non-deployable", "retired")');
                     })->where(function($q) {
                         $q->whereNull('Employee_ID')->orWhere('Employee_ID', 0);
                     })->count(),
@@ -57,19 +55,19 @@ class DashboardService
                         $q->whereNotNull('Employee_ID')->where('Employee_ID', '>', 0);
                     })->whereNotIn('Status_ID', function($query) {
                         $query->select('id')->from('statuses')
-                            ->whereRaw('LOWER(Status_Name) IN ("archived", "archive", "broken", "lost", "stolen")');
-                    })->whereNotIn('id', function($query) {
-                        $query->select('Asset_ID')->from('maintenance')->where('Workflow_Status', '!=', 'Completed');
+                            ->whereRaw('LOWER(Status_Name) IN ("archived", "archive", "broken", "lost", "stolen", "out for repair", "maintenance", "under repair", "non-deployable", "retired")');
+                    })->count(),
+                'end_of_life' => Asset::whereIn('Status_ID', function($query) {
+                        $query->select('id')->from('statuses')
+                            ->whereRaw('LOWER(Status_Name) IN ("non-deployable", "retired", "broken", "lost", "stolen")');
                     })->count(),
                 'archived' => Asset::whereIn('Status_ID', function($query) {
                         $query->select('id')->from('statuses')
-                            ->whereRaw('LOWER(Status_Name) IN ("archived", "archive", "broken", "lost", "stolen")');
-                    })->whereNotIn('id', function($query) {
-                        $query->select('Asset_ID')->from('maintenance')->where('Workflow_Status', '!=', 'Completed');
+                            ->whereRaw('LOWER(Status_Name) IN ("archived", "archive")');
                     })->count(),
-                'out_for_repair' => Asset::whereIn('id', function($query) {
-                        $query->select('Asset_ID')->from('maintenance')
-                            ->where('Workflow_Status', '!=', 'Completed');
+                'out_for_repair' => Asset::whereIn('Status_ID', function($query) {
+                        $query->select('id')->from('statuses')
+                            ->whereRaw('LOWER(Status_Name) IN ("out for repair", "maintenance", "under repair")');
                     })->count(),
             ],
             'recent_activity' => \App\Models\ActivityLog::latest()->take(10)->get()->map(fn($log) => [

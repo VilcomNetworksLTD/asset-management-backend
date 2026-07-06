@@ -5,17 +5,28 @@ import axios from 'axios';
 import { useWindowFocus } from '@vueuse/core';
 import Modal from '@/components/Modal.vue';
 import AssetTable from '@/components/AssetTable.vue';
-import { Plus, UploadCloud } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, Filter, Plus, RotateCcw, Search, UploadCloud } from 'lucide-vue-next';
 
 const assets = ref([]);
 const categories = ref([]);
 const locations = ref([]);
+const statuses = ref([]);
 const suppliers = ref([]);
 const showAddModal = ref(false);
 const showBarcodePreviewModal = ref(false);
 const assetForPreview = ref(null);
 const loading = ref(true);
+const pagination = ref(null);
+const searchTimer = ref(null);
 const router = useRouter();
+
+const filters = reactive({
+  search: '',
+  category: '',
+  location: '',
+  status: '',
+  per_page: 15,
+});
 
 const isFocused = useWindowFocus();
 const REFRESH_INTERVAL = 20000;
@@ -27,7 +38,7 @@ watch(isFocused, (focused) => {
 });
 
 setInterval(() => {
-  fetchAssets();
+  fetchAssets(pagination.value?.current_page || 1);
 }, REFRESH_INTERVAL);
 
 const form = reactive({
@@ -44,17 +55,38 @@ const selectedCategory = computed(() => {
   return categories.value.find(c => c.id === form.category_id);
 });
 
-const fetchAssets = async () => {
+const activeFilterCount = computed(() => {
+  return ['search', 'category', 'location', 'status'].filter((key) => String(filters[key] || '').length > 0).length;
+});
+
+const fetchAssets = async (page = 1) => {
   loading.value = true;
   try {
-    // Using the paginated 'list' endpoint
-    const { data } = await axios.get('/api/assets/list');
+    const { data } = await axios.get('/api/assets/list', {
+      params: {
+        page,
+        per_page: filters.per_page,
+        search: filters.search || undefined,
+        category: filters.category || undefined,
+        location: filters.location || undefined,
+        status: filters.status || undefined,
+      },
+    });
     assets.value = data.data; // Assuming pagination
+    pagination.value = data;
   } catch (error) {
     console.error("Error fetching assets:", error);
   } finally {
     loading.value = false;
   }
+};
+
+const resetFilters = () => {
+  filters.search = '';
+  filters.category = '';
+  filters.location = '';
+  filters.status = '';
+  fetchAssets();
 };
 
 const openAddModal = () => {
@@ -261,18 +293,43 @@ const handlePrintFromPreview = async () => {
 onMounted(async () => {
   fetchAssets();
   try {
-    const [catRes, locRes, supRes] = await Promise.all([
+    const [catRes, locRes, supRes, statusRes] = await Promise.all([
       axios.get('/api/categories'),
       axios.get('/api/locations'),
       axios.get('/api/suppliers'),
+      axios.get('/api/statuses'),
     ]);
     categories.value = catRes.data;
     locations.value = locRes.data;
     suppliers.value = supRes.data;
+    statuses.value = statusRes.data || [];
   } catch (error) {
     console.error("Failed to load data for form dropdowns:", error);
   }
 });
+
+watch(
+  () => filters.search,
+  () => {
+    clearTimeout(searchTimer.value);
+    searchTimer.value = setTimeout(() => fetchAssets(), 300);
+  }
+);
+
+watch(
+  () => [filters.category, filters.location, filters.status, filters.per_page],
+  () => fetchAssets()
+);
+
+const displayStatusName = (statusName) => {
+  if (!statusName) return 'Available';
+  const s = statusName.toLowerCase();
+  if (s === 'ready to deploy') return 'Available';
+  if (s === 'deployed') return 'Assigned';
+  if (s === 'under repair' || s === 'out for repair' || s === 'maintenance') return 'Under Repairs';
+  if (s === 'non-deployable' || s === 'non_deployable' || s === 'retired' || s === 'broken') return 'End of Life';
+  return statusName;
+};
 </script>
 
 <template>
@@ -299,9 +356,88 @@ onMounted(async () => {
         </button>
       </div>
     </div>
+
+    <div class="bg-white border border-gray-100 rounded-[2rem] shadow-sm overflow-hidden">
+      <div class="p-5 md:p-6 border-b border-gray-50 bg-slate-50/40 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+        <div class="relative xl:col-span-2">
+          <Search class="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-gray-300" />
+          <input
+            v-model="filters.search"
+            type="search"
+            class="w-full bg-white border-none rounded-xl py-3 pl-11 pr-4 text-sm font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue transition-all"
+            placeholder="Asset name, serial, barcode, user name..."
+          />
+        </div>
+
+        <select v-model="filters.category" class="bg-white border-none rounded-xl py-3 px-4 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue appearance-none">
+          <option value="">All Categories</option>
+          <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
+        </select>
+
+        <select v-model="filters.location" class="bg-white border-none rounded-xl py-3 px-4 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue appearance-none">
+          <option value="">All Locations</option>
+          <option v-for="location in locations" :key="location.id" :value="location.id">{{ location.name }}</option>
+        </select>
+
+        <select v-model="filters.status" class="bg-white border-none rounded-xl py-3 px-4 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue appearance-none">
+          <option value="">All Statuses</option>
+          <option v-for="status in statuses" :key="status.id" :value="status.id">{{ displayStatusName(status.Status_Name) }}</option>
+        </select>
+      </div>
+
+      <div class="px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
+          <Filter class="size-4 text-vilcom-blue" />
+          {{ activeFilterCount }} active filters
+          <span class="text-gray-200">|</span>
+          {{ pagination?.total || assets.length }} assets
+        </div>
+        <div class="flex items-center gap-3">
+          <select v-model="filters.per_page" class="bg-white border-none rounded-xl py-2 px-3 text-[10px] font-black ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue appearance-none">
+            <option :value="15">15 per page</option>
+            <option :value="30">30 per page</option>
+            <option :value="50">50 per page</option>
+          </select>
+          <button
+            type="button"
+            @click="resetFilters"
+            class="p-2.5 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-orange hover:border-vilcom-orange transition-all"
+            title="Reset filters"
+          >
+            <RotateCcw class="size-4" />
+          </button>
+        </div>
+      </div>
+    </div>
     
     <div class="mt-4">
       <AssetTable :assets="assets" :loading="loading" />
+    </div>
+
+    <div v-if="pagination && pagination.last_page > 1" class="p-6 border border-gray-100 rounded-[2rem] flex items-center justify-between bg-white shadow-sm">
+      <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+        Page {{ pagination.current_page }} of {{ pagination.last_page }}
+      </div>
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          :disabled="pagination.current_page <= 1"
+          @click="fetchAssets(pagination.current_page - 1)"
+          class="p-3 bg-white border border-gray-100 rounded-xl disabled:opacity-30 hover:bg-gray-50 transition-all"
+          title="Previous page"
+        >
+          <ChevronLeft class="size-4" />
+        </button>
+        <button
+          type="button"
+          :disabled="pagination.current_page >= pagination.last_page"
+          @click="fetchAssets(pagination.current_page + 1)"
+          class="p-3 bg-white border border-gray-100 rounded-xl disabled:opacity-30 hover:bg-gray-50 transition-all"
+          title="Next page"
+        >
+          <ChevronRight class="size-4" />
+        </button>
+      </div>
     </div>
 
     <!-- Add Asset Modal -->

@@ -203,15 +203,15 @@ onUnmounted(() => {
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           <div class="space-y-2">
-            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Full Identity</label>
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Full Name</label>
             <input v-model="form.name" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20" placeholder="John Doe">
           </div>
           <div class="space-y-2">
-            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Secure Email</label>
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Email</label>
             <input v-model="form.email" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20" placeholder="j.doe@vilcom.co">
           </div>
           <div class="space-y-2">
-            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Access Protocol</label>
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Role</label>
             <select v-model="form.role" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20">
               <option value="admin">Administrator</option>
               <option value="staff">Standard Staff</option>
@@ -222,7 +222,7 @@ onUnmounted(() => {
             </select>
           </div>
           <div class="space-y-2">
-            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Department Alignment</label>
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Department</label>
             <select v-model="form.department_id" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20">
               <option value="">Awaiting Assignment</option>
               <option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
@@ -236,7 +236,7 @@ onUnmounted(() => {
 
         <div class="mt-12 flex gap-4">
           <button @click="save" :disabled="saving" class="px-10 py-4 bg-vilcom-blue text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-900/20 hover:scale-105 active:scale-95 transition-all">
-            {{ saving ? 'Syncing...' : (editingId ? 'Push Updates' : 'Initialize Profile') }}
+            {{ saving ? 'Syncing...' : (editingId ? 'Push Updates' : 'ADD Profile') }}
           </button>
           <button @click="showForm = false" class="px-10 py-4 bg-gray-100 text-gray-500 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-gray-200 transition-all">Cancel</button>
         </div>
@@ -259,7 +259,7 @@ onUnmounted(() => {
             <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Contact Node</th>
             <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Access Level</th>
             <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em]">Department</th>
-            <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em] text-center">Protocol Status</th>
+            <th class="p-6 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em] text-center">Status</th>
             <th class="p-8 font-black text-[10px] text-gray-400 uppercase tracking-[0.2em] text-right">Actions</th>
           </tr>
         </thead>

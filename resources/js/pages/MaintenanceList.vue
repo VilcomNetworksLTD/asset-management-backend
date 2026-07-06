@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { useWindowFocus } from '@vueuse/core'
 import { useSettings } from '../composables/useSettings';
@@ -9,6 +10,7 @@ import { Send, X, Eye, Search, ChevronLeft, ChevronRight, Plus, Filter, Edit3, T
 const rows = ref([])
 const loading = ref(false)
 const saving = ref(false)
+const route = useRoute()
 
 const { settings } = useSettings();
 function formatMoney(amount) {
@@ -49,6 +51,37 @@ const escalationForm = ref({
   reason: ''
 })
 const escalating = ref(false)
+
+// Helper: return true if the linked ticket is already escalated
+const isTicketEscalated = (item) => {
+  const s = String(item.ticket?.status?.Status_Name || '').toLowerCase()
+  return s.includes('escalat') || s.includes('awaiting')
+}
+
+// Helper: return true if the linked ticket is solved/resolved
+const isTicketSolved = (item) => {
+  const s = String(item.ticket?.status?.Status_Name || '').toLowerCase()
+  return ['solved', 'resolved', 'closed', 'completed'].includes(s)
+}
+
+// Helper: return true if the linked ticket is rejected/cancelled
+const isTicketRejected = (item) => {
+  const s = String(item.ticket?.status?.Status_Name || '').toLowerCase()
+  return ['rejected', 'declined', 'cancelled'].includes(s)
+}
+
+const isTerminal = (item) => {
+  const status = String(item.status?.Status_Name || '').toLowerCase();
+  const workflow = String(item.Workflow_Status || '').toLowerCase();
+  const terminalStatuses = ['solved', 'completed', 'closed', 'resolved', 'cancelled', 'archived'];
+  return terminalStatuses.includes(status) || terminalStatuses.includes(workflow);
+}
+
+const isEscalated = (item) => {
+  const status = String(item.status?.Status_Name || '').toLowerCase();
+  const workflow = String(item.Workflow_Status || '').toLowerCase();
+  return isTicketEscalated(item) || status === 'escalated' || status === 'on hold' || status === 'awaiting purchase' || workflow === 'escalated' || workflow === 'on hold';
+}
 
 const form = reactive({
   Asset_ID: '',
@@ -229,6 +262,16 @@ onMounted(async () => {
     loadStatuses(),
     loadAssets()
   ])
+
+  if (route.query.highlight === 'solved') {
+    const solvedStatus = statuses.value.find(s => s.Status_Name === 'Solved');
+    if (solvedStatus) {
+      filters.status_id = solvedStatus.id;
+    } else {
+      filters.search = 'Solved';
+    }
+    await fetchRows();
+  }
 })
 </script>
 
@@ -278,13 +321,14 @@ onMounted(async () => {
               <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Scheduled Date</th>
               <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Completion Date</th>
               <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Cost</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Ticket #</th>
               <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Status</th>
               <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-50">
             <tr v-if="loading">
-              <td colspan="7" class="p-20 text-center text-gray-400 font-bold uppercase text-[10px] tracking-widest">
+              <td colspan="8" class="p-20 text-center text-gray-400 font-bold uppercase text-[10px] tracking-widest">
                 Accessing Engineering Logs...
               </td>
             </tr>
@@ -318,29 +362,87 @@ onMounted(async () => {
               <td class="px-6 py-5 text-right font-black text-slate-700 text-sm">
                 {{ formatMoney(item.Cost) }}
               </td>
+              <!-- Linked Ticket column -->
+              <td class="px-6 py-5 text-center">
+                <span
+                  v-if="item.ticket"
+                  :class="[
+                    'px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest',
+                    isTicketEscalated(item)  ? 'bg-purple-50 text-purple-600' :
+                    isTicketSolved(item)     ? 'bg-emerald-50 text-emerald-600' :
+                    isTicketRejected(item)   ? 'bg-red-50 text-red-500' :
+                    'bg-slate-50 text-slate-500'
+                  ]"
+                  :title="'Ticket raised by: ' + (item.ticket.user?.name || 'User')"
+                >
+                  #{{ item.ticket.id }}
+                </span>
+                <span v-else class="text-gray-300 text-[9px] font-black uppercase tracking-widest">—</span>
+              </td>
               <td class="px-6 py-5">
                 <div class="flex flex-col items-center gap-1">
+                  <!-- Maintenance own status -->
                   <span 
                     :class="[
                       'px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ring-1 ring-white/50',
-                      item.status?.Status_Name === 'Completed' ? 'bg-teal-50 text-teal-600 ring-teal-100' :
-                      item.status?.Status_Name === 'Cancelled' ? 'bg-red-50 text-red-600 ring-red-100' :
-                      item.status?.Status_Name === 'Archived' ? 'bg-gray-100 text-gray-400' :
+                      ['completed', 'closed', 'resolved'].includes(String(item.status?.Status_Name || '').toLowerCase()) ? 'bg-teal-50 text-teal-600 ring-teal-100' :
+                      ['solved'].includes(String(item.status?.Status_Name || '').toLowerCase()) ? 'bg-emerald-50 text-emerald-600 ring-emerald-100' :
+                      ['cancelled'].includes(String(item.status?.Status_Name || '').toLowerCase()) ? 'bg-red-50 text-red-600 ring-red-100' :
+                      ['archived'].includes(String(item.status?.Status_Name || '').toLowerCase()) ? 'bg-gray-100 text-gray-400' :
+                      ['escalated', 'on hold', 'awaiting purchase'].includes(String(item.status?.Status_Name || '').toLowerCase()) ? 'bg-purple-50 text-purple-600 ring-purple-100' :
                       'bg-blue-50 text-vilcom-blue ring-blue-100'
                     ]"
                   >
                     {{ item.status?.Status_Name || 'PENDING' }}
                   </span>
-                  
-                  <div v-if="item.status?.Status_Name !== 'Completed' && item.status?.Status_Name !== 'Cancelled' && item.status?.Status_Name !== 'Archived'" class="flex gap-2 mt-1">
-                     <button @click="transitionStatus(item, 'In Progress')" v-if="['Scheduled', 'Out for Repair'].includes(item.status?.Status_Name)" class="text-[8px] font-black text-vilcom-blue uppercase hover:underline">Engage</button>
-                     <button @click="transitionStatus(item, 'Completed')" v-if="item.status?.Status_Name === 'In Progress'" class="text-[8px] font-black text-teal-600 uppercase hover:underline">Finalize</button>
+
+                  <!-- Linked ticket status badge -->
+                  <span
+                    v-if="item.ticket"
+                    :class="[
+                      'px-3 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest mt-0.5',
+                      isTicketEscalated(item)  ? 'bg-purple-50 text-purple-500 ring-1 ring-purple-100' :
+                      isTicketSolved(item)     ? 'bg-emerald-50 text-emerald-500 ring-1 ring-emerald-100' :
+                      isTicketRejected(item)   ? 'bg-red-50 text-red-400 ring-1 ring-red-100' :
+                      'bg-gray-50 text-gray-400 ring-1 ring-gray-100'
+                    ]"
+                    :title="'Linked Ticket #' + item.ticket.id + ' — ' + (item.ticket.status?.Status_Name || 'Pending')"
+                  >
+                    Ticket: {{ item.ticket.status?.Status_Name || 'Pending' }}
+                  </span>
+
+                  <div v-if="!isTerminal(item)" class="flex gap-2 mt-1">
+                     <button @click="transitionStatus(item, 'In Progress')" v-if="['scheduled', 'out for repair'].includes(String(item.status?.Status_Name || '').toLowerCase())" class="text-[8px] font-black text-vilcom-blue uppercase hover:underline">Engage</button>
+                     <button @click="transitionStatus(item, 'Solved')" v-if="['in progress', 'scheduled', 'out for repair', 'escalated', 'on hold', 'awaiting purchase'].includes(String(item.status?.Status_Name || '').toLowerCase())" class="text-[8px] font-black text-emerald-600 uppercase hover:underline">Solved</button>
+                     <button @click="transitionStatus(item, 'Completed')" v-if="['in progress'].includes(String(item.status?.Status_Name || '').toLowerCase())" class="text-[8px] font-black text-teal-600 uppercase hover:underline">Finalize</button>
                   </div>
                 </div>
               </td>
               <td class="px-8 py-5 text-right">
                 <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button @click="openEscalateModal(item)" class="p-2.5 bg-white border border-gray-100 text-purple-500 rounded-xl hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all shadow-sm" title="Escalate">
+                  <!-- Solve button: shown only for active/in-progress records -->
+                  <button 
+                    v-if="!isTerminal(item)"
+                    @click="transitionStatus(item, 'Solved')" 
+                    :disabled="saving"
+                    class="p-2.5 bg-white border border-gray-100 text-emerald-500 rounded-xl hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all shadow-sm" 
+                    title="Mark as Solved"
+                  >
+                    <CheckCircle2 class="size-4" />
+                  </button>
+                  <!-- Escalate button: disabled when already escalated via ticket or own status -->
+                  <button 
+                    v-if="!isTerminal(item)"
+                    @click="openEscalateModal(item)" 
+                    :disabled="isEscalated(item)"
+                    :class="[
+                      'p-2.5 bg-white border rounded-xl transition-all shadow-sm',
+                      isEscalated(item)
+                        ? 'border-purple-100 text-purple-300 cursor-not-allowed opacity-60'
+                        : 'border-gray-100 text-purple-500 hover:bg-purple-600 hover:text-white hover:border-purple-600'
+                    ]"
+                    :title="isEscalated(item) ? 'Already escalated — cannot escalate again' : 'Escalate to Management'"
+                  >
                     <Send class="size-4" />
                   </button>
                   <button @click="openEdit(item)" class="p-2.5 bg-white border border-gray-100 text-vilcom-blue rounded-xl hover:bg-vilcom-blue hover:text-white hover:border-vilcom-blue transition-all shadow-sm" title="Update">
