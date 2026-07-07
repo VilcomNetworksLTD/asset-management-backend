@@ -27,13 +27,13 @@ class MaintenanceController extends Controller
 
     public function index(): JsonResponse
     {
-        $logs = $this->maintenanceService->getAllMaintenances();
+        $logs = Maintenance::with(['asset.status', 'status', 'ticket.status', 'ticket.user'])->latest()->get();
         return response()->json($logs);
     }
 
     public function list(Request $request): JsonResponse
     {
-        $query = Maintenance::with(['asset.status', 'status']);
+        $query = Maintenance::with(['asset.status', 'status', 'ticket.status', 'ticket.user']);
 
         if ($search = $request->string('search')->toString()) {
             $query->where(function ($q) use ($search) {
@@ -133,7 +133,7 @@ class MaintenanceController extends Controller
 
     public function update(Request $request, int $id): JsonResponse
     {
-        $maintenance = Maintenance::findOrFail($id);
+        $maintenance = Maintenance::with('status')->findOrFail($id);
 
         $data = $request->validate([
             'Asset_ID' => 'sometimes|required|integer|exists:assets,id',
@@ -144,9 +144,18 @@ class MaintenanceController extends Controller
             'Description' => 'nullable|string',
             'Cost' => 'nullable|numeric|min:0',
             'Status_ID' => 'sometimes|required|integer|exists:statuses,id',
-            'Workflow_Status' => 'nullable|string|in:Scheduled,In Progress,On Hold,Completed,Cancelled,Out for Repair,Archived',
+            'Workflow_Status' => 'nullable|string|in:Scheduled,In Progress,On Hold,Completed,Cancelled,Out for Repair,Archived,Solved',
             'Maintenance_Date' => 'nullable|date',
         ]);
+
+        $maintStatus = strtolower($maintenance->status?->Status_Name ?? '');
+        $maintWorkflow = strtolower($maintenance->Workflow_Status ?? '');
+        $isTerminal = in_array($maintStatus, ['solved', 'completed', 'closed', 'resolved', 'cancelled', 'archived'])
+            || in_array($maintWorkflow, ['solved', 'completed', 'closed', 'resolved', 'cancelled', 'archived']);
+
+        if (isset($data['Workflow_Status']) && $isTerminal) {
+            return response()->json(['message' => 'This maintenance record is already resolved or completed and cannot be updated.'], 400);
+        }
 
         $maintenance = DB::transaction(function () use ($maintenance, $data) {
             $workflowStatus = $data['Workflow_Status'] ?? null;

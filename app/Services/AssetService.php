@@ -118,5 +118,49 @@ class AssetService
         });
     }
 
-    // ... rest of your methods (delete, assign, etc.) remain the same
+    public function deleteAsset(int $id): bool
+    {
+        return DB::transaction(function () use ($id) {
+            $asset = Asset::findOrFail($id);
+            
+            ActivityLog::create([
+                'asset_id' => $asset->id,
+                'Employee_ID' => Auth::id(),
+                'user_name' => Auth::user()->name ?? 'System',
+                'action' => 'Deleted',
+                'target_type' => 'Asset',
+                'target_name' => $asset->Asset_Name,
+                'details' => "Asset ID: {$id} | Barcode: {$asset->barcode}",
+            ]);
+
+            return $asset->delete();
+        });
+    }
+
+    public function assignAsset(int $id, int $userId): Asset
+    {
+        return DB::transaction(function () use ($id, $userId) {
+            $asset = Asset::findOrFail($id);
+            $statusName = strtolower($asset->status?->Status_Name ?? '');
+            if (in_array($statusName, ['under repair', 'out for repair', 'maintenance', 'under repairs'])) {
+                abort(response()->json(['message' => 'This asset is currently under repair and cannot be assigned.'], 422));
+            }
+            if (in_array($statusName, ['non-deployable', 'non_deployable', 'retired', 'broken'])) {
+                abort(response()->json(['message' => 'This asset is non-deployable and cannot be assigned.'], 422));
+            }
+
+            $user = \App\Models\User::findOrFail($userId);
+
+            $assignedStatusId = Status::query()
+                ->whereIn('Status_Name', ['Assigned', 'Deployed', 'In Use'])
+                ->value('id') ?? Status::firstOrCreate(['Status_Name' => 'Assigned'])->id;
+
+            $asset->update([
+                'Employee_ID' => $userId,
+                'Status_ID' => $assignedStatusId,
+            ]);
+
+            return $asset->load(['status', 'supplier', 'user', 'category', 'locationModel']);
+        });
+    }
 }

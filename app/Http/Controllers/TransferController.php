@@ -122,7 +122,8 @@ class TransferController extends Controller
         $assets = $query->with(['status', 'category', 'locationModel'])->get()
             ->map(fn ($a) => [
                 'id' => $a->id,
-                'model' => $a->Asset_Name,
+                'system_name' => $a->system_name,
+                'model' => $a->system_name ?? $a->Asset_Name,
                 'serial' => $a->Serial_No,
                 'asset_tag' => 'AST-' . str_pad((string) $a->id, 4, '0', STR_PAD_LEFT),
                 'category' => $a->category?->name ?? 'Uncategorized',
@@ -175,7 +176,8 @@ class TransferController extends Controller
             return response()->json(['message' => 'Receiver is required for transfer type.'], 422);
         }
 
-        $statusId = Status::whereRaw('LOWER(Status_Name) IN ("pending", "requested")')->value('id') ?? 1;
+        $statusId = Status::whereRaw('LOWER(Status_Name) IN ("pending", "requested")')->value('id')
+            ?? Status::firstOrCreate(['Status_Name' => 'Pending'])->id;
 
         // create Included_Items for user‑initiated transfer/return
         $included = [];
@@ -286,7 +288,7 @@ class TransferController extends Controller
 
         DB::transaction(function () use ($transfer, $asset, $data, $request) {
             $statusCandidates = match ($data['disposition']) {
-                'ready_to_deploy' => ['Ready to Deploy', 'Available'],
+                'ready_to_deploy' => ['Available', 'Ready to Deploy'],
                 'non_deployable' => ['Non-Deployable', 'Archived/Lost', 'Retired'],
                 'maintenance' => ['Out for Repair', 'Maintenance', 'Pending'],
             };
@@ -321,7 +323,11 @@ class TransferController extends Controller
                                 $item = Accessory::find($id);
                                 if ($item) {
                                     $this->returnItemToStock($sender->accessories(), 'accessory_id', $item->id);
-                                    $item->increment('remaining_qty');
+                                    if ($data['disposition'] === 'non_deployable') {
+                                        $item->decrement('total_qty');
+                                    } else {
+                                        $item->increment('remaining_qty');
+                                    }
                                 }
                                 break;
                             case 'consumable':
@@ -447,6 +453,13 @@ class TransferController extends Controller
         $asset = null;
         if (! empty($data['asset_id'])) {
             $asset = Asset::findOrFail($data['asset_id']);
+            $statusName = strtolower($asset->status?->Status_Name ?? '');
+            if (in_array($statusName, ['under repair', 'out for repair', 'maintenance', 'under repairs'])) {
+                return response()->json(['message' => 'This asset is currently under repair and cannot be assigned.'], 422);
+            }
+            if (in_array($statusName, ['non-deployable', 'non_deployable', 'retired', 'broken'])) {
+                return response()->json(['message' => 'This asset is non-deployable and cannot be assigned.'], 422);
+            }
         }
         $admin = $request->user();
         $receiver = User::findOrFail($data['receiver_id']);
@@ -467,21 +480,28 @@ class TransferController extends Controller
 
         $workflowStatus = $direct ? 'deployed' : 'pending_verification';
 
+        // Resolve status IDs dynamically — never fall back to hardcoded integers
+        // that may not exist in the production database.
+        $assignedStatusId = Status::firstOf(['Assigned', 'Deployed'])
+            ?? Status::firstOrCreate(['Status_Name' => 'Assigned'])->id;
+        $pendingStatusId  = Status::firstOf(['Pending', 'Requested'])
+            ?? Status::firstOrCreate(['Status_Name' => 'Pending'])->id;
+
         $transfer = Transfer::create([
-            'Asset_ID' => $asset?->id,
-            'Employee_ID' => $data['receiver_id'],
-            'Sender_ID' => Auth::id(),
-            'Receiver_ID' => $data['receiver_id'],
-            'Status_ID' => $direct ? (Status::firstOf(['Deployed', 'Assigned']) ?? 2) : (Status::firstOf(['Pending', 'Requested']) ?? 1),
-            'Transfer_Date' => now(),
-            'Type' => 'assignment',
+            'Asset_ID'        => $asset?->id,
+            'Employee_ID'     => $data['receiver_id'],
+            'Sender_ID'       => Auth::id(),
+            'Receiver_ID'     => $data['receiver_id'],
+            'Status_ID'       => $direct ? $assignedStatusId : $pendingStatusId,
+            'Transfer_Date'   => now(),
+            'Type'            => 'assignment',
             'Workflow_Status' => $workflowStatus,
             'Admin_Condition' => 'Good',
-            'Included_Items' => $included,
-            'Items' => $filteredItems,
-            'Notes' => $data['notes'] ?? 'Assigned by admin',
-            'Actioned_By' => $admin->id,
-            'Actioned_At' => now(),
+            'Included_Items'  => $included,
+            'Items'           => $filteredItems,
+            'Notes'           => $data['notes'] ?? 'Assigned by admin',
+            'Actioned_By'     => $admin->id,
+            'Actioned_At'     => now(),
         ]);
 
         if ($direct) {
@@ -489,17 +509,7 @@ class TransferController extends Controller
             if ($asset) {
                 $asset->update([
                     'Employee_ID' => $receiver->id,
-                    'Status_ID' => $deployedStatusId ?? $asset->Status_ID,
-                ]);
-
-                ActivityLog::create([
-                    'asset_id' => $asset->id,
-                    'Employee_ID' => $admin->id,
-                    'user_name' => $admin->name,
-                    'action' => 'Direct Assignment',
-                    'target_type' => 'Asset',
-                    'target_name' => $asset->Asset_Name,
-                    'details' => "Directly assigned to {$receiver->name} by admin",
+                    'Status_ID'   => $assignedStatusId,
                 ]);
             }
 

@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { useWindowFocus } from '@vueuse/core'
 import { useSettings } from '../composables/useSettings';
@@ -9,11 +10,32 @@ import { Send, X, Eye, Search, ChevronLeft, ChevronRight, Plus, Filter, Edit3, T
 const rows = ref([])
 const loading = ref(false)
 const saving = ref(false)
+const route = useRoute()
 
 const { settings } = useSettings();
 function formatMoney(amount) {
   if (amount == null || amount === '') return '-';
   return `KSH ${Number(amount).toLocaleString()}`;
+}
+
+const formatDate = (dateString) => {
+  if (!dateString) return '—'
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return dateString
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const formatForInput = (dateString) => {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return ''
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
 const filters = reactive({ search: '', status_id: '', per_page: 10 })
@@ -29,6 +51,37 @@ const escalationForm = ref({
   reason: ''
 })
 const escalating = ref(false)
+
+// Helper: return true if the linked ticket is already escalated
+const isTicketEscalated = (item) => {
+  const s = String(item.ticket?.status?.Status_Name || '').toLowerCase()
+  return s.includes('escalat') || s.includes('awaiting')
+}
+
+// Helper: return true if the linked ticket is solved/resolved
+const isTicketSolved = (item) => {
+  const s = String(item.ticket?.status?.Status_Name || '').toLowerCase()
+  return ['solved', 'resolved', 'closed', 'completed'].includes(s)
+}
+
+// Helper: return true if the linked ticket is rejected/cancelled
+const isTicketRejected = (item) => {
+  const s = String(item.ticket?.status?.Status_Name || '').toLowerCase()
+  return ['rejected', 'declined', 'cancelled'].includes(s)
+}
+
+const isTerminal = (item) => {
+  const status = String(item.status?.Status_Name || '').toLowerCase();
+  const workflow = String(item.Workflow_Status || '').toLowerCase();
+  const terminalStatuses = ['solved', 'completed', 'closed', 'resolved', 'cancelled', 'archived'];
+  return terminalStatuses.includes(status) || terminalStatuses.includes(workflow);
+}
+
+const isEscalated = (item) => {
+  const status = String(item.status?.Status_Name || '').toLowerCase();
+  const workflow = String(item.Workflow_Status || '').toLowerCase();
+  return isTicketEscalated(item) || status === 'escalated' || status === 'on hold' || status === 'awaiting purchase' || workflow === 'escalated' || workflow === 'on hold';
+}
 
 const form = reactive({
   Asset_ID: '',
@@ -104,8 +157,8 @@ const openEdit = (row) => {
   editingId.value = row.id
   Object.assign(form, {
     Asset_ID: row.Asset_ID,
-    Request_Date: row.Request_Date?.slice(0, 16) || '',
-    Completion_Date: row.Completion_Date?.slice(0, 16) || '',
+    Request_Date: formatForInput(row.Request_Date),
+    Completion_Date: formatForInput(row.Completion_Date),
     Maintenance_Type: row.Maintenance_Type || '',
     Description: row.Description || '',
     Cost: row.Cost || '',
@@ -209,6 +262,16 @@ onMounted(async () => {
     loadStatuses(),
     loadAssets()
   ])
+
+  if (route.query.highlight === 'solved') {
+    const solvedStatus = statuses.value.find(s => s.Status_Name === 'Solved');
+    if (solvedStatus) {
+      filters.status_id = solvedStatus.id;
+    } else {
+      filters.search = 'Solved';
+    }
+    await fetchRows();
+  }
 })
 </script>
 
@@ -217,16 +280,13 @@ onMounted(async () => {
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
       <div>
-        <h1 class="text-4xl font-black text-slate-800 tracking-tight">Technical <span class="text-vilcom-blue">Maintenance</span></h1>
-        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2 flex items-center gap-2">
-          <span class="size-1.5 bg-vilcom-orange rounded-full"></span>
-          Engineering & Asset Reliability Logs
-        </p>
+        <h1 class="text-4xl font-black text-slate-800 tracking-tight"> <span class="text-vilcom-blue">Maintenance</span></h1>
+        
       </div>
       
       <button @click="openCreate" class="bg-vilcom-blue text-white px-8 py-4 rounded-2xl shadow-xl shadow-blue-900/10 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">
         <Plus class="size-4" />
-        Schedule Intervention
+        Schedule Maintenance
       </button>
     </div>
 
@@ -256,17 +316,19 @@ onMounted(async () => {
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-gray-50/50 border-b border-gray-50">
-              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Asset Identity</th>
-              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Intervention Type</th>
-              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Operational Timeline</th>
-              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Resource Cost</th>
-              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Lifecycle</th>
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Asset</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Maintenance Type</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Scheduled Date</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Completion Date</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Cost</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Ticket #</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Status</th>
               <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-50">
             <tr v-if="loading">
-              <td colspan="6" class="p-20 text-center text-gray-400 font-bold uppercase text-[10px] tracking-widest">
+              <td colspan="8" class="p-20 text-center text-gray-400 font-bold uppercase text-[10px] tracking-widest">
                 Accessing Engineering Logs...
               </td>
             </tr>
@@ -292,51 +354,104 @@ onMounted(async () => {
                 </span>
               </td>
               <td class="px-6 py-5">
-                 <div class="space-y-1">
-                   <div class="flex items-center gap-2 text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                     <Clock class="size-3 text-vilcom-blue" />
-                     {{ item.Request_Date }}
-                   </div>
-                   <div class="text-[8px] font-bold text-gray-400 uppercase tracking-[0.2em] italic">
-                     ETA: {{ item.Completion_Date || 'In Progress' }}
-                   </div>
-                 </div>
+                <div class="text-[10px] font-bold text-slate-600 uppercase tracking-tight">{{ formatDate(item.Request_Date) }}</div>
+              </td>
+              <td class="px-6 py-5">
+                <div class="text-[10px] font-bold text-slate-600 uppercase tracking-tight">{{ formatDate(item.Completion_Date) }}</div>
               </td>
               <td class="px-6 py-5 text-right font-black text-slate-700 text-sm">
                 {{ formatMoney(item.Cost) }}
               </td>
+              <!-- Linked Ticket column -->
+              <td class="px-6 py-5 text-center">
+                <span
+                  v-if="item.ticket"
+                  :class="[
+                    'px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest',
+                    isTicketEscalated(item)  ? 'bg-purple-50 text-purple-600' :
+                    isTicketSolved(item)     ? 'bg-emerald-50 text-emerald-600' :
+                    isTicketRejected(item)   ? 'bg-red-50 text-red-500' :
+                    'bg-slate-50 text-slate-500'
+                  ]"
+                  :title="'Ticket raised by: ' + (item.ticket.user?.name || 'User')"
+                >
+                  #{{ item.ticket.id }}
+                </span>
+                <span v-else class="text-gray-300 text-[9px] font-black uppercase tracking-widest">—</span>
+              </td>
               <td class="px-6 py-5">
                 <div class="flex flex-col items-center gap-1">
+                  <!-- Maintenance own status -->
                   <span 
                     :class="[
                       'px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ring-1 ring-white/50',
-                      item.status?.Status_Name === 'Completed' ? 'bg-teal-50 text-teal-600 ring-teal-100' :
-                      item.status?.Status_Name === 'Cancelled' ? 'bg-red-50 text-red-600 ring-red-100' :
-                      item.status?.Status_Name === 'Archived' ? 'bg-gray-100 text-gray-400' :
+                      ['completed', 'closed', 'resolved'].includes(String(item.status?.Status_Name || '').toLowerCase()) ? 'bg-teal-50 text-teal-600 ring-teal-100' :
+                      ['solved'].includes(String(item.status?.Status_Name || '').toLowerCase()) ? 'bg-emerald-50 text-emerald-600 ring-emerald-100' :
+                      ['cancelled'].includes(String(item.status?.Status_Name || '').toLowerCase()) ? 'bg-red-50 text-red-600 ring-red-100' :
+                      ['archived'].includes(String(item.status?.Status_Name || '').toLowerCase()) ? 'bg-gray-100 text-gray-400' :
+                      ['escalated', 'on hold', 'awaiting purchase'].includes(String(item.status?.Status_Name || '').toLowerCase()) ? 'bg-purple-50 text-purple-600 ring-purple-100' :
                       'bg-blue-50 text-vilcom-blue ring-blue-100'
                     ]"
                   >
                     {{ item.status?.Status_Name || 'PENDING' }}
                   </span>
-                  
-                  <div v-if="item.status?.Status_Name !== 'Completed' && item.status?.Status_Name !== 'Cancelled' && item.status?.Status_Name !== 'Archived'" class="flex gap-2 mt-1">
-                     <button @click="transitionStatus(item, 'In Progress')" v-if="['Scheduled', 'Out for Repair'].includes(item.status?.Status_Name)" class="text-[8px] font-black text-vilcom-blue uppercase hover:underline">Engage</button>
-                     <button @click="transitionStatus(item, 'Completed')" v-if="item.status?.Status_Name === 'In Progress'" class="text-[8px] font-black text-teal-600 uppercase hover:underline">Finalize</button>
+
+                  <!-- Linked ticket status badge -->
+                  <span
+                    v-if="item.ticket"
+                    :class="[
+                      'px-3 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest mt-0.5',
+                      isTicketEscalated(item)  ? 'bg-purple-50 text-purple-500 ring-1 ring-purple-100' :
+                      isTicketSolved(item)     ? 'bg-emerald-50 text-emerald-500 ring-1 ring-emerald-100' :
+                      isTicketRejected(item)   ? 'bg-red-50 text-red-400 ring-1 ring-red-100' :
+                      'bg-gray-50 text-gray-400 ring-1 ring-gray-100'
+                    ]"
+                    :title="'Linked Ticket #' + item.ticket.id + ' — ' + (item.ticket.status?.Status_Name || 'Pending')"
+                  >
+                    Ticket: {{ item.ticket.status?.Status_Name || 'Pending' }}
+                  </span>
+
+                  <div v-if="!isTerminal(item)" class="flex gap-2 mt-1">
+                     <button @click="transitionStatus(item, 'In Progress')" v-if="['scheduled', 'out for repair'].includes(String(item.status?.Status_Name || '').toLowerCase())" class="text-[8px] font-black text-vilcom-blue uppercase hover:underline">Engage</button>
+                     <button @click="transitionStatus(item, 'Solved')" v-if="['in progress', 'scheduled', 'out for repair', 'escalated', 'on hold', 'awaiting purchase'].includes(String(item.status?.Status_Name || '').toLowerCase())" class="text-[8px] font-black text-emerald-600 uppercase hover:underline">Solved</button>
+                     <button @click="transitionStatus(item, 'Completed')" v-if="['in progress'].includes(String(item.status?.Status_Name || '').toLowerCase())" class="text-[8px] font-black text-teal-600 uppercase hover:underline">Finalize</button>
                   </div>
                 </div>
               </td>
               <td class="px-8 py-5 text-right">
                 <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button @click="openEscalateModal(item)" class="p-2.5 bg-white border border-gray-100 text-purple-500 rounded-xl hover:bg-purple-600 hover:text-white hover:border-purple-600 transition-all shadow-sm" title="Escalate Resources">
+                  <!-- Solve button: shown only for active/in-progress records -->
+                  <button 
+                    v-if="!isTerminal(item)"
+                    @click="transitionStatus(item, 'Solved')" 
+                    :disabled="saving"
+                    class="p-2.5 bg-white border border-gray-100 text-emerald-500 rounded-xl hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all shadow-sm" 
+                    title="Mark as Solved"
+                  >
+                    <CheckCircle2 class="size-4" />
+                  </button>
+                  <!-- Escalate button: disabled when already escalated via ticket or own status -->
+                  <button 
+                    v-if="!isTerminal(item)"
+                    @click="openEscalateModal(item)" 
+                    :disabled="isEscalated(item)"
+                    :class="[
+                      'p-2.5 bg-white border rounded-xl transition-all shadow-sm',
+                      isEscalated(item)
+                        ? 'border-purple-100 text-purple-300 cursor-not-allowed opacity-60'
+                        : 'border-gray-100 text-purple-500 hover:bg-purple-600 hover:text-white hover:border-purple-600'
+                    ]"
+                    :title="isEscalated(item) ? 'Already escalated — cannot escalate again' : 'Escalate to Management'"
+                  >
                     <Send class="size-4" />
                   </button>
-                  <button @click="openEdit(item)" class="p-2.5 bg-white border border-gray-100 text-vilcom-blue rounded-xl hover:bg-vilcom-blue hover:text-white hover:border-vilcom-blue transition-all shadow-sm" title="Update Log">
+                  <button @click="openEdit(item)" class="p-2.5 bg-white border border-gray-100 text-vilcom-blue rounded-xl hover:bg-vilcom-blue hover:text-white hover:border-vilcom-blue transition-all shadow-sm" title="Update">
                     <Edit3 class="size-4" />
                   </button>
-                  <button v-if="item.status?.Status_Name !== 'Archived'" @click="archiveRow(item.id)" class="p-2.5 bg-white border border-gray-100 text-vilcom-orange rounded-xl hover:bg-vilcom-orange hover:text-white hover:border-vilcom-orange transition-all shadow-sm" title="Archive Asset">
+                  <button v-if="item.status?.Status_Name !== 'Archived'" @click="archiveRow(item.id)" class="p-2.5 bg-white border border-gray-100 text-vilcom-orange rounded-xl hover:bg-vilcom-orange hover:text-white hover:border-vilcom-orange transition-all shadow-sm" title="Archive">
                     <Archive class="size-4" />
                   </button>
-                  <button @click="removeRow(item.id)" class="p-2.5 bg-white border border-gray-100 text-red-500 rounded-xl hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm" title="Purge Record">
+                  <button @click="removeRow(item.id)" class="p-2.5 bg-white border border-gray-100 text-red-500 rounded-xl hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm" title="Delete">
                     <Trash2 class="size-4" />
                   </button>
                 </div>
@@ -349,7 +464,7 @@ onMounted(async () => {
       <!-- Pagination -->
       <div v-if="pagination.last_page > 1" class="p-8 border-t border-gray-50 flex items-center justify-between bg-gray-50/20">
         <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-          Quantum {{ pagination.current_page }} of {{ pagination.last_page }} <span class="mx-2 text-gray-200">|</span> Total Interventions: {{ pagination.total }}
+          Quantum {{ pagination.current_page }} of {{ pagination.last_page }} <span class="mx-2 text-gray-200">|</span> Total Maintenances: {{ pagination.total }}
         </div>
         <div class="flex items-center gap-3">
           <button :disabled="pagination.current_page <= 1" @click="fetchRows(pagination.current_page - 1)" class="p-3 border border-gray-100 rounded-xl bg-white hover:bg-gray-50 disabled:opacity-20 transition-all font-black text-xs">
@@ -374,7 +489,7 @@ onMounted(async () => {
             </div>
             <div>
               <h3 class="text-lg font-black text-slate-800 tracking-tight">Resource Escalation</h3>
-              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Procurement Protocol for Parts</p>
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Procurement for Parts</p>
             </div>
           </div>
 
@@ -389,18 +504,18 @@ onMounted(async () => {
               <input v-model="escalationForm.item_name" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-purple-500/20 transition-all" placeholder="e.g. 512GB NVMe SSD">
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Estimated Budget (KSH)</label>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Estimated Budget</label>
               <input v-model="escalationForm.estimated_cost" type="number" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-purple-500/20 transition-all" placeholder="0.00">
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Technical Justification</label>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Justification</label>
               <textarea v-model="escalationForm.reason" rows="3" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-purple-500/20 transition-all" placeholder="Why is this required for maintenance?"></textarea>
             </div>
           </div>
 
           <div class="flex flex-col gap-3">
             <button @click="submitMaintenanceEscalation" :disabled="escalating" class="w-full py-4 bg-purple-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-purple-900/20 hover:scale-[1.02] active:scale-95 transition-all">
-              {{ escalating ? 'Transmitting...' : 'Submit to Management' }}
+              {{ escalating ? 'Transmitting...' : 'Escalate to Management' }}
             </button>
             <button @click="showEscalateModal = false" class="w-full py-4 text-gray-400 text-xs font-black uppercase tracking-widest hover:text-red-500 transition-colors">Cancel Escalation</button>
           </div>
@@ -418,8 +533,8 @@ onMounted(async () => {
               <Hammer class="size-6" />
             </div>
             <div>
-              <h3 class="text-lg font-black text-slate-800 tracking-tight">{{ editingId ? 'Update Log' : 'New Maintenance Protocol' }}</h3>
-              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Engineering Asset Management</p>
+              <h3 class="text-lg font-black text-slate-800 tracking-tight">{{ editingId ? 'Update Log' : 'New Maintenance' }}</h3>
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest"></p>
             </div>
           </div>
 
@@ -427,12 +542,12 @@ onMounted(async () => {
             <div class="space-y-2 md:col-span-1">
               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Asset Selection</label>
               <select v-model="form.Asset_ID" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
-                <option value="">Select Asset Identity...</option>
+                <option value="">Select Asset ...</option>
                 <option v-for="asset in assets" :key="asset.id" :value="asset.id">{{ asset.Asset_Name }}</option>
               </select>
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Intervention Category</label>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Maintenance Type</label>
               <select v-model="form.Maintenance_Type" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
                 <option value="">Select Type...</option>
                 <option value="Preventive">Preventive</option>
@@ -442,24 +557,28 @@ onMounted(async () => {
               </select>
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Resource Allocation (KSH)</label>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Cost</label>
               <input v-model="form.Cost" type="number" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="0.00">
             </div>
             <div class="space-y-2">
-               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Protocol Initialization</label>
+               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Date Scheduled</label>
                <input v-model="form.Request_Date" type="datetime-local" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
             </div>
+            <div class="space-y-2">
+               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Date of Completion</label>
+               <input v-model="form.Completion_Date" type="datetime-local" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
+            </div>
             <div class="space-y-2 md:col-span-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Technical Description</label>
-              <textarea v-model="form.Description" rows="3" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="Detailed engineering report or task list..."></textarea>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Description</label>
+              <textarea v-model="form.Description" rows="3" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="Detailed description of maintenance..."></textarea>
             </div>
           </div>
 
           <div class="flex gap-4 pt-4">
             <button @click="save" :disabled="saving" class="flex-1 py-4 bg-vilcom-blue text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-900/20 hover:scale-[1.02] active:scale-95 transition-all">
-              {{ saving ? 'Syncing...' : (editingId ? 'Execute Update' : 'Initialize Protocol') }}
+              {{ saving ? 'Syncing...' : (editingId ? 'Update' : 'Add') }}
             </button>
-            <button @click="showForm = false" class="px-8 py-4 bg-gray-100 text-gray-400 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-gray-200 transition-all">Abort</button>
+            <button @click="showForm = false" class="px-8 py-4 bg-gray-100 text-gray-400 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-gray-200 transition-all">Cancel</button>
           </div>
         </div>
       </div>

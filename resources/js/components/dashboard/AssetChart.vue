@@ -44,37 +44,46 @@ const props = defineProps({
   },
   statusDistribution: {
     type: Object,
-    default: () => ({ ready_to_deploy: 0, deployed: 0, archived: 0 })
+    default: () => ({ ready_to_deploy: 0, deployed: 0, archived: 0, end_of_life: 0, out_for_repair: 0 })
   }
 });
 
-const available = computed(() => Number(props.statusDistribution?.ready_to_deploy || 0))
-const deployed = computed(() => Number(props.statusDistribution?.deployed || 0))
-const archived = computed(() => Number(props.statusDistribution?.archived || 0))
+const available   = computed(() => Number(props.statusDistribution?.ready_to_deploy || 0))
+const deployed    = computed(() => Number(props.statusDistribution?.deployed || 0))
+const endOfLife   = computed(() => Number(props.statusDistribution?.end_of_life || 0))
+const archived    = computed(() => Number(props.statusDistribution?.archived || 0))
 const outForRepair = computed(() => Number(props.statusDistribution?.out_for_repair || 0))
-const totalCount = computed(() => available.value + deployed.value + archived.value + outForRepair.value)
+const totalCount  = computed(() => available.value + deployed.value + endOfLife.value + archived.value + outForRepair.value)
 
 const legendItems = computed(() => [
-  { label: 'Ready to Deploy', value: available.value, color: 'bg-green-500' },
-  { label: 'Deployed', value: deployed.value, color: 'bg-vilcom-blue' },
-  { label: 'Archived', value: archived.value, color: 'bg-vilcom-orange' },
-  { label: 'Out for Repair', value: outForRepair.value, color: 'bg-red-500' },
+  { label: 'Available',     value: available.value,    color: 'bg-green-500' },
+  { label: 'Assigned',      value: deployed.value,     color: 'bg-vilcom-blue' },
+  { label: 'Under Repair',  value: outForRepair.value, color: 'bg-yellow-500' },
+  { label: 'End of Life',   value: endOfLife.value,    color: 'bg-red-600' },
+  { label: 'Archived',      value: archived.value,     color: 'bg-vilcom-orange' },
 ]);
 
 const innerChartBackground = computed(() => {
   const total = totalCount.value
   if (total <= 0) return 'conic-gradient(#f3f4f6 0% 100%)'
 
-  const availablePct = (available.value / total) * 100
-  const deployedPct = (deployed.value / total) * 100
-  const repairPct = (outForRepair.value / total) * 100
-  const archivedPct = 100 - availablePct - deployedPct - repairPct
+  const availablePct   = (available.value / total) * 100
+  const deployedPct    = (deployed.value / total) * 100
+  const repairPct      = (outForRepair.value / total) * 100
+  const endOfLifePct   = (endOfLife.value / total) * 100
+  const archivedPct    = 100 - availablePct - deployedPct - repairPct - endOfLifePct
+
+  const s1 = availablePct
+  const s2 = s1 + deployedPct
+  const s3 = s2 + repairPct
+  const s4 = s3 + endOfLifePct
 
   return `conic-gradient(
-    #22c55e 0% ${availablePct}%,
-    #1e40af ${availablePct}% ${availablePct + deployedPct}%,
-    #ef4444 ${availablePct + deployedPct}% ${availablePct + deployedPct + repairPct}%,
-    #f97316 ${availablePct + deployedPct + repairPct}% 100%
+    #22c55e 0% ${s1}%,
+    #1e40af ${s1}% ${s2}%,
+    #eab308 ${s2}% ${s3}%,
+    #dc2626 ${s3}% ${s4}%,
+    #f97316 ${s4}% 100%
   )`
 })
 </script>

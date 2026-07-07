@@ -197,7 +197,7 @@ onMounted(() => fetchRows())
 
         <div class="flex gap-4 pt-4">
           <button :disabled="saving" @click="submitForm" class="bg-slate-800 text-white px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-black/5 disabled:opacity-30">
-            {{ saving ? 'Transmitting...' : (editingId ? 'Commit Changes' : 'Initialize Onboarding') }}
+            {{ saving ? 'Processing...' : (editingId ? 'Commit Changes' : 'Save') }}
           </button>
           <button @click="showForm = false" class="text-gray-400 font-black text-[10px] uppercase tracking-widest hover:text-slate-800 transition-colors">Cancel</button>
         </div>

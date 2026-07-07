@@ -4,6 +4,7 @@ import UserLayout from '../components/layouts/UserLayout.vue';
 import AdminDashboard from '../views/AdminDashboard.vue';
 import UserDashboard from '../views/UserDashboard.vue';
 import AssetList from '../pages/AssetList.vue';
+import AssetImport from '../pages/AssetImport.vue';
 import AssetDetail from '../pages/AssetDetail.vue';
 import ConsumableList from '../pages/ConsumableList.vue';
 import PeopleList from '../pages/PeopleList.vue';
@@ -88,6 +89,11 @@ const routes = [{
                 path: 'assets',
                 name: 'assets-list',
                 component: AssetList,
+            },
+            {
+                path: 'assets/import',
+                name: 'assets-import',
+                component: AssetImport,
             },
             {
                 path: 'assets/:id',

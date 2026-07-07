@@ -6,7 +6,7 @@
     </div>
 
     <!-- Hub Navigation Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
       <router-link 
         v-for="item in hubItems" 
         :key="item.name"
@@ -34,7 +34,7 @@
       </router-link>
     </div>
 
-    <!-- Info Section -->
+    
     <div class="bg-slate-900 rounded-[3.5rem] p-12 text-white shadow-2xl relative overflow-hidden group">
       <div class="relative z-10 w-full md:w-3/5">
         <div class="flex items-center gap-3 mb-6">
@@ -46,12 +46,12 @@
           Automated asset movement audits ensure that every handover is electronically signed and verified by all stakeholders, maintaining 100% data fidelity.
         </p>
         <div class="flex flex-wrap gap-4">
-          <div class="bg-white/5 border border-white/10 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+          <!-- <div class="bg-white/5 border border-white/10 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
             <span class="size-1.5 rounded-full bg-blue-500"></span> Blockchain Audit Trail
           </div>
           <div class="bg-white/5 border border-white/10 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
             <span class="size-1.5 rounded-full bg-orange-500"></span> Bi-Directional Signature
-          </div>
+          </div> -->
         </div>
       </div>
       
@@ -63,7 +63,7 @@
 </template>
 
 <script setup>
-import { ArrowLeftRight, Undo2 } from 'lucide-vue-next';
+import { ArrowLeftRight, Undo2, Wrench } from 'lucide-vue-next';
 
 const hubItems = [
   { 
@@ -79,6 +79,13 @@ const hubItems = [
     icon: Undo2, 
     colorClass: 'bg-vilcom-orange',
     description: 'Process check-ins and inbound asset returns.'
+  },
+  { 
+    name: 'Repairs', 
+    routeName: 'maintenances-list', 
+    icon: Wrench, 
+    colorClass: 'bg-slate-700',
+    description: 'Track and manage assets sent for repair or maintenance.'
   }
 ];
 </script>

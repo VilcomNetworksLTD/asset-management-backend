@@ -65,6 +65,7 @@ export default {
       statusDistribution: {
         ready_to_deploy: 0,
         deployed: 0,
+        end_of_life: 0,
         archived: 0,
         out_for_repair: 0,
       },

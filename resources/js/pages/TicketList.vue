@@ -11,7 +11,7 @@
       </div>
       
       <div class="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 flex gap-1">
-        <button @click="currentTab = 'asset'" :class="tabClass('asset')">Inventory Requests</button>
+        <button @click="currentTab = 'asset'" :class="tabClass('asset')">Inventory & Asset Requests</button>
       </div>
     </div>
 
@@ -252,8 +252,14 @@
 
               <td class="px-6 py-5">
                  <div class="space-y-1.5 max-w-[200px]">
+                    <!-- Ticket Type Badge -->
+                    <div class="flex items-center gap-2">
+                       <span :class="ticketTypeBadgeClass(ticket)" class="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">
+                          {{ getTicketTypeName(ticket) }}
+                       </span>
+                    </div>
                     <div class="font-black text-slate-800 text-base tracking-tight group-hover:text-vilcom-blue transition-colors">
-                       {{ currentTab === 'asset' ? (ticket.issue?.asset?.Asset_Name || extractRequestedCategory(ticket) || 'Inventory Request') : extractSubject(ticket.Description) }}
+                       {{ isResourceRequest(ticket) ? (extractRequestedCategory(ticket) || 'Resource Request') : (ticket.issue?.asset?.Asset_Name || extractSubject(ticket.Description) || 'Technical Issue') }}
                     </div>
                     <div class="text-[11px] font-bold text-gray-400 leading-relaxed italic whitespace-pre-wrap line-clamp-2 hover:line-clamp-none cursor-help transition-all">
                        {{ cleanDescription(ticket.Description) }}
@@ -283,48 +289,85 @@
               <td class="px-6 py-5 text-center">
                 <div :class="statusContainerClass(ticket.status?.Status_Name)" class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all">
                    <div :class="statusDotClass(ticket.status?.Status_Name)" class="size-1.5 rounded-full animate-pulse"></div>
-                   <span class="text-[10px] font-black uppercase tracking-widest">{{ ticket.status?.Status_Name || 'Processing' }}</span>
+                   <span class="text-[10px] font-black uppercase tracking-widest">{{ displayStatusName(ticket) }}</span>
                 </div>
               </td>
 
               <td class="px-6 py-5 text-right">
-                <div class="flex justify-end gap-3 md:opacity-40 group-hover:opacity-100 transition-opacity">
-                   <!-- ACTION TRANSITIONS -->
-                   <template v-if="!isResolved(ticket)">
-                       <button @click="openUpdate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-blue hover:border-vilcom-blue hover:shadow-lg transition-all" title="Edit Ticket & Add Note">
-                         <Edit3 class="size-4" />
-                       </button>
+                <div class="flex justify-end items-center gap-3 md:opacity-40 group-hover:opacity-100 transition-opacity">
 
-                       <button v-if="role === 'admin'" @click="openReject(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-red-600 hover:border-red-600 hover:shadow-lg transition-all" title="Reject Request">
-                         <XCircle class="size-4" />
-                       </button>
+                  <!-- ─── TERMINAL STATE BADGES (action complete) ─── -->
 
-                       <button v-if="role === 'admin' && currentTab === 'general'" @click="resolveTicket(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Mark as Resolved">
-                         <CheckCircle class="size-4" />
-                       </button>
+                  <!-- ASSIGNED (resource request, resolved/closed) -->
+                  <template v-if="isResourceRequest(ticket) && isActioned(ticket) && !isRejected(ticket) && !isEscalated(ticket)">
+                    <div class="px-3 py-2 bg-green-50 text-green-600 rounded-xl border border-green-100 flex items-center gap-2">
+                      <CheckCircle class="size-4" />
+                      <span class="text-[9px] font-black uppercase tracking-widest">Assigned</span>
+                    </div>
+                  </template>
 
-                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset && !isResolved(ticket)" @click="openAssign(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Assign Asset to User">
-                        <Package class="size-4" />
+                  <!-- SOLVED (technical issue, resolved/closed) -->
+                  <template v-else-if="!isResourceRequest(ticket) && isActioned(ticket) && !isRejected(ticket) && !isEscalated(ticket)">
+                    <div class="px-3 py-2 bg-green-50 text-green-600 rounded-xl border border-green-100 flex items-center gap-2">
+                      <ShieldCheck class="size-4" />
+                      <span class="text-[9px] font-black uppercase tracking-widest">Solved</span>
+                    </div>
+                  </template>
+
+                  <!-- ESCALATED (either type) -->
+                  <template v-else-if="isEscalated(ticket)">
+                    <div class="px-3 py-2 bg-purple-50 text-purple-600 rounded-xl border border-purple-100 flex items-center gap-2">
+                      <ArrowUpRight class="size-4" />
+                      <span class="text-[9px] font-black uppercase tracking-widest">Escalated</span>
+                    </div>
+                  </template>
+
+                  <!-- DECLINED/REJECTED (either type) -->
+                  <template v-else-if="isRejected(ticket)">
+                    <div class="px-3 py-2 bg-red-50 text-red-600 rounded-xl border border-red-100 flex items-center gap-2">
+                      <AlertCircle class="size-4" />
+                      <span class="text-[9px] font-black uppercase tracking-widest">Declined</span>
+                    </div>
+                  </template>
+
+                  <!-- ─── ACTIVE ACTIONS (ticket is still open) ─── -->
+                  <template v-else>
+                      <!-- Edit -->
+                      <button @click="openUpdate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-blue hover:border-vilcom-blue hover:shadow-lg transition-all" title="Edit Ticket & Add Note">
+                        <Edit3 class="size-4" />
                       </button>
 
-                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset && !isResolved(ticket)" @click="openReject(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-red-600 hover:border-red-600 hover:shadow-lg transition-all" title="Reject Request">
-                        <AlertCircle class="size-4" />
+                      <!-- Reject -->
+                      <button v-if="role === 'admin'" @click="openReject(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-red-600 hover:border-red-600 hover:shadow-lg transition-all" title="Reject Ticket">
+                        <XCircle class="size-4" />
                       </button>
 
-                      <button v-if="role === 'admin' && currentTab === 'asset' && !ticket.issue?.asset && !isResolved(ticket)" @click="openEscalate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-purple-600 hover:border-purple-600 hover:shadow-lg transition-all" title="Escalate to Management">
-                        <ArrowUpRight class="size-4" />
-                      </button>
-                   </template>
-                   <template v-else-if="isRejected(ticket)">
-                      <div class="p-3 bg-red-50 text-red-600 rounded-xl border border-red-100 flex items-center gap-2" title="Request Declined">
-                        <AlertCircle class="size-4" />
-                        <span class="text-[9px] font-black uppercase tracking-widest">Declined</span>
-                      </div>
-                   </template>
+                      <!-- Resource Request: Assign + Escalate -->
+                      <template v-if="isResourceRequest(ticket)">
+                        <button v-if="role === 'admin'" @click="openAssign(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Assign Asset to User">
+                          <Package class="size-4" />
+                        </button>
+                        <button v-if="role === 'admin' && ticket.status?.Status_Name?.toLowerCase() !== 'approved' && !isEscalated(ticket) && ticket.status?.Status_Name?.toLowerCase() !== 'solved'" @click="openEscalate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-purple-600 hover:border-purple-600 hover:shadow-lg transition-all" title="Escalate to Management">
+                          <ArrowUpRight class="size-4" />
+                        </button>
+                      </template>
 
-                   <button v-if="role === 'admin'" @click="removeRow(ticket.id)" class="p-3 bg-white border border-gray-100 text-slate-400 rounded-xl hover:text-red-500 hover:border-red-500 hover:shadow-lg transition-all" title="Delete Ticket">
-                     <Trash2 class="size-4" />
-                   </button>
+                      <!-- Technical Issue: Solved + Escalate -->
+                      <template v-else>
+                        <button v-if="role === 'admin'" @click="resolveTicket(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all" title="Mark as Solved">
+                          <CheckCircle class="size-4" />
+                        </button>
+                        <button v-if="role === 'admin' && ticket.status?.Status_Name?.toLowerCase() !== 'approved' && !isEscalated(ticket) && ticket.status?.Status_Name?.toLowerCase() !== 'solved'" @click="openEscalate(ticket)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-purple-600 hover:border-purple-600 hover:shadow-lg transition-all" title="Escalate to Management">
+                          <ArrowUpRight class="size-4" />
+                        </button>
+                      </template>
+                  </template>
+
+                  <!-- Delete always visible for admin -->
+                  <button v-if="role === 'admin'" @click="removeRow(ticket.id)" class="p-3 bg-white border border-gray-100 text-slate-400 rounded-xl hover:text-red-500 hover:border-red-500 hover:shadow-lg transition-all" title="Delete Ticket">
+                    <Trash2 class="size-4" />
+                  </button>
+
                 </div>
               </td>
             </tr>
@@ -392,10 +435,6 @@ const assignTicket = ref(null)
 const assignForm = reactive({ asset_id: '', communication: '', accessory_allocations: [] })
 const assignOptions = ref([])
 const accessoryOptions = ref([])
-
-const showReject = ref(false)
-const rejectTicket = ref(null)
-const rejectForm = reactive({ reason: '' })
 
 const statuses = ref([])
 const assignSearch = ref('')
@@ -503,6 +542,70 @@ const openUpdate = (ticket) => {
    return ['resolved', 'closed', 'completed', 'rejected', 'declined'].includes(statusName);
  }
 
+// Returns true when the ticket has been actioned — inverse check:
+// anything that is NOT open/pending AND NOT rejected AND NOT escalated is considered actioned.
+const isActioned = (ticket) => {
+  const s = ticket.status?.Status_Name?.toLowerCase() || '';
+  if (!s) return false;
+  const openStates = ['pending', 'new', 'open', 'in progress', 'approved'];
+  const rejectedStates = ['rejected', 'declined', 'cancelled'];
+  const isOpen = openStates.includes(s);
+  const isRej = rejectedStates.includes(s);
+  const isEsc = s.includes('escalated') || s.includes('awaiting');
+  return !isOpen && !isRej && !isEsc;
+};
+
+const isEscalated = (ticket) => {
+  const s = ticket.status?.Status_Name?.toLowerCase() || '';
+  return s.includes('escalated') || s.includes('awaiting');
+};
+
+const isResourceRequest = (ticket) => {
+  const desc = ticket.Description || '';
+  const lowerDesc = desc.toLowerCase();
+  return lowerDesc.includes('request category:') || lowerDesc.includes('asset (other):');
+};
+
+const getTicketTypeName = (ticket) => {
+  return isResourceRequest(ticket) ? 'Resource Request' : 'Technical Issue';
+};
+
+const ticketTypeBadgeClass = (ticket) => {
+  return isResourceRequest(ticket)
+    ? 'bg-blue-50 text-blue-600 border border-blue-100'
+    : 'bg-rose-50 text-rose-600 border border-rose-100';
+};
+
+const displayStatusName = (ticket) => {
+  const statusName = ticket.status?.Status_Name || 'Processing';
+  const s = statusName.toLowerCase();
+
+  if (isResourceRequest(ticket)) {
+    if (isActioned(ticket)) return 'Assigned';
+    if (isRejected(ticket)) return 'Rejected';
+    if (isEscalated(ticket)) return 'Escalated';
+  } else {
+    if (isActioned(ticket)) return 'Solved';
+    if (isRejected(ticket)) return 'Rejected';
+    if (isEscalated(ticket)) return 'Escalated';
+  }
+
+  return statusName;
+};
+
+const isRejected = (ticket) => {
+  const statusName = ticket.status?.Status_Name?.toLowerCase() || '';
+  return ['rejected', 'declined'].includes(statusName);
+};
+
+const openEscalate = (ticket) => {
+  escalateTicket.value = ticket;
+  escalateForm.item_name = extractRequestedCategory(ticket) || '';
+  escalateForm.estimated_cost = '';
+  escalateForm.reason = '';
+  showEscalate.value = true;
+};
+
  const statusContainerClass = (status) => {
    const s = String(status || '').toLowerCase();
    if (['resolved', 'closed', 'completed'].includes(s)) return 'bg-green-50 text-green-600 border-green-100 shadow-sm shadow-green-900/5';
@@ -510,6 +613,7 @@ const openUpdate = (ticket) => {
    if (s === 'in progress') return 'bg-blue-50 text-vilcom-blue border-blue-100 shadow-sm shadow-blue-900/5';
    if (s.includes('escalated') || s.includes('awaiting')) return 'bg-purple-50 text-purple-600 border-purple-100 shadow-sm shadow-purple-900/5';
    if (s === 'rejected' || s === 'declined') return 'bg-red-50 text-red-600 border-red-100 shadow-sm shadow-red-900/5';
+   if (s === 'approved') return 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-sm shadow-emerald-900/5';
    return 'bg-gray-50 text-gray-500 border-gray-100';
  }
 
@@ -520,6 +624,7 @@ const openUpdate = (ticket) => {
    if (s === 'in progress') return 'bg-vilcom-blue';
    if (s.includes('escalated') || s.includes('awaiting')) return 'bg-purple-500';
    if (s === 'rejected' || s === 'declined') return 'bg-red-500';
+   if (s === 'approved') return 'bg-emerald-500';
    return 'bg-gray-400';
  }
 
@@ -584,12 +689,6 @@ const openAssign = async (ticket) => {
   accessoryOptions.value = (data?.data || []).filter((a) => Number(a.remaining_qty) > 0)
 }
 
-const openReject = (ticket) => {
-  rejectTicket.value = ticket
-  rejectForm.reason = ''
-  showReject.value = true
-}
-
 const submitEscalation = async () => {
   if (!escalateTicket.value) return
   if (!escalateForm.item_name || !escalateForm.reason) {
@@ -598,8 +697,10 @@ const submitEscalation = async () => {
   }
   
   try {
-    await axios.post(`/api/tickets/${rejectTicket.value.id}/reject`, {
-      reason: rejectForm.reason
+    await axios.post(`/api/tickets/${escalateTicket.value.id}/escalate`, {
+      item_name: escalateForm.item_name,
+      estimated_cost: escalateForm.estimated_cost || null,
+      reason: escalateForm.reason
     })
     showEscalate.value = false
     window.vnlNotify.success('Ticket escalated to management for approval.');

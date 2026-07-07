@@ -27,16 +27,18 @@ class StatusSeeder extends Seeder
             'Stolen',
             'Non-Deployable',
             'Retired',
-            
+
             // Ticket / Maintenance / Workflow Statuses
             'Pending',
             'New',
             'Open',
             'Closed',
             'Resolved',
+            'Solved',        // Used by resolveTicket()
             'Completed',
             'Rejected',
             'Declined',
+            'Escalated',     // Used by escalateTicket()
             'Cancelled',
             'In Progress',
             'On Hold',

@@ -27,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
         \App\Models\User::observe(\App\Observers\UserObserver::class);
         \App\Models\Supplier::observe(\App\Observers\SupplierObserver::class);
         \App\Models\Issue::observe(\App\Observers\IssueObserver::class);
+        \App\Models\PurchaseRequest::observe(\App\Observers\PurchaseRequestObserver::class);
 
         // notify admins when the framework enters maintenance mode
         \Illuminate\Support\Facades\Event::listen(

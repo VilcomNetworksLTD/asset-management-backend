@@ -193,7 +193,10 @@ class UserController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $user->load(['accessories', 'licenses']);
+        $user->load([
+            'accessories' => fn ($q) => $q->wherePivotNull('returned_at'),
+            'licenses' => fn ($q) => $q->wherePivotNull('returned_at')
+        ]);
 
         return response()->json([
             'accessories' => $user->accessories,

@@ -96,11 +96,11 @@
             </div>
 
             <div class="space-y-3">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Priority Matrix</label>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Priority</label>
               <select v-model="form.priority" class="w-full bg-slate-50 border-none rounded-2xl p-5 text-sm font-bold shadow-sm ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue appearance-none transition-all">
-                <option value="low">Low (Standard Maintenance)</option>
-                <option value="medium">Medium (Operational Friction)</option>
-                <option value="high">High (Critical Blockage)</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
               </select>
             </div>
           </div>
@@ -126,7 +126,7 @@
           <!-- Actions -->
           <div class="flex flex-col md:flex-row gap-6 pt-6">
             <button type="submit" :disabled="submitting" class="flex-[2] bg-vilcom-blue text-white py-6 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-blue-900/30 hover:bg-blue-700 disabled:opacity-30 transition-all active:scale-95 flex items-center justify-center gap-3">
-              {{ submitting ? 'Transmitting Data...' : (form.type === 'equipment_request' ? 'Transmit Procurement Request' : 'File Incident Report') }}
+              {{ submitting ? 'Processing ...' : (form.type === 'equipment_request' ? 'Submit' : 'Submit') }}
               <Send v-if="!submitting" class="size-4" />
             </button>
             <button type="button" @click="router.push('/dashboard/user')" class="flex-1 bg-slate-50 text-slate-400 py-6 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.2em] hover:bg-slate-100 transition-all">

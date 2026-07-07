@@ -109,7 +109,7 @@ const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-GB', {
           </div>
           <div>
             <h3 class="text-lg font-black text-slate-800 tracking-tight">Record Replacement</h3>
-            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Update Cartridge Status</p>
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Cartridge Status</p>
           </div>
         </div>
       </div>
@@ -137,7 +137,7 @@ const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-GB', {
           </div>
 
           <div class="space-y-2">
-            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Color Variant</label>
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Color</label>
             <select v-model="form.color" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all cursor-pointer" :disabled="!form.consumable_id">
               <option value="">Select Color...</option>
               <template v-if="form.consumable_id">
@@ -171,7 +171,7 @@ const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-GB', {
       <div class="p-8 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
         <h2 class="text-sm font-black text-slate-800 uppercase tracking-[0.2em] flex items-center gap-3">
           <Activity class="size-4 text-vilcom-blue" />
-          Active Cycles & Depletion History
+          History
         </h2>
         <button @click="fetchAllHistory" class="p-3 bg-white border border-gray-100 rounded-xl text-slate-400 hover:text-vilcom-blue hover:border-vilcom-blue transition-all">
           <RefreshCcw class="size-4" :class="{'animate-spin': loading}" />
@@ -182,8 +182,8 @@ const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-GB', {
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-gray-50/50 border-b border-gray-50">
-              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Printer Instance</th>
-              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Color Profile</th>
+              <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Printer</th>
+              <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Color</th>
               <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Consumable Model</th>
               <th class="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Timeline</th>
               <th class="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Status</th>

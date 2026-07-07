@@ -31,8 +31,8 @@ class TicketService
             ]);
 
             // If the ticket is linked to an Issue, update the issue status as well
-            if (Schema::hasColumn('tickets', 'Issue_ID') && $ticket->Issue_ID) {
-                Issue::where('id', $ticket->Issue_ID)->update(['Status_ID' => $statusId]);
+            if ($ticket->issue) {
+                $ticket->issue->update(['Status_ID' => $statusId]);
             }
 
             return $ticket;
@@ -49,7 +49,7 @@ class TicketService
             $asset = Asset::findOrFail($data['asset_id']);
 
             $deployedStatusId = Status::whereIn('Status_Name', ['Deployed', 'Assigned', 'In Use'])->value('id');
-            $resolvedStatusId = Status::whereIn('Status_Name', ['Resolved', 'Closed', 'Completed'])->value('id');
+            $assignedStatusId = Status::where('Status_Name', 'Assigned')->value('id') ?? Status::firstOrCreate(['Status_Name' => 'Assigned'])->id;
 
             // 1. Update Asset Ownership
             $asset->update([
@@ -84,27 +84,17 @@ class TicketService
             $log = trim(($data['communication'] ?? 'Asset assigned by admin') . ($bundleLine ? "\n" . $bundleLine : ''));
 
             $ticket->update([
-                'Status_ID' => $resolvedStatusId ?? $ticket->Status_ID,
+                'Status_ID' => $assignedStatusId,
                 'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . $log),
             ]);
 
             // 5. Update linked Issue
-            if (Schema::hasColumn('tickets', 'Issue_ID') && $ticket->Issue_ID) {
-                Issue::where('id', $ticket->Issue_ID)->update([
+            if ($ticket->issue) {
+                $ticket->issue->update([
                     'Asset_ID' => $asset->id,
-                    'Status_ID' => $resolvedStatusId ?? 1,
+                    'Status_ID' => $assignedStatusId,
                 ]);
             }
-
-            // 6. Log Activity
-            ActivityLog::create([
-                'Employee_ID' => Auth::id(),
-                'user_name' => Auth::user()->name ?? 'Admin',
-                'action' => 'Assigned',
-                'target_type' => 'Asset',
-                'target_name' => $asset->Asset_Name,
-                'details' => "Assigned to user via ticket",
-            ]);
 
             return ['ticket' => $ticket, 'asset' => $asset, 'bundle' => $bundleItems];
         });

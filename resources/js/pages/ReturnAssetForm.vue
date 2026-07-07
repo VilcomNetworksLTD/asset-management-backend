@@ -47,13 +47,13 @@
                 <Keyboard class="size-3" />
                 Accessories
               </div>
-              <div v-if="accessories.length" class="space-y-2">
-                <label v-for="a in (accessories || []).filter(item => item)" :key="a.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer group/item shadow-sm">
+              <div v-if="displayedAccessories.length" class="space-y-2">
+                <label v-for="a in displayedAccessories" :key="a.id" class="flex items-center gap-4 bg-white p-4 rounded-xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer group/item shadow-sm">
                   <input type="checkbox" :value="a.id" v-model="selectedAccessories" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
                   <span class="text-xs font-bold text-slate-700">{{ a.name }}</span>
                 </label>
               </div>
-              <div v-else class="text-[10px] text-gray-400 italic">No assigned accessories</div>
+              <div v-else class="text-[10px] text-gray-400 italic">No assigned accessories for this asset</div>
             </div>
           </div>
         </div>
@@ -144,11 +144,32 @@ const form = ref({
   reason: ''
 })
 
+watch(
+  () => form.value.asset_id,
+  (newAssetId) => {
+    if (!newAssetId) {
+      selectedAccessories.value = [];
+      return;
+    }
+    const linkedAccessories = (accessories.value || []).filter(
+      a => a.pivot && Number(a.pivot.asset_id) === Number(newAssetId)
+    );
+    selectedAccessories.value = linkedAccessories.map(a => a.id);
+  }
+);
+
 const isSubmittable = computed(() => {
   return !!form.value.asset_id ||
   
     selectedAccessories.value.length > 0 ||
     selectedLicenses.value.length > 0;
+});
+
+const displayedAccessories = computed(() => {
+  if (!form.value.asset_id) return [];
+  return (accessories.value || []).filter(
+    a => a.pivot && Number(a.pivot.asset_id) === Number(form.value.asset_id)
+  );
 });
 
 /* LOAD ASSETS + EXTRAS */

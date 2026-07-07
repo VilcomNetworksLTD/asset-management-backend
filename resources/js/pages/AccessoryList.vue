@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { useWindowFocus } from '@vueuse/core'
 import { useSettings } from '../composables/useSettings';
@@ -11,6 +12,7 @@ const users = ref([])
 const loading = ref(false)
 const error = ref('')
 const saving = ref(false)
+const route = useRoute()
 
 const { settings } = useSettings();
 function formatMoney(amount) {
@@ -126,6 +128,19 @@ const removeRow = async (id) => {
 onMounted(() => {
   fetchRows()
   loadUsers()
+
+  if (route.query.action === 'assign') {
+    if (rows.value.length > 0) {
+      openAssign(rows.value[0]);
+    } else {
+      watch(rows, (newVal) => {
+        const valid = newVal.filter(Boolean);
+        if (valid.length > 0) {
+          openAssign(valid[0]);
+        }
+      }, { once: true });
+    }
+  }
 })
 </script>
 
@@ -217,9 +232,6 @@ onMounted(() => {
               </td>
               <td class="px-8 py-5 text-right">
                 <div class="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button @click="openAssign(item)" :disabled="item.remaining_qty < 1" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-green-600 hover:border-green-600 hover:shadow-lg transition-all disabled:opacity-20" title="Assign to User">
-                    <UserPlus class="size-4" />
-                  </button>
                   <button @click="openEdit(item)" class="p-3 bg-white border border-gray-100 text-slate-500 rounded-xl hover:text-vilcom-blue hover:border-vilcom-blue hover:shadow-lg transition-all" title="Edit Metadata">
                     <Edit3 class="size-4" />
                   </button>
@@ -311,7 +323,7 @@ onMounted(() => {
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Item Descriptor</label>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Item Name</label>
               <input v-model="form.name" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="e.g. Logitech MX Master 3S">
             </div>
             <div class="space-y-2">
@@ -322,11 +334,11 @@ onMounted(() => {
               </select>
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Model Architecture</label>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Model</label>
               <input v-model="form.model_number" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="M/N: 910-006557">
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Identity/Serial</label>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Serial Number</label>
               <input v-model="form.serial_no" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all" placeholder="S/N: 2228LZ03G688">
             </div>
             <div class="space-y-2">

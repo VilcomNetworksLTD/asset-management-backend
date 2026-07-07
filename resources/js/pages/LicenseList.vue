@@ -390,7 +390,7 @@ onMounted(() => {
               <input v-model.number="form.remaining_seats" type="number" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Lifecycle Expiry</label>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Expiry Date</label>
               <input v-model="form.expiry_date" type="date" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
             </div>
             <div class="space-y-2">
@@ -411,9 +411,9 @@ onMounted(() => {
               </select>
             </div>
             <div class="space-y-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Renewal Protocol</label>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Renewal Time</label>
               <select v-model="form.renewal_type" class="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold focus:ring-2 focus:ring-vilcom-blue/20 transition-all">
-                <option value="">Select Protocol...</option>
+                <option value="">Select Timeline...</option>
                 <option value="Annual">Annual</option>
                 <option value="Perpetual">Perpetual</option>
                 <option value="Monthly">Monthly</option>
@@ -424,7 +424,7 @@ onMounted(() => {
 
           <div class="flex gap-4 pt-4">
             <button @click="save" :disabled="saving" class="flex-1 py-4 bg-vilcom-blue text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-900/20 hover:scale-[1.02] active:scale-95 transition-all">
-              {{ saving ? 'Synchronizing...' : (editingId ? 'Push Updates' : 'Initialize Record') }}
+              {{ saving ? 'Synchronizing...' : (editingId ? 'Push Updates' : 'Save') }}
             </button>
             <button @click="showForm = false" class="px-8 py-4 bg-gray-100 text-gray-400 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-gray-200 transition-all">Cancel</button>
           </div>

@@ -101,38 +101,46 @@ class AccessoryController extends Controller
         return response()->json(['message' => 'Accessory deleted successfully']);
     }
     public function assign(Request $request, $id)
-{
-    $request->validate([
-        'user_id' => 'required|exists:users,id',
-        'quantity' => 'required|integer|min:1',
-    ]);
+    {
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'quantity' => 'required|integer|min:1',
+            'asset_id' => 'nullable|integer|exists:assets,id',
+        ]);
 
-    $accessory = Accessory::findOrFail($id);
+        $accessory = Accessory::findOrFail($id);
 
-    $quantity = $request->integer('quantity');
-    $userId = $request->integer('user_id');
+        $quantity = $request->integer('quantity');
+        $userId = $request->integer('user_id');
+        $assetId = $request->input('asset_id');
 
-    if ($accessory->remaining_qty < $quantity) {
-        return response()->json(['message' => 'Not enough stock'], 400);
+        if ($accessory->remaining_qty < $quantity) {
+            return response()->json(['message' => 'Not enough stock'], 400);
+        }
+
+        $user = User::find($userId);
+
+        $pivotData = ['quantity' => $quantity];
+        if ($assetId) {
+            $pivotData['asset_id'] = $assetId;
+        }
+
+        $user->accessories()->attach($accessory->id, $pivotData);
+
+        $accessory->decrement('remaining_qty', $quantity);
+
+        ActivityLog::create([
+            'Employee_ID' => Auth::id(),
+            'user_name'   => Auth::user()->name ?? 'System',
+            'action'      => 'Assigned',
+            'target_type' => 'Accessory',
+            'target_name' => $accessory->name,
+            'details'     => "Assigned {$quantity} to user: {$user->name}" . ($assetId ? " for Asset ID: {$assetId}" : ""),
+            'asset_id'    => $assetId,
+        ]);
+        
+        return response()->json(['message' => 'Accessory assigned successfully']);
     }
-
-    $user = User::find($userId);
-
-    $user->accessories()->attach($accessory->id, ['quantity' => $quantity]);
-
-    $accessory->decrement('remaining_qty', $quantity);
-
-    ActivityLog::create([
-        'Employee_ID' => Auth::id(),
-        'user_name'   => Auth::user()->name ?? 'System',
-        'action'      => 'Assigned',
-        'target_type' => 'Accessory',
-        'target_name' => $accessory->name,
-        'details'     => "Assigned {$quantity} to user: {$user->name}",
-    ]);
-    
-    return response()->json(['message' => 'Accessory assigned successfully']);
-}
 
     public function myAccessories()
     {

@@ -7,7 +7,7 @@ import {
   ArrowLeft, Barcode, Tag, Edit3, UserPlus, 
   Check, X, Camera, Printer, Trash2, 
   ChevronDown, LayoutGrid, Info, History, ShieldCheck,
-  Send, PackageCheck, AlertCircle
+  Send, PackageCheck, AlertCircle, Package
 } from 'lucide-vue-next';
 
 import Modal from '@/components/Modal.vue';
@@ -23,6 +23,18 @@ const loading = ref(false);
 const isEditing = ref(false);
 const saving = ref(false);
 const uploadingEvidence = ref(false);
+const deleting = ref(false);
+const showDeleteConfirm = ref(false);
+
+// Accessory assignment state
+const showAccessoryModal = ref(false);
+const assigningAccessory = ref(false);
+const accessoriesForDropdown = ref([]);
+const userAssignedAccessories = ref([]);
+const accessoryForm = reactive({
+  accessory_id: null,
+  quantity: 1,
+});
 
 const isFocused = useWindowFocus();
 const REFRESH_INTERVAL = 15000;
@@ -80,18 +92,25 @@ const assignmentForm = reactive({
 // Dropdown data for edit
 const locations = ref([]);
 const statuses = ref([]);
+const suppliers = ref([]);
 
 const form = reactive({
   Asset_Name: '',
+  system_name: '',
+  Serial_No: '',
   location_id: null,
   Status_ID: null,
+  Supplier_ID: null,
   Price: '',
   Purchase_Date: '',
   custom_attributes: {},
+  accessories: [],
 });
 
 const fetchAsset = async () => {
-  loading.value = true;
+  if (!asset.value) {
+    loading.value = true;
+  }
   try {
     const { data } = await axios.get(`/api/assets/${assetId}`);
     asset.value = data;
@@ -106,26 +125,54 @@ const fetchAsset = async () => {
 
 const fetchDropdowns = async () => {
   try {
-    const [locRes, statRes] = await Promise.all([
+    const [locRes, statRes, supRes] = await Promise.all([
       axios.get('/api/locations'),
       axios.get('/api/statuses'),
+      axios.get('/api/suppliers'),
     ]);
     locations.value = locRes.data;
     statuses.value = statRes.data;
+    suppliers.value = supRes.data;
   } catch (error) {
     console.error("Error loading dropdowns", error);
   }
 };
 
 const enableEditMode = async () => {
-  if (locations.value.length === 0) await fetchDropdowns();
+  if (locations.value.length === 0 || suppliers.value.length === 0) await fetchDropdowns();
+
+  // Load in-stock accessories for dropdown
+  try {
+    const accRes = await axios.get('/api/accessories', { params: { type: 'accessory' } });
+    accessoriesForDropdown.value = (accRes.data || []).filter(a => a.remaining_qty > 0);
+  } catch (e) {
+    console.error("Failed to fetch accessories:", e);
+  }
   
   form.Asset_Name = asset.value.Asset_Name;
+  form.system_name = asset.value.system_name || '';
+  form.Serial_No = asset.value.Serial_No || '';
   form.location_id = asset.value.location_id;
   form.Status_ID = asset.value.Status_ID;
+  form.Supplier_ID = asset.value.Supplier_ID || asset.value.supplier?.id || null;
   form.Price = asset.value.Price;
   form.Purchase_Date = asset.value.Purchase_Date ? asset.value.Purchase_Date.split('T')[0] : '';
   
+  // Populate form accessories with the user's currently assigned accessories for this asset
+  form.accessories = [];
+  if (asset.value.user && asset.value.user.accessories) {
+    asset.value.user.accessories.forEach(acc => {
+      form.accessories.push({
+        pivot_id: acc.pivot?.id,        // unique pivot row id — KEY fix
+        accessory_id: acc.id,
+        new_accessory_id: acc.id,
+        quantity: acc.pivot?.quantity || 1,
+        name: acc.name,
+        category: acc.category
+      });
+    });
+  }
+
   const schemaFields = asset.value.category?.fields || [];
   const existingAttributes = asset.value.custom_attributes || {};
   
@@ -288,6 +335,7 @@ const saveChanges = async () => {
   // Sanitize numeric data before sending
   const payload = {
     ...form,
+    Asset_Name: form.system_name || form.Asset_Name,
     Price: form.Price === '' ? null : Number(form.Price)
   };
 
@@ -303,12 +351,95 @@ const saveChanges = async () => {
   }
 };
 
+const handleDelete = async () => {
+  deleting.value = true;
+  try {
+    await axios.delete(`/api/assets/${assetId}`);
+    window.vnlNotify.success("Asset deleted successfully.");
+    router.push({ name: 'assets-list' });
+  } catch (error) {
+    console.error("Error deleting asset:", error);
+    window.vnlNotify.error(error.response?.data?.message || "Failed to delete asset.");
+  } finally {
+    deleting.value = false;
+    showDeleteConfirm.value = false;
+  }
+};
+
 const hasCategoryFields = computed(() => {
   return asset.value?.category?.fields?.length > 0;
 });
 
+const openAccessoryModal = async () => {
+  accessoryForm.accessory_id = null;
+  accessoryForm.quantity = 1;
+  showAccessoryModal.value = true;
+
+  try {
+    const [accRes, userAccRes] = await Promise.all([
+      axios.get('/api/accessories', { params: { type: 'accessory' } }),
+      axios.get(`/api/users-list/${asset.value.user.id}/accessories`).catch(() => ({ data: [] }))
+    ]);
+    accessoriesForDropdown.value = (accRes.data || []).filter(a => a.remaining_qty > 0);
+    userAssignedAccessories.value = Array.isArray(userAccRes.data) ? userAccRes.data : [];
+  } catch (error) {
+    console.error('Failed to load accessories:', error);
+    // Fallback: just load accessories without user accessories
+    try {
+      const accRes = await axios.get('/api/accessories', { params: { type: 'accessory' } });
+      accessoriesForDropdown.value = (accRes.data || []).filter(a => a.remaining_qty > 0);
+    } catch (e) {
+      window.vnlNotify.error('Failed to load accessories.');
+    }
+    userAssignedAccessories.value = [];
+  }
+};
+
+const submitAccessoryAssignment = async () => {
+  if (!accessoryForm.accessory_id) {
+    window.vnlNotify.error('Please select an accessory.');
+    return;
+  }
+  if (!accessoryForm.quantity || accessoryForm.quantity < 1) {
+    window.vnlNotify.error('Quantity must be at least 1.');
+    return;
+  }
+  assigningAccessory.value = true;
+  try {
+    await axios.post(`/api/accessories/${accessoryForm.accessory_id}/assign`, {
+      user_id: asset.value.user.id,
+      quantity: accessoryForm.quantity,
+      asset_id: asset.value.id,
+    });
+    window.vnlNotify.success('Accessory assigned successfully.');
+    showAccessoryModal.value = false;
+    // Refresh asset to reflect changes
+    fetchAsset();
+  } catch (error) {
+    window.vnlNotify.error(error.response?.data?.message || 'Failed to assign accessory.');
+  } finally {
+    assigningAccessory.value = false;
+  }
+};
+
 onMounted(() => {
   fetchAsset();
+});
+
+const displayStatusName = (statusName) => {
+  if (!statusName) return 'Available';
+  const s = statusName.toLowerCase();
+  if (s === 'ready to deploy') return 'Available';
+  if (s === 'deployed') return 'Assigned';
+  if (s === 'under repair' || s === 'out for repair' || s === 'maintenance') return 'Under Repairs';
+  if (s === 'non-deployable' || s === 'non_deployable' || s === 'retired' || s === 'broken') return 'End of Life';
+  return statusName;
+};
+
+const isNonDeployable = computed(() => {
+  if (!asset.value?.status?.Status_Name) return false;
+  const s = asset.value.status.Status_Name.toLowerCase();
+  return s === 'non-deployable' || s === 'non_deployable' || s === 'retired' || s === 'broken';
 });
 </script>
 
@@ -327,9 +458,39 @@ onMounted(() => {
           <button @click="enableEditMode" class="bg-white border border-gray-100 text-slate-700 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 hover:shadow-lg transition-all flex items-center gap-2">
             <Edit3 class="size-4 text-vilcom-blue" /> Edit Asset Details
           </button>
-          <button @click="openAssignModal" class="bg-vilcom-blue text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:shadow-xl hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-blue-900/10">
+
+          <template v-if="!showDeleteConfirm">
+            <button @click="showDeleteConfirm = true" class="bg-white border border-red-100 text-red-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50/50 hover:shadow-lg transition-all flex items-center gap-2">
+              <Trash2 class="size-4 text-red-500" /> Delete Asset
+            </button>
+          </template>
+          <template v-else>
+            <div class="flex items-center gap-2 bg-red-50/30 p-1.5 rounded-2xl border border-red-100">
+              <span class="text-[9px] font-black text-red-500 uppercase tracking-wider pl-2 pr-1">Are you sure?</span>
+              <button @click="handleDelete" :disabled="deleting" class="bg-red-600 text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-700 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50">
+                {{ deleting ? 'Deleting...' : 'Confirm' }}
+              </button>
+              <button @click="showDeleteConfirm = false" :disabled="deleting" class="bg-white border border-gray-200 text-slate-500 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95 disabled:opacity-50">
+                Cancel
+              </button>
+            </div>
+          </template>
+
+          <!-- Assign Accessory: only shown when asset is assigned to someone AND not end-of-life -->
+          <button v-if="asset.user && !isNonDeployable" @click="openAccessoryModal" class="bg-white border border-orange-100 text-orange-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-50/50 hover:shadow-lg transition-all flex items-center gap-2">
+            <Package class="size-4 text-orange-500" /> Assign Accessory
+          </button>
+
+          <!-- Assign to member: hidden for end-of-life / non-deployable assets -->
+          <button v-if="!isNonDeployable" @click="openAssignModal" class="bg-vilcom-blue text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:shadow-xl hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-blue-900/10">
             <UserPlus class="size-4" /> {{ asset.user ? 'Give to someone else' : 'Assign to member' }}
           </button>
+
+          <!-- End-of-Life indicator shown in place of assign button -->
+          <div v-if="isNonDeployable" class="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-5 py-2.5 rounded-2xl">
+            <AlertCircle class="size-4 text-red-500 flex-shrink-0" />
+            <span class="font-black text-[10px] uppercase tracking-widest">End of Life — Cannot Assign</span>
+          </div>
         </template>
         <template v-else-if="isAdmin">
            <button @click="cancelEdit" class="text-gray-400 font-black text-[10px] uppercase tracking-widest hover:text-red-500 transition-colors">Cancel Changes</button>
@@ -364,8 +525,16 @@ onMounted(() => {
                   <Tag class="size-4 text-vilcom-orange" />
                   {{ asset.category?.name }}
                 </div>
-                <span :class="['px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest', asset.user ? 'bg-blue-50 text-vilcom-blue' : 'bg-green-50 text-green-600']">
-                  {{ asset.status?.Status_Name || 'In Stock' }}
+                <span :class="[
+                  'px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1',
+                  isNonDeployable
+                    ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
+                    : ['deployed', 'assigned'].includes(asset.status?.Status_Name?.toLowerCase())
+                      ? 'bg-blue-50 text-vilcom-blue'
+                      : 'bg-green-50 text-green-600'
+                ]">
+                  <span v-if="isNonDeployable">⚠</span>
+                  {{ displayStatusName(asset.status?.Status_Name) }}
                 </span>
               </div>
             </div>
@@ -382,30 +551,51 @@ onMounted(() => {
            </div>
 
            <div class="p-6 md:p-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12">
-             <div class="space-y-2">
-               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Operational Location</label>
-               <div v-if="!isEditing" class="font-black text-slate-700 p-4">{{ asset.location_model?.name || 'Unassigned' }}</div>
+             <div class="space-y-2 min-w-0">
+               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">System Name</label>
+               <div v-if="!isEditing" class="font-black text-slate-700 p-4 whitespace-normal break-words [overflow-wrap:anywhere]">{{ asset.system_name || 'Not set' }}</div>
+               <input v-else v-model="form.system_name" type="text" class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue" />
+             </div>
+
+             <div class="space-y-2 min-w-0">
+               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Serial Number</label>
+               <div v-if="!isEditing" class="font-black text-slate-700 p-4 whitespace-normal break-words [overflow-wrap:anywhere]">{{ asset.Serial_No || 'Not set' }}</div>
+               <input v-else v-model="form.Serial_No" type="text" class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue" />
+             </div>
+
+             <div class="space-y-2 min-w-0">
+               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Location</label>
+               <div v-if="!isEditing" class="font-black text-slate-700 p-4 whitespace-normal break-words [overflow-wrap:anywhere]">{{ asset.location_model?.name || 'Unassigned' }}</div>
                <select v-else v-model="form.location_id" class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue appearance-none">
                  <option :value="null">Unassigned</option>
                  <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }}</option>
                </select>
              </div>
 
-             <div v-if="isAdmin" class="space-y-2">
+             <div v-if="isAdmin" class="space-y-2 min-w-0">
+               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Supplier</label>
+               <div v-if="!isEditing" class="font-black text-slate-700 p-4 whitespace-normal break-words [overflow-wrap:anywhere]">{{ asset.supplier?.Supplier_Name || 'Not set' }}</div>
+               <select v-else v-model="form.Supplier_ID" class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue appearance-none" required>
+                 <option :value="null" disabled>Select a supplier</option>
+                 <option v-for="sup in suppliers" :key="sup.id" :value="sup.id">{{ sup.Supplier_Name }}</option>
+               </select>
+             </div>
+
+             <div v-if="isAdmin" class="space-y-2 min-w-0">
                <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ownership State</label>
-               <div class="font-black text-slate-700 p-4 flex items-center gap-2">
+               <div class="font-black text-slate-700 p-4 flex items-center gap-2 whitespace-normal break-words [overflow-wrap:anywhere]">
                  <div :class="['size-2 rounded-full', asset.user ? 'bg-blue-500' : 'bg-green-500']"></div>
                  {{ asset.user?.name || 'In Stock (Central Inventory)' }}
                </div>
              </div>
 
-            <div v-if="isAdmin" class="space-y-2">
-              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Acquisition Value</label>
+            <div v-if="isAdmin" class="space-y-2 min-w-0">
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Purchase Price</label>
               <div v-if="!isEditing" class="font-black text-vilcom-blue p-4 text-xl">KES {{ Number(asset.Price || 0).toLocaleString() }}</div>
               <input v-else v-model="form.Price" type="number" step="0.01" class="w-full bg-slate-50 border-none rounded-xl p-4 font-bold focus:ring-2 focus:ring-vilcom-blue" />
             </div>
 
-            <div v-if="isAdmin" class="space-y-2">
+            <div v-if="isAdmin" class="space-y-2 min-w-0">
               <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Purchase Date</label>
               <div v-if="!isEditing" class="font-black text-slate-700 p-4">
                 {{ asset.Purchase_Date ? new Date(asset.Purchase_Date).toLocaleDateString() : 'Not set' }}
@@ -427,21 +617,21 @@ onMounted(() => {
             </div>
 
              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-10">
-                 <div v-for="field in asset.category.fields" :key="field.name" class="space-y-2">
-                  <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                 <div v-for="field in asset.category.fields" :key="field.name" class="space-y-2 min-w-0">
+                  <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-normal break-words [overflow-wrap:anywhere]">
                     {{ field.label }}
                     <span v-if="isAdmin && field.type" class="ml-2 text-vilcom-blue/30 lowercase">({{ field.type }})</span>
                   </label>
                   
                   <!-- Display Mode -->
-                  <div v-if="!isEditing" :class="['font-black text-slate-700 bg-slate-50/50 p-4 rounded-xl', (field.type === 'ip' || field.type === 'ip_address') ? 'font-mono' : '']">
+                  <div v-if="!isEditing" :class="['font-black text-slate-700 bg-slate-50/50 p-4 rounded-xl min-w-0 whitespace-normal break-words [overflow-wrap:anywhere]', (field.type === 'ip' || field.type === 'ip_address') ? 'font-mono' : '']">
                     <img v-if="field.type === 'image' && asset.custom_attributes?.[field.name]" :src="asset.custom_attributes[field.name]" class="max-w-full h-auto rounded" />
                     <div v-else-if="field.type === 'checkbox'">
                       <span :class="asset.custom_attributes?.[field.name] ? 'text-green-600' : 'text-gray-400'">
                         {{ asset.custom_attributes?.[field.name] ? 'Yes' : 'No' }}
                       </span>
                     </div>
-                    <span v-else>{{ asset.custom_attributes?.[field.name] || '-' }}</span>
+                    <span v-else class="block whitespace-normal break-words [overflow-wrap:anywhere]">{{ asset.custom_attributes?.[field.name] || '-' }}</span>
                   </div>
                   
                   <!-- Edit Mode -->
@@ -583,6 +773,61 @@ onMounted(() => {
              </div>
           </div>
 
+          <!-- Assigned Accessories Card: shown above supplier when user has accessories -->
+          <div v-if="asset.user && asset.user.accessories && asset.user.accessories.length > 0" class="bg-white rounded-[2.5rem] p-8 shadow-sm border border-orange-100 space-y-5">
+            <div class="flex items-center gap-3">
+              <div class="p-3 bg-orange-50 rounded-2xl">
+                <Package class="size-5 text-orange-500" />
+              </div>
+              <div>
+                <h3 class="text-xs font-black text-slate-800 uppercase tracking-widest">Assigned Accessories</h3>
+                <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">For {{ asset.user.name }}</p>
+              </div>
+            </div>
+            
+            <div class="space-y-4">
+              <!-- Read Mode -->
+              <template v-if="!isEditing">
+                <div
+                  v-for="acc in asset.user.accessories"
+                  :key="acc.id"
+                  class="flex items-center justify-between bg-orange-50/50 px-4 py-3 rounded-xl border border-orange-100/50"
+                >
+                  <div>
+                    <div class="text-xs font-black text-slate-700">{{ acc.name }}</div>
+                    <div class="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">{{ acc.category }}</div>
+                  </div>
+                  <span class="bg-orange-100 text-orange-600 font-black text-[9px] uppercase tracking-widest px-2.5 py-1 rounded-lg">
+                    x{{ acc.pivot?.quantity || 1 }}
+                  </span>
+                </div>
+              </template>
+              
+              <!-- Edit Mode: Swap & update quantity (Requirement 1, 2, 3) -->
+              <template v-else>
+                <div
+                  v-for="(acc, idx) in form.accessories"
+                  :key="acc.pivot_id ?? idx"
+                  class="space-y-3 bg-orange-50/20 p-4 rounded-2xl border border-orange-100/30"
+                >
+                  <div class="space-y-1">
+                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-wider">Accessory Type (Swap)</label>
+                    <select v-model="acc.new_accessory_id" class="w-full bg-white border-none rounded-xl p-3 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue">
+                      <option :value="acc.accessory_id">{{ acc.name }} (Current)</option>
+                      <option v-for="opt in accessoriesForDropdown.filter(a => a.id !== acc.accessory_id)" :key="opt.id" :value="opt.id">
+                        {{ opt.name }} (In Stock: {{ opt.remaining_qty }})
+                      </option>
+                    </select>
+                  </div>
+                  <div class="space-y-1">
+                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-wider">Quantity</label>
+                    <input v-model.number="acc.quantity" type="number" min="1" class="w-full bg-white border-none rounded-xl p-3 text-xs font-bold ring-1 ring-gray-100 focus:ring-2 focus:ring-vilcom-blue" />
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <div v-if="asset.supplier" class="bg-vilcom-blue rounded-[2.5rem] p-10 text-white space-y-6 shadow-xl shadow-blue-900/10">
              <div class="flex items-center gap-4">
                 <div class="p-3 bg-white/10 rounded-2xl">
@@ -665,5 +910,66 @@ onMounted(() => {
          </div>
        </form>
      </Modal>
+
+      <!-- Assign Accessory Modal -->
+      <Modal :show="showAccessoryModal" @close="showAccessoryModal = false" title="Assign Accessory to User">
+        <form @submit.prevent="submitAccessoryAssignment" class="p-6 md:p-10 space-y-8">
+
+          <!-- Currently Assigned Accessories -->
+          <div v-if="userAssignedAccessories.length > 0" class="space-y-3">
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Currently Assigned to {{ asset?.user?.name }}</label>
+            <div class="bg-slate-50 rounded-2xl p-4 space-y-2 max-h-36 overflow-y-auto custom-scrollbar">
+              <div v-for="acc in userAssignedAccessories" :key="acc.id" class="flex items-center justify-between bg-white px-4 py-2.5 rounded-xl">
+                <div>
+                  <div class="text-xs font-black text-slate-700">{{ acc.name }}</div>
+                  <div class="text-[9px] font-bold text-gray-400 uppercase">{{ acc.category }}</div>
+                </div>
+                <span class="bg-orange-100 text-orange-600 font-black text-[9px] px-2 py-0.5 rounded-lg">x{{ acc.pivot?.quantity || 1 }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Select Accessory -->
+          <div class="space-y-3">
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Select Accessory</label>
+            <div class="relative group/field">
+              <select
+                v-model="accessoryForm.accessory_id"
+                class="w-full bg-slate-50 border-none rounded-2xl p-6 text-slate-800 font-bold appearance-none transition-all group-hover/field:bg-slate-100 focus:ring-2 focus:ring-vilcom-blue"
+                required
+              >
+                <option :value="null" disabled>Choose an accessory in stock...</option>
+                <option v-for="acc in accessoriesForDropdown" :key="acc.id" :value="acc.id">
+                  {{ acc.name }} — {{ acc.category }} ({{ acc.remaining_qty }} in stock)
+                </option>
+              </select>
+              <ChevronDown class="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 size-5 pointer-events-none" />
+            </div>
+            <div v-if="accessoriesForDropdown.length === 0" class="text-center text-[10px] font-black text-gray-300 uppercase tracking-widest italic py-4">
+              No accessories currently in stock
+            </div>
+          </div>
+
+          <!-- Quantity -->
+          <div class="space-y-3">
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Quantity</label>
+            <input
+              v-model.number="accessoryForm.quantity"
+              type="number"
+              min="1"
+              class="w-full bg-slate-50 border-none rounded-2xl p-6 font-bold text-slate-800 focus:ring-2 focus:ring-vilcom-blue"
+              required
+            />
+          </div>
+
+          <div class="flex gap-4">
+            <button @click="showAccessoryModal = false" type="button" class="flex-1 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-red-500 transition-colors py-6">Cancel</button>
+            <button type="submit" :disabled="assigningAccessory" class="flex-[3] bg-orange-500 text-white py-6 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:shadow-2xl shadow-xl shadow-orange-900/10 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50">
+              <Package class="size-4" />
+              {{ assigningAccessory ? 'Assigning...' : 'Assign Accessory' }}
+            </button>
+          </div>
+        </form>
+      </Modal>
    </div>
 </template>

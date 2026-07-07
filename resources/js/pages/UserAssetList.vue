@@ -8,7 +8,7 @@
           <thead>
             <tr class="bg-slate-50/50">
               <th class="px-8 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Asset Tag</th>
-              <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Model Name</th>
+              <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">System Name</th>
               <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Category</th>
               <th class="px-6 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest">Location</th>
               <th class="px-8 py-5 font-black text-[10px] text-gray-400 uppercase tracking-widest text-right">Status</th>
@@ -28,12 +28,12 @@
                   {{ asset.asset_tag }}
                 </span>
               </td>
-              <td class="px-6 py-5 font-black text-slate-800">{{ asset.model }}</td>
+              <td class="px-6 py-5 font-black text-slate-800">{{ asset.system_name }}</td>
               <td class="px-6 py-5 text-xs font-bold text-gray-500 uppercase tracking-wider">{{ asset.category }}</td>
               <td class="px-6 py-5 font-mono text-xs text-gray-400">{{ asset.location }}</td>
               <td class="px-8 py-5 text-right">
-                <span class="px-3 py-1 rounded-lg text-[10px] font-black bg-green-100 text-green-700 uppercase">
-                  {{ asset.status_name || asset.status?.Status_Name || (typeof asset.status === 'string' ? asset.status : 'Assigned') }}
+                <span :class="['px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest', ['deployed', 'assigned'].includes((asset.status_name || asset.status?.Status_Name || '').toLowerCase()) ? 'bg-blue-100 text-vilcom-blue' : 'bg-green-100 text-green-700']">
+                  {{ displayStatusName(asset.status_name || asset.status?.Status_Name || asset.status) }}
                 </span>
               </td>
               <td class="px-8 py-5 text-right flex justify-end gap-3">
@@ -80,7 +80,8 @@ const fetchAssets = async () => {
     assets.value = (data || []).map(a => ({
       id: a.id,
       asset_tag: a.asset_tag || a.barcode || a.Asset_Name || 'Asset',
-      model: a.model || a.Asset_Name || '',
+      system_name: a.system_name || a.System_Name || a.Asset_Name || '',
+      model: a.model || a.system_name || a.Asset_Name || '',
       serial: a.serial || a.Serial_No || '',
       category: a.category?.name || a.category || a.Asset_Category || '',
       location: a.location?.name || a.location || a.Location || 'N/A',
@@ -96,6 +97,15 @@ const fetchAssets = async () => {
 }
 
 onMounted(fetchAssets)
+
+const displayStatusName = (statusName) => {
+  if (!statusName) return 'Assigned';
+  const s = typeof statusName === 'string' ? statusName.toLowerCase() : '';
+  if (s === 'ready to deploy') return 'Available';
+  if (s === 'deployed') return 'Assigned';
+  if (s === 'under repair' || s === 'out for repair' || s === 'maintenance') return 'Under Repairs';
+  return statusName;
+};
 
 // expose loader component so template can use it
 const components = { Loader }

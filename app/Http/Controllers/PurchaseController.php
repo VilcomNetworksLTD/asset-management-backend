@@ -82,7 +82,41 @@ class PurchaseController extends Controller
             'reason' => 'required|string',
         ]);
 
-        $maintenance = Maintenance::with('asset')->findOrFail($data['maintenance_id']);
+        $maintenance = Maintenance::with(['asset', 'status'])->findOrFail($data['maintenance_id']);
+
+        $hasExistingPurchase = PurchaseRequest::where('maintenance_id', $maintenance->id)->exists();
+        $maintStatus = strtolower($maintenance->status?->Status_Name ?? '');
+        $maintWorkflow = strtolower($maintenance->Workflow_Status ?? '');
+        
+        $alreadyEscalated = $hasExistingPurchase 
+            || $maintWorkflow === 'escalated' 
+            || $maintWorkflow === 'on hold'
+            || $maintStatus === 'escalated' 
+            || $maintStatus === 'on hold';
+
+        if ($alreadyEscalated) {
+            return response()->json(['message' => 'This maintenance record has already been escalated.'], 400);
+        }
+
+        $isTerminal = in_array($maintStatus, ['solved', 'completed', 'closed', 'resolved', 'cancelled', 'archived', 'rejected', 'declined'])
+            || in_array($maintWorkflow, ['solved', 'completed', 'closed', 'resolved', 'cancelled', 'archived', 'rejected', 'declined']);
+
+        if ($isTerminal) {
+            return response()->json(['message' => 'This maintenance record has already been resolved or completed.'], 400);
+        }
+
+        if ($maintenance->Ticket_ID) {
+            $ticket = \App\Models\Ticket::find($maintenance->Ticket_ID);
+            if ($ticket) {
+                $ticketStatusName = strtolower($ticket->status?->Status_Name ?? '');
+                $ticketEscalated = str_contains($ticketStatusName, 'escalat') 
+                    || str_contains($ticketStatusName, 'awaiting')
+                    || $ticketStatusName === 'approved';
+                if ($ticketEscalated) {
+                    return response()->json(['message' => 'The linked ticket has already been escalated or approved.'], 400);
+                }
+            }
+        }
 
         $purchaseRequest = PurchaseRequest::create([
             'maintenance_id' => $maintenance->id,
@@ -92,6 +126,21 @@ class PurchaseController extends Controller
             'description' => $data['reason'],
             'estimated_cost' => $data['estimated_cost'],
             'status' => 'pending',
+        ]);
+
+        // ✅ Transition maintenance to "On Hold" (awaiting purchase/management decision).
+        // This triggers MaintenanceObserver → updates asset inventory to "Out for Repair" → writes audit log.
+        $maintenance->transitionTo(Maintenance::WORKFLOW_ON_HOLD, Auth::user());
+
+        // Write a specific audit log entry for this escalation action
+        ActivityLog::create([
+            'asset_id'    => $maintenance->asset?->id,
+            'Employee_ID' => Auth::id(),
+            'user_name'   => Auth::user()->name ?? 'System',
+            'action'      => 'Maintenance Escalated to Purchase',
+            'target_type' => 'Maintenance',
+            'target_name' => $maintenance->Maintenance_Type ?? 'Routine Maintenance',
+            'details'     => "Maintenance #{$maintenance->id} escalated: purchase request created for '{$data['item_name']}'. Awaiting management approval.",
         ]);
 
         // Notify Management
@@ -174,7 +223,28 @@ class PurchaseController extends Controller
         }
 
         $pRequest = PurchaseRequest::findOrFail($id);
-        $pRequest->update(['status' => 'purchased']);
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($pRequest) {
+            $pRequest->update(['status' => 'purchased']);
+
+            // Update linked ticket status to Solved if applicable
+            if ($pRequest->ticket_id) {
+                $ticket = \App\Models\Ticket::find($pRequest->ticket_id);
+                if ($ticket) {
+                    $solvedStatusId = \App\Models\Status::where('Status_Name', 'Solved')->value('id')
+                        ?? \App\Models\Status::firstOrCreate(['Status_Name' => 'Solved'])->id;
+
+                    $ticket->update([
+                        'Status_ID' => $solvedStatusId,
+                        'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . now()->format('Y-m-d H:i:s') . " - Item purchased. Support ticket solved.")
+                    ]);
+
+                    if ($ticket->issue) {
+                        $ticket->issue->update(['Status_ID' => $solvedStatusId]);
+                    }
+                }
+            }
+        });
 
         return response()->json(['message' => 'Item marked as acquired/purchased.']);
     }
@@ -208,15 +278,7 @@ class PurchaseController extends Controller
             'notes' => $data['notes'] ?? $purchase->notes
         ]);
 
-        // Log activity
-        ActivityLog::create([
-            'Employee_ID' => Auth::id(),
-            'user_name' => Auth::user()->name,
-            'action' => 'Purchase Request Escalated',
-            'target_type' => 'PurchaseRequest',
-            'target_name' => $purchase->item_name,
-            'details' => "Admin escalated purchase request to management for budget approval: {$purchase->item_name}"
-        ]);
+
 
         // Email management
         $managers = User::where('role', 'management')->get();
@@ -246,20 +308,29 @@ class PurchaseController extends Controller
 
         $purchase = PurchaseRequest::with(['requester'])->findOrFail($id);
         
-        $purchase->update([
-            'status' => 'approved',
-            'management_id' => $user->id,
-            'approved_at' => now()
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($purchase, $user) {
+            $purchase->update([
+                'status' => 'approved',
+                'management_id' => $user->id,
+                'approved_at' => now()
+            ]);
 
-        ActivityLog::create([
-            'Employee_ID' => Auth::id(),
-            'user_name' => Auth::user()->name,
-            'action' => 'Purchase Approved',
-            'target_type' => 'PurchaseRequest',
-            'target_name' => $purchase->item_name,
-            'details' => "Management approved purchase for: {$purchase->item_name}"
-        ]);
+            // Update linked ticket status if applicable
+            if ($purchase->ticket_id) {
+                $ticket = \App\Models\Ticket::find($purchase->ticket_id);
+                if ($ticket) {
+                    $approvedStatusId = \App\Models\Status::where('Status_Name', 'Approved')->value('id')
+                        ?? \App\Models\Status::firstOrCreate(['Status_Name' => 'Approved'])->id;
+
+                    $ticket->update([
+                        'Status_ID' => $approvedStatusId,
+                        'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . now()->format('Y-m-d H:i:s') . " - Approved by management.")
+                    ]);
+                }
+            }
+
+
+        });
 
         // Notify Staff and Admin
         $recipients = User::whereIn('email', array_filter([$purchase->requester?->email]))->get();
@@ -267,7 +338,7 @@ class PurchaseController extends Controller
             Mail::to($recipient->email)->send(new PurchaseDecision($purchase, $recipient, 'approved'));
         }
 
-        return response()->json(['message' => 'Purchase request approved.', 'purchase' => $purchase]);
+        return response()->json(['message' => 'Purchase request approved.', 'purchase' => $purchase->fresh()]);
     }
 
     /**
@@ -283,21 +354,31 @@ class PurchaseController extends Controller
         $purchase = PurchaseRequest::with(['requester'])->findOrFail($id);
         $data = $request->validate(['rejection_reason' => 'required|string']);
 
-        $purchase->update([
-            'status' => 'rejected',
-            'management_id' => $user->id,
-            'rejection_reason' => $data['rejection_reason'],
-            'approved_at' => now()
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($purchase, $user, $data) {
+            $purchase->update([
+                'status' => 'rejected',
+                'management_id' => $user->id,
+                'rejection_reason' => $data['rejection_reason'],
+                'approved_at' => now()
+            ]);
 
-        ActivityLog::create([
-            'Employee_ID' => Auth::id(),
-            'user_name' => Auth::user()->name,
-            'action' => 'Purchase Rejected',
-            'target_type' => 'PurchaseRequest',
-            'target_name' => $purchase->item_name,
-            'details' => "Management rejected purchase: {$data['rejection_reason']}"
-        ]);
+            // Update linked ticket status if applicable
+            if ($purchase->ticket_id) {
+                $ticket = \App\Models\Ticket::find($purchase->ticket_id);
+                if ($ticket) {
+                    $rejectedStatusId = \App\Models\Status::whereRaw('LOWER(Status_Name) IN ("rejected", "declined", "cancelled")')->value('id')
+                        ?? \App\Models\Status::firstOrCreate(['Status_Name' => 'Rejected'])->id;
+
+                    $ticket->update([
+                        'Status_ID' => $rejectedStatusId,
+                        'rejection_reason' => $data['rejection_reason'],
+                        'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . now()->format('Y-m-d H:i:s') . " - Rejected by management. Reason: " . $data['rejection_reason'])
+                    ]);
+                }
+            }
+
+
+        });
 
         // Notify Staff and Admin
         $recipients = User::whereIn('email', array_filter([$purchase->requester?->email]))->get();

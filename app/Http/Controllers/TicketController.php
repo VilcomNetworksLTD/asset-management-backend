@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use App\Traits\SendsDetailedEmails;
 
 class TicketController extends Controller
@@ -161,7 +162,6 @@ class TicketController extends Controller
 
             $ticket = Ticket::create([
                 'Employee_ID' => $user->id,
-                'Issue_ID' => $issue->id,
                 'Status_ID' => $statusId,
                 'Priority' => $data['priority'] ?? 'medium',
                 'Description' => $data['description'],
@@ -221,22 +221,29 @@ class TicketController extends Controller
         ]);
 
         $ticket = Ticket::findOrFail($id);
-        $resolvedStatusId = Status::whereRaw('LOWER(Status_Name) IN ("closed", "resolved", "completed", "finalized")')->value('id');
+        $resolvedStatusId = Status::whereRaw('LOWER(Status_Name) IN ("solved", "resolved", "closed", "completed", "finalized")')->value('id')
+            ?? Status::firstOrCreate(['Status_Name' => 'Solved'])->id;
 
         $ticket->update([
-            'Status_ID' => $resolvedStatusId ?? $ticket->Status_ID,
-            'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . now()->format('Y-m-d H:i:s') . " - Ticket closed. " . ($data['communication'] ?? 'No additional comments.')),
+            'Status_ID' => $resolvedStatusId,
+            'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . now()->format('Y-m-d H:i:s') . " - Ticket solved. " . ($data['communication'] ?? 'No additional comments.')),
         ]);
 
-        ActivityLog::create([
-            'asset_id' => $ticket->issue?->asset?->id,
-            'Employee_ID' => Auth::id(),
-            'user_name' => Auth::user()->name ?? 'System',
-            'action' => 'Ticket Resolved',
-            'target_type' => 'Ticket',
-            'target_name' => '#' . $ticket->id,
-            'details' => $data['communication'] ?? 'Ticket marked as resolved',
-        ]);
+        if ($ticket->issue) {
+            $ticket->issue->update(['Status_ID' => $resolvedStatusId]);
+        }
+
+        // Sync linked maintenance records to Solved
+        \App\Models\Maintenance::where('Ticket_ID', $ticket->id)
+            ->each(function ($maint) use ($resolvedStatusId) {
+                if (!in_array($maint->Workflow_Status, ['Completed', 'Solved', 'Archived'])) {
+                    $maint->update([
+                        'Workflow_Status' => 'Solved',
+                        'Status_ID'       => $resolvedStatusId,
+                        'Completion_Date' => $maint->Completion_Date ?? now(),
+                    ]);
+                }
+            });
 
         $ticket->load(['user', 'issue.asset.category', 'status']);
         return response()->json(['message' => 'Ticket resolved successfully.', 'ticket' => $ticket]);
@@ -249,22 +256,21 @@ class TicketController extends Controller
         ]);
 
         $ticket = Ticket::findOrFail($id);
+
+        if ($this->isTicketClosed($ticket)) {
+            return response()->json(['message' => 'This ticket is closed and cannot be modified.'], 400);
+        }
+
+        if ($this->hasActivePurchaseRequest($ticket)) {
+            return response()->json(['message' => 'Cannot reject ticket until the associated purchase request is approved.'], 400);
+        }
+
         $rejectedStatusId = Status::whereRaw('LOWER(Status_Name) IN ("rejected", "declined", "cancelled")')->value('id');
 
         $ticket->update([
             'Status_ID' => $rejectedStatusId ?? $ticket->Status_ID,
             'rejection_reason' => $data['rejection_reason'],
             'Communication_log' => trim(($ticket->Communication_log ? $ticket->Communication_log . "\n" : '') . now()->format('Y-m-d H:i:s') . " - Ticket rejected. Reason: " . $data['rejection_reason']),
-        ]);
-
-        ActivityLog::create([
-            'asset_id' => $ticket->issue?->asset?->id,
-            'Employee_ID' => Auth::id(),
-            'user_name' => Auth::user()->name ?? 'System',
-            'action' => 'Ticket Rejected',
-            'target_type' => 'Ticket',
-            'target_name' => '#' . $ticket->id,
-            'details' => $data['rejection_reason'],
         ]);
 
         $ticket->load(['user', 'issue.asset.category', 'status']);
@@ -282,6 +288,19 @@ class TicketController extends Controller
         ]);
 
         $ticket = Ticket::findOrFail($id);
+
+        if ($this->isTicketClosed($ticket)) {
+            $isReopening = !empty($data['action']) && $data['action'] === 'reopen';
+            if (!$isReopening) {
+                return response()->json(['success' => false, 'message' => 'This ticket is closed and cannot be modified.'], 400);
+            }
+        }
+
+        if (!empty($data['action']) && $data['action'] === 'resolve') {
+            if ($this->hasActivePurchaseRequest($ticket)) {
+                return response()->json(['success' => false, 'message' => 'Cannot resolve ticket until the associated purchase request is approved.'], 400);
+            }
+        }
 
         // Prevent editing if the ticket has been actioned, unless the user is an admin
         if (!$ticket->can_edit && Auth::user()->role !== 'admin') {
@@ -305,13 +324,19 @@ class TicketController extends Controller
 
         if (!empty($data['action'])) {
             if ($data['action'] === 'resolve') {
-                $ticket->Status_ID = Status::whereRaw('LOWER(Status_Name) IN ("closed", "resolved", "completed")')->value('id') ?? $ticket->Status_ID;
+                $ticket->Status_ID = Status::whereRaw('LOWER(Status_Name) IN ("solved", "resolved", "closed", "completed")')->value('id')
+                    ?? Status::firstOrCreate(['Status_Name' => 'Solved'])->id;
             } elseif ($data['action'] === 'reopen') {
                 $ticket->Status_ID = Status::whereRaw('LOWER(Status_Name) IN ("pending", "open", "new")')->value('id') ?? $ticket->Status_ID;
             }
         }
 
         $ticket->save();
+        
+        if ($ticket->issue && $ticket->Status_ID) {
+            $ticket->issue->update(['Status_ID' => $ticket->Status_ID]);
+        }
+
         $ticket->load(['user', 'issue.asset.category', 'status']);
 
         $ticketUser = $ticket->user;
@@ -387,7 +412,14 @@ class TicketController extends Controller
         $returnRequests = Ticket::with(['user', 'issue.asset.category', 'status'])
             ->where('Description', 'like', 'Workflow Type: RETURN%')
             ->latest()
-            ->get();
+            ->get()
+            ->map(function ($ticket) {
+                if (preg_match('/Items:\s*(.+)/i', $ticket->Description, $matches)) {
+                    $parsed = json_decode($matches[1], true);
+                    $ticket->setAttribute('items', is_array($parsed) ? $parsed : array_map('trim', explode(',', $matches[1])));
+                }
+                return $ticket;
+            });
 
         return response()->json([
             'equipment_requests' => $equipmentRequests,
@@ -441,6 +473,7 @@ class TicketController extends Controller
                     'Maintenance_Type' => $data['maintenance_type'] ?? 'Inspection after return',
                     'Description' => $data['notes'] ?? 'Created from return workflow.',
                     'Status_ID' => $maintStatusId ?? 1,
+                    'Request_Date' => now(),
                     'Maintenance_Date' => now(),
                 ]);
             }
@@ -476,7 +509,24 @@ class TicketController extends Controller
 
     public function escalateToPurchase(Request $request, int $id): JsonResponse
     {
-        $ticket = Ticket::findOrFail($id);
+        $ticket = Ticket::with(['issue', 'status'])->findOrFail($id);
+
+        if ($this->isTicketClosed($ticket)) {
+            return response()->json(['message' => 'This ticket is closed and cannot be modified.'], 400);
+        }
+
+        // Check if ticket is already escalated or approved
+        $currentStatusName = strtolower($ticket->status?->Status_Name ?? '');
+        $isAlreadyEscalated = str_contains($currentStatusName, 'escalat') 
+            || str_contains($currentStatusName, 'awaiting')
+            || $currentStatusName === 'approved';
+
+        $hasExistingPurchase = \App\Models\PurchaseRequest::where('ticket_id', $ticket->id)->exists();
+
+        if ($isAlreadyEscalated || $hasExistingPurchase) {
+            return response()->json(['message' => 'This ticket has already been escalated to management or approved.'], 400);
+        }
+
         $data = $request->validate([
             'item_name' => 'required|string|max:255',
             'estimated_cost' => 'nullable|numeric',
@@ -494,11 +544,46 @@ class TicketController extends Controller
                 'status' => 'pending'
             ]);
 
-            $awaitingStatus = Status::whereRaw('LOWER(Status_Name) IN ("escalated to management", "escalated", "awaiting purchase")')->value('id');
+            $awaitingStatus = Status::whereRaw('LOWER(Status_Name) IN ("escalated to management", "escalated", "awaiting purchase")')->value('id')
+                ?? Status::where('Status_Name', 'Escalated')->value('id')
+                ?? Status::firstOrCreate(['Status_Name' => 'Escalated'])->id;
+
             $ticket->update([
-                'Status_ID' => $awaitingStatus ?? $ticket->Status_ID,
+                'Status_ID' => $awaitingStatus,
                 'Communication_log' => trim($ticket->Communication_log . "\n" . now()->format('Y-m-d H:i:s') . " - Escalated to Management.")
             ]);
+
+            // Sync any existing maintenance records linked to this ticket to 'Escalated'
+            $escalatedStatusId = $awaitingStatus;
+            \App\Models\Maintenance::where('Ticket_ID', $ticket->id)
+                ->each(function ($maint) use ($escalatedStatusId) {
+                    $maint->update([
+                        'Workflow_Status' => 'Escalated',
+                        'Status_ID'       => $escalatedStatusId,
+                    ]);
+                });
+
+            // Automatically move linked asset to repairs (create new maintenance if none exists)
+            if ($ticket->issue && $ticket->issue->Asset_ID) {
+                $maintStatus = Status::whereRaw('LOWER(Status_Name) IN ("out for repair", "maintenance", "under repair")')
+                    ->orderByRaw("CASE WHEN LOWER(Status_Name) = 'out for repair' THEN 1 ELSE 2 END")
+                    ->first();
+
+                // Only create a new maintenance record if one doesn't already exist for this ticket
+                $existingMaint = \App\Models\Maintenance::where('Ticket_ID', $ticket->id)->first();
+                if (!$existingMaint) {
+                    \App\Models\Maintenance::create([
+                        'Asset_ID'         => $ticket->issue->Asset_ID,
+                        'Ticket_ID'        => $ticket->id,
+                        'Maintenance_Type' => 'Escalated Repair',
+                        'Description'      => 'Created automatically via escalation of support ticket #' . $ticket->id,
+                        'Status_ID'        => $escalatedStatusId,
+                        'Workflow_Status'  => 'Escalated',
+                        'Request_Date'     => now(),
+                        'Maintenance_Date' => now(),
+                    ]);
+                }
+            }
 
             return response()->json(['message' => 'Escalated successfully.', 'purchase_request' => $purchaseRequest]);
         });
@@ -520,6 +605,17 @@ class TicketController extends Controller
                 'Status_ID' => $rejectedStatusId ?? $ticket->Status_ID,
                 'Communication_log' => trim($ticket->Communication_log . "\n" . now()->format('Y-m-d H:i:s') . " - REQUEST REJECTED. Reason: " . $data['reason'])
             ]);
+
+            // Sync linked maintenance records to Cancelled
+            \App\Models\Maintenance::where('Ticket_ID', $ticket->id)
+                ->each(function ($maint) use ($rejectedStatusId) {
+                    if (!in_array($maint->Workflow_Status, ['Completed', 'Solved', 'Archived'])) {
+                        $maint->update([
+                            'Workflow_Status' => 'Cancelled',
+                            'Status_ID'       => $rejectedStatusId ?? $maint->Status_ID,
+                        ]);
+                    }
+                });
         });
 
         return response()->json([
@@ -542,41 +638,78 @@ class TicketController extends Controller
         ]);
 
         $ticket = Ticket::with('user')->findOrFail($id);
-        $asset = Asset::findOrFail($data['asset_id']);
 
-        $bundleSummary = DB::transaction(function () use ($ticket, $asset, $data) {
-            $deployedStatusId = Status::where('Status_Name', 'Deployed')->value('id') ?? Status::whereRaw('LOWER(Status_Name) IN ("deployed", "assigned", "in use")')->value('id');
-            $resolvedStatusId = Status::where('Status_Name', 'Closed')->value('id') ?? Status::whereRaw('LOWER(Status_Name) IN ("closed", "resolved", "completed")')->value('id');
+        if ($this->isTicketClosed($ticket)) {
+            return response()->json(['message' => 'This ticket is closed and cannot be modified.'], 400);
+        }
 
-            $asset->update([
-                'Employee_ID' => $ticket->Employee_ID,
-                'Status_ID' => $deployedStatusId ?? $asset->Status_ID,
-            ]);
+        $asset = Asset::with('status')->findOrFail($data['asset_id']);
 
-            $bundleItems = [];
-            foreach (($data['accessory_allocations'] ?? []) as $item) {
-                $accessory = Accessory::query()->lockForUpdate()->findOrFail($item['id']);
-                $accessory->decrement('remaining_qty', (int)$item['qty']);
-                $bundleItems[] = "Accessory: {$accessory->name} x{$item['qty']}";
-            }
+        $statusName = strtolower($asset->status?->Status_Name ?? '');
+        if (in_array($statusName, ['under repair', 'out for repair', 'maintenance', 'under repairs'])) {
+            return response()->json(['message' => 'This asset is currently under repair and cannot be assigned.'], 422);
+        }
+        if (in_array($statusName, ['non-deployable', 'non_deployable', 'retired', 'broken'])) {
+            return response()->json(['message' => 'This asset is non-deployable and cannot be assigned.'], 422);
+        }
 
-            foreach (($data['consumable_allocations'] ?? []) as $item) {
-                $consumable = Consumable::query()->lockForUpdate()->findOrFail($item['id']);
-                $consumable->decrement('in_stock', (int)$item['qty']);
-                $bundleItems[] = "Consumable: {$consumable->item_name} x{$item['qty']}";
-            }
+        try {
+            $bundleSummary = DB::transaction(function () use ($ticket, $asset, $data) {
+                $deployedStatusId = Status::where('Status_Name', 'Deployed')->value('id')
+                    ?? Status::whereRaw('LOWER(Status_Name) IN ("deployed", "assigned", "in use")')->value('id')
+                    ?? Status::firstOrCreate(['Status_Name' => 'Assigned'])->id;
+                $assignedStatusId = Status::where('Status_Name', 'Assigned')->value('id')
+                    ?? Status::firstOrCreate(['Status_Name' => 'Assigned'])->id;
 
-            $ticket->update([
-                'Status_ID' => $resolvedStatusId ?? $ticket->Status_ID,
-                'Communication_log' => trim($ticket->Communication_log . "\n" . ($data['communication'] ?? 'Ticket closed and asset assigned.'))
-            ]);
+                $asset->update([
+                    'Employee_ID' => $ticket->Employee_ID,
+                    'Status_ID' => $deployedStatusId ?? $asset->Status_ID,
+                ]);
 
-            if ($ticket->issue) {
-                Issue::where('id', $ticket->issue->id)->update(['Asset_ID' => $asset->id, 'Status_ID' => $resolvedStatusId ?? 1]);
-            }
+                $bundleItems = [];
+                foreach (($data['accessory_allocations'] ?? []) as $item) {
+                    $accessory = Accessory::with('asset.status')->lockForUpdate()->findOrFail($item['id']);
 
-            return $bundleItems;
-        });
+                    if ($accessory->asset) {
+                        $accAssetStatus = strtolower($accessory->asset->status?->Status_Name ?? '');
+                        if (in_array($accAssetStatus, ['non-deployable', 'non_deployable', 'retired', 'broken'])) {
+                            throw new \RuntimeException("The accessory '{$accessory->name}' belongs to a non-deployable asset and cannot be assigned.");
+                        }
+                    }
+
+                    $accessory->decrement('remaining_qty', (int)$item['qty']);
+                    
+                    // Link/Attach to the user and specific asset
+                    if ($ticket->user) {
+                        $ticket->user->accessories()->attach($accessory->id, [
+                            'quantity' => (int)$item['qty'],
+                            'asset_id' => $asset->id
+                        ]);
+                    }
+                    
+                    $bundleItems[] = "Accessory: {$accessory->name} x{$item['qty']}";
+                }
+
+                foreach (($data['consumable_allocations'] ?? []) as $item) {
+                    $consumable = Consumable::query()->lockForUpdate()->findOrFail($item['id']);
+                    $consumable->decrement('in_stock', (int)$item['qty']);
+                    $bundleItems[] = "Consumable: {$consumable->item_name} x{$item['qty']}";
+                }
+
+                $ticket->update([
+                    'Status_ID' => $assignedStatusId,
+                    'Communication_log' => trim($ticket->Communication_log . "\n" . ($data['communication'] ?? 'Ticket closed and asset assigned.'))
+                ]);
+
+                if ($ticket->issue) {
+                    Issue::where('id', $ticket->issue->id)->update(['Asset_ID' => $asset->id, 'Status_ID' => $assignedStatusId]);
+                }
+
+                return $bundleItems;
+            });
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         return response()->json([
             'message' => 'Asset assigned successfully.',
@@ -595,19 +728,49 @@ class TicketController extends Controller
         ]);
 
         $user = $request->user() ?? Auth::user();
-        $asset = Asset::findOrFail($data['asset_id']);
-
-        $description = "Workflow Type: RETURN\nAsset ID: {$asset->id}\nAsset Name: {$asset->Asset_Name}\nCondition: " . ($data['condition'] ?? 'Not specified');
+        
+        $description = "Workflow Type: RETURN\n";
+        if (!empty($data['asset_id'])) {
+            $asset = Asset::findOrFail($data['asset_id']);
+            $description .= "Asset ID: {$asset->id}\nAsset Name: {$asset->Asset_Name}\n";
+        }
+        if (!empty($data['items'])) {
+            $itemStrings = [];
+            foreach ($data['items'] as $item) {
+                $itemStrings[] = $item['type'] . ' #' . $item['id'];
+            }
+            $description .= "Items: " . json_encode($itemStrings) . "\n";
+        }
+        $description .= "Condition: " . ($data['condition'] ?? 'Not specified');
 
         $ticket = Ticket::create([
             'Employee_ID' => $user->id,
-            'Status_ID' => Status::whereRaw('LOWER(Status_Name) IN ("pending", "new", "open")')->value('id') ?? 1,
+            'Status_ID' => Status::whereRaw('LOWER(Status_Name) IN ("pending", "new", "open")')->value('id')
+                ?? Status::firstOrCreate(['Status_Name' => 'Pending'])->id,
             'Priority' => 'medium',
             'Description' => $description,
             'reason' => $data['reason'] ?? null,
         ]);
 
-        return response()->json(['message' => 'Return request submitted.', 'ticket' => $ticket], 201);
+        return response()->json([
+            'message' => 'Return request submitted successfully.',
+            'ticket' => $ticket,
+            'items' => $data['items'] ?? null
+        ], 201);
+    }
+
+    private function isTicketClosed(Ticket $ticket): bool
+    {
+        $status = $ticket->status ?? Status::find($ticket->Status_ID);
+        $statusName = strtolower($status?->Status_Name ?? '');
+        return in_array($statusName, ['closed', 'resolved', 'solved', 'rejected', 'declined', 'cancelled']);
+    }
+
+    private function hasActivePurchaseRequest(Ticket $ticket): bool
+    {
+        return \App\Models\PurchaseRequest::where('ticket_id', $ticket->id)
+            ->whereIn('status', ['pending', 'escalated'])
+            ->exists();
     }
 
     protected function getStatusId(string $statusName): ?int

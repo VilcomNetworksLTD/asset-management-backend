@@ -46,7 +46,8 @@ class ReturnRequestService
             ->get()
             ->map(fn ($a) => [
                 'id' => $a->id,
-                'model' => $a->Asset_Name,
+                'system_name' => $a->system_name,
+                'model' => $a->system_name ?? $a->Asset_Name,
                 'serial' => $a->Serial_No,
                 'barcode' => $a->barcode,
                 'category' => $a->category?->name ?? $a->Asset_Category,
@@ -63,6 +64,13 @@ class ReturnRequestService
             $asset = Asset::findOrFail($data['asset_id']);
             if ((int) $asset->Employee_ID !== (int) $user->id) {
                 abort(response()->json(['message' => 'You can only request return for assets assigned to you.'], 403));
+            }
+            
+            $pendingExists = ReturnRequest::where('Asset_ID', $asset->id)
+                ->whereNotIn('Workflow_Status', ['closed', 'rejected'])
+                ->exists();
+            if ($pendingExists) {
+                abort(response()->json(['message' => 'A return request for this asset is already awaiting approval.'], 422));
             }
         }
 
@@ -151,10 +159,50 @@ class ReturnRequestService
 
                 // 1. Unassign primary hardware asset
                 if ($asset) {
-                    $asset->update([
-                        'Employee_ID' => null,
-                        'Status_ID' => Status::firstOf(['Ready to Deploy', 'Available']) ?? $asset->Status_ID,
-                    ]);
+                    $sender = User::find($request->Sender_ID);
+                    if ($sender) {
+                        $attachedAccessories = $sender->accessories()
+                            ->wherePivotNull('returned_at')
+                            ->wherePivot('asset_id', $asset->id)
+                            ->get();
+
+                        foreach ($attachedAccessories as $attachedAcc) {
+                            $qty = $attachedAcc->pivot->quantity ?? 1;
+                            $sender->accessories()->updateExistingPivot($attachedAcc->id, ['returned_at' => now()]);
+                            $attachedAcc->increment('remaining_qty', $qty);
+                        }
+                    }
+
+                    if ($request->disposition === 'maintenance') {
+                        $maintStatus = Status::whereRaw('LOWER(Status_Name) IN ("out for repair", "maintenance", "under repair")')
+                            ->orderByRaw("CASE WHEN LOWER(Status_Name) = 'out for repair' THEN 1 ELSE 2 END")
+                            ->first();
+
+                        $asset->update([
+                            'Employee_ID' => null,
+                            'Status_ID' => $maintStatus ? $maintStatus->id : $asset->Status_ID,
+                        ]);
+
+                        \App\Models\Maintenance::create([
+                            'Asset_ID' => $asset->id,
+                            'Maintenance_Type' => 'Repair after return',
+                            'Description' => 'Created automatically from return request inspection.',
+                            'Status_ID' => $maintStatus ? $maintStatus->id : 1,
+                            'Maintenance_Date' => now(),
+                        ]);
+                    } elseif ($request->disposition === 'non_deployable') {
+                        // Asset was marked non-deployable during inspection — preserve that status.
+                        $nonDeployableStatus = Status::where('Status_Name', 'Non-Deployable')->first();
+                        $asset->update([
+                            'Employee_ID' => null,
+                            'Status_ID'   => $nonDeployableStatus ? $nonDeployableStatus->id : $asset->Status_ID,
+                        ]);
+                    } else {
+                        $asset->update([
+                            'Employee_ID' => null,
+                            'Status_ID' => Status::firstOf(['Ready to Deploy', 'Available']) ?? $asset->Status_ID,
+                        ]);
+                    }
                 }
 
                 // 2. Unassign secondary items (Components, Accessories, Consumables, Licenses)
@@ -274,16 +322,104 @@ class ReturnRequestService
         ])->filter()->implode(' | '));
 
         DB::transaction(function () use ($request, $adminId, $data, $notes) {
+            $isMaintenance = ($data['disposition'] ?? null) === 'maintenance';
+            $isNonDeployable = ($data['disposition'] ?? null) === 'non_deployable';
+            
             $request->update([
-                'Workflow_Status' => 'inspected',
+                'Workflow_Status' => ($isMaintenance || $isNonDeployable) ? 'closed' : 'inspected',
                 'Admin_Condition' => $data['condition'],
                 'Missing_Items' => $data['missing_items'] ?? [],
                 'Notes' => $notes,
                 'Actioned_By' => $adminId,
                 'Actioned_At' => now(),
+                'disposition' => $data['disposition'] ?? null,
             ]);
 
             $assetObj = $request->asset;
+            if ($assetObj) {
+                if ($isMaintenance) {
+                    $maintStatus = Status::whereRaw('LOWER(Status_Name) IN ("out for repair", "maintenance", "under repair")')
+                        ->orderByRaw("CASE WHEN LOWER(Status_Name) = 'out for repair' THEN 1 ELSE 2 END")
+                        ->first();
+
+                    $assetObj->update([
+                        'Employee_ID' => null,
+                        'Status_ID' => $maintStatus ? $maintStatus->id : $assetObj->Status_ID,
+                    ]);
+
+                    \App\Models\Maintenance::create([
+                        'Asset_ID' => $assetObj->id,
+                        'Maintenance_Type' => 'Repair after return',
+                        'Description' => 'Created automatically from return request inspection.',
+                        'Status_ID' => $maintStatus ? $maintStatus->id : 1,
+                        'Request_Date' => now(),
+                        'Maintenance_Date' => now(),
+                    ]);
+
+                    // Automatically return all active accessories attached to this specific asset
+                    $sender = User::find($request->Sender_ID);
+                    if ($sender) {
+                        $attachedAccessories = $sender->accessories()
+                            ->wherePivotNull('returned_at')
+                            ->wherePivot('asset_id', $assetObj->id)
+                            ->get();
+
+                        foreach ($attachedAccessories as $attachedAcc) {
+                            $qty = $attachedAcc->pivot->quantity ?? 1;
+                            $sender->accessories()->updateExistingPivot($attachedAcc->id, ['returned_at' => now()]);
+                            $attachedAcc->increment('remaining_qty', $qty);
+                        }
+                    }
+                } elseif ($isNonDeployable) {
+                    $nonDeployableStatus = Status::whereRaw('LOWER(Status_Name) = "non-deployable"')->first();
+
+                    $assetObj->update([
+                        'Employee_ID' => null,
+                        'Status_ID' => $nonDeployableStatus ? $nonDeployableStatus->id : $assetObj->Status_ID,
+                    ]);
+
+                    // Automatically return all active accessories attached to this specific asset
+                    // Since it is non-deployable, these accessories are end-of-life, so we decrement total_qty
+                    $sender = User::find($request->Sender_ID);
+                    if ($sender) {
+                        $attachedAccessories = $sender->accessories()
+                            ->wherePivotNull('returned_at')
+                            ->wherePivot('asset_id', $assetObj->id)
+                            ->get();
+
+                        foreach ($attachedAccessories as $attachedAcc) {
+                            $qty = $attachedAcc->pivot->quantity ?? 1;
+                            $sender->accessories()->updateExistingPivot($attachedAcc->id, ['returned_at' => now()]);
+                            $attachedAcc->decrement('total_qty', $qty);
+                        }
+                    }
+                } else {
+                    // ready_to_deploy (Available)
+                    $availableStatusId = Status::where('Status_Name', 'Available')->value('id')
+                        ?? Status::where('Status_Name', 'Ready to Deploy')->value('id');
+
+                    $assetObj->update([
+                        'Employee_ID' => null,
+                        'Status_ID' => $availableStatusId ?? $assetObj->Status_ID,
+                    ]);
+
+                    // Automatically return all active accessories attached to this specific asset
+                    $sender = User::find($request->Sender_ID);
+                    if ($sender) {
+                        $attachedAccessories = $sender->accessories()
+                            ->wherePivotNull('returned_at')
+                            ->wherePivot('asset_id', $assetObj->id)
+                            ->get();
+
+                        foreach ($attachedAccessories as $attachedAcc) {
+                            $qty = $attachedAcc->pivot->quantity ?? 1;
+                            $sender->accessories()->updateExistingPivot($attachedAcc->id, ['returned_at' => now()]);
+                            $attachedAcc->increment('remaining_qty', $qty);
+                        }
+                    }
+                }
+            }
+
             ActivityLog::create([
                 'asset_id' => $assetObj?->id,
                 'Employee_ID' => $adminId,
@@ -291,7 +427,9 @@ class ReturnRequestService
                 'action' => 'Return Inspection',
                 'target_type' => $assetObj ? 'Asset' : 'Mixed Items',
                 'target_name' => $assetObj ? $assetObj->Asset_Name : 'Mixed Items',
-                'details' => 'Asset inspected; awaiting approval or rejection',
+                'details' => $isMaintenance 
+                    ? 'Asset inspected and automatically sent to repairs' 
+                    : ($isNonDeployable ? 'Asset inspected and automatically marked as non-deployable' : 'Asset inspected; awaiting approval or rejection'),
             ]);
         });
 

@@ -70,6 +70,7 @@ Route::middleware(['auth:sanctum','maintenance'])->group(function () {
         Route::get('/hod/staff-assets', 'hodStaffAssets');
         Route::get('/hod/my-created-assets', 'hodCreatedAssets');
         Route::post('/assets', 'store');
+        Route::post('/assets/import', 'import');
         Route::get('/assets/{id}', 'show');
         Route::put('/assets/{id}', 'update');
         Route::delete('/assets/{id}', 'destroy');

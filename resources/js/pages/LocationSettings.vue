@@ -82,10 +82,7 @@ onMounted(fetchLocations);
             <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Name</label>
             <input v-model="form.name" type="text" class="w-full border p-2 rounded focus:ring-2 focus:ring-blue-200 outline-none" placeholder="e.g. Headquarters" required>
           </div>
-          <div>
-            <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Description</label>
-            <textarea v-model="form.description" class="w-full border p-2 rounded focus:ring-2 focus:ring-blue-200 outline-none" rows="3" placeholder="Location details..."></textarea>
-          </div>
+
           <div class="flex gap-2">
             <button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">{{ editingLocation ? 'Update' : 'Create' }}</button>
             <button v-if="editingLocation" type="button" @click="resetForm" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300 transition">Cancel</button>
@@ -101,7 +98,7 @@ onMounted(fetchLocations);
           <thead class="bg-gray-100 border-b font-bold text-gray-600 uppercase text-xs">
             <tr>
               <th class="p-3">Name</th>
-              <th class="p-3">Description</th>
+              <th class="p-3"></th>
               <th class="p-3 text-right">Actions</th>
             </tr>
           </thead>

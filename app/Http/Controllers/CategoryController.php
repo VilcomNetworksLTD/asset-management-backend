@@ -29,6 +29,11 @@ class CategoryController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'fields' => 'nullable|array',
+            'fields.*.name' => 'nullable|string|max:255',
+            'fields.*.label' => 'required_with:fields|string|max:255',
+            'fields.*.type' => 'required_with:fields|string|max:50',
+            'fields.*.required' => 'nullable|boolean',
+            'fields.*.options' => 'nullable',
             'slug' => 'nullable|string|unique:categories,slug', // Added validation for slug
         ]);
 
@@ -44,6 +49,11 @@ class CategoryController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'fields' => 'nullable|array',
+            'fields.*.name' => 'nullable|string|max:255',
+            'fields.*.label' => 'required_with:fields|string|max:255',
+            'fields.*.type' => 'required_with:fields|string|max:50',
+            'fields.*.required' => 'nullable|boolean',
+            'fields.*.options' => 'nullable',
             'slug' => 'nullable|string|unique:categories,slug,' . $category->id, // Allow same slug on update
         ]);
 
